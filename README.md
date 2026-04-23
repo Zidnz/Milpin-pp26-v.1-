@@ -156,7 +156,7 @@ flowchart TB
     DB_API --> DB_ENGINE
     RIEGO_API --> DB_ENGINE
     ANALYTICS_API --> DB_ENGINE
----
+
 
 ## 🛠️ Stack tecnológico
 
