@@ -101,35 +101,61 @@
 
 ## 🏗️ Arquitectura del sistema
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     FRONTEND (SPA)                           │
-│   index.html · Leaflet.js · Web Audio API · Vanilla JS       │
-│                                                              │
-│  [ BI/R ] [ Mapas GIS ] [ Costos/Prescripción ] [ Ajustes ] │
-│                       [🎤 MILPÍN FAB]                        │
-└────────────────────────┬─────────────────────────────────────┘
-                         │ HTTP / REST
-┌────────────────────────▼─────────────────────────────────────┐
-│                   BACKEND (FastAPI)                          │
-│                                                              │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────┐  │
-│  │  db_api.py  │  │ riego_api.py │  │  analytics_api.py  │  │
-│  │    CRUD     │  │   FAO-56     │  │  K-Means Clusters  │  │
-│  └─────────────┘  └──────────────┘  └────────────────────┘  │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │              voice_endpoint.py                          │ │
-│  │   Whisper STT ──► Ollama LLM ──► Intent Parser (JSON) │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└────────────────────────┬─────────────────────────────────────┘
-                         │ SQLAlchemy Async
-┌────────────────────────▼─────────────────────────────────────┐
-│              PostgreSQL 15+ / SQLite (dev)                   │
-│   usuarios · parcelas · cultivos_catalogo                    │
-│   recomendaciones · historial_riego                          │
-└──────────────────────────────────────────────────────────────┘
-```
+```mermaid
+flowchart TB
 
+    subgraph FRONTEND["FRONTEND (SPA)"]
+        direction TB
+        FE_TECH["index.html · Leaflet.js · Web Audio API · Vanilla JS"]
+
+        subgraph FE_MODULES["Módulos"]
+            BI["BI/R"]
+            GIS["Mapas GIS"]
+            COST["Costos / Prescripción"]
+            SETT["Ajustes"]
+        end
+
+        VOICE_UI["🎤 MILPÍN FAB"]
+    end
+
+    subgraph BACKEND["BACKEND (FastAPI)"]
+        direction TB
+
+        subgraph APIS["APIs"]
+            DB_API["db_api.py\nCRUD"]
+            RIEGO_API["riego_api.py\nFAO-56"]
+            ANALYTICS_API["analytics_api.py\nK-Means Clustering"]
+        end
+
+        subgraph VOICE_PIPELINE["voice_endpoint.py"]
+            WHISPER["Whisper (STT)"]
+            OLLAMA["Ollama LLM"]
+            PARSER["Intent Parser (JSON)"]
+
+            WHISPER --> OLLAMA --> PARSER
+        end
+    end
+
+    subgraph DB["DATABASE"]
+        direction TB
+        DB_ENGINE["PostgreSQL 15+ / SQLite (dev)"]
+
+        subgraph TABLES["Tablas"]
+            USERS["usuarios"]
+            PARCELAS["parcelas"]
+            CULTIVOS["cultivos_catalogo"]
+            RECOM["recomendaciones"]
+            HIST["historial_riego"]
+        end
+    end
+
+    FRONTEND -->|"HTTP / REST"| BACKEND
+    BACKEND -->|"SQLAlchemy Async"| DB
+
+    VOICE_UI --> BACKEND
+    DB_API --> DB_ENGINE
+    RIEGO_API --> DB_ENGINE
+    ANALYTICS_API --> DB_ENGINE
 ---
 
 ## 🛠️ Stack tecnológico
