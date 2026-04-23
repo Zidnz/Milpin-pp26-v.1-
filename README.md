@@ -316,12 +316,12 @@ GET /api/zonas_manejo            # Zonas de manejo diferenciado
 
 ### Modelos principales
 
-```
-usuarios ──< parcelas >── cultivos_catalogo
-                │
-                ├──< recomendaciones
-                │
-                └──< historial_riego
+```mermaid
+erDiagram
+    USUARIOS ||--o{ PARCELAS : tiene
+    CULTIVOS_CATALOGO ||--o{ PARCELAS : define
+    PARCELAS ||--o{ RECOMENDACIONES : genera
+    PARCELAS ||--o{ HISTORIAL_RIEGO : registra
 ```
 
 ### Cultivos precargados (semilla FAO-56)
@@ -427,6 +427,12 @@ El **FAB (Floating Action Button)** 🎤 activa el asistente de voz MILPÍN en c
 | Fondo | `#F5F0E8` | Superficie principal |
 
 ---
+<div style="display:flex; gap:10px;">
+  <div style="background:#7BB395; width:60px; height:60px;"></div>
+  <div style="background:#4A3B28; width:60px; height:60px;"></div>
+  <div style="background:#E63946; width:60px; height:60px;"></div>
+  <div style="background:#F5F0E8; width:60px; height:60px;"></div>
+</div>
 
 ## 🧮 Motor FAO-56
 
