@@ -454,22 +454,15 @@ ETo = [0.408·Δ·(Rn - G) + γ·(900/(T+273))·u₂·(es - ea)]
 
 ## 🗣️ Asistente de voz MILPÍN AI
 
-```
-Usuario habla  →  [Web Audio API]  →  /voice-command
-                                             │
-                                      [Whisper STT]
-                                      transcripción
-                                             │
-                                      [Ollama LLM]
-                                      llama3.2:latest
-                                             │
-                                      [Intent Parser]
-                                      JSON estructurado
-                                             │
-                               ┌─────────────┴──────────────┐
-                          cambio de tab               parámetros
-                          o acción UI                 de análisis
-```
+flowchart LR
+    USER["Usuario"] --> AUDIO["Web Audio API"]
+    AUDIO --> ENDPOINT["/voice-command"]
+    ENDPOINT --> WHISPER["Whisper STT"]
+    WHISPER --> TEXT["Texto"]
+    TEXT --> OLLAMA["LLM"]
+    OLLAMA --> PARSER["Intent Parser"]
+    PARSER --> UI["Acción UI"]
+    PARSER --> PARAMS["Parámetros"]
 
 **Memoria conversacional:** Los últimos 3 turnos (6 mensajes) se mantienen en contexto para comandos encadenados como:
 > *"Ve a mapas"* → *"Ahora ejecuta el clustering"* → *"¿Cuántos clusters encontró?"*
