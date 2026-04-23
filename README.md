@@ -157,6 +157,7 @@ flowchart TB
     RIEGO_API --> DB_ENGINE
     ANALYTICS_API --> DB_ENGINE
 
+```
 
 ## 🛠️ Stack tecnológico
 
@@ -454,15 +455,17 @@ ETo = [0.408·Δ·(Rn - G) + γ·(900/(T+273))·u₂·(es - ea)]
 
 ## 🗣️ Asistente de voz MILPÍN AI
 
+```mermaid
 flowchart LR
-    USER["Usuario"] --> AUDIO["Web Audio API"]
+    USER["Usuario habla"] --> AUDIO["Web Audio API"]
     AUDIO --> ENDPOINT["/voice-command"]
     ENDPOINT --> WHISPER["Whisper STT"]
-    WHISPER --> TEXT["Texto"]
-    TEXT --> OLLAMA["LLM"]
+    WHISPER --> TEXT["Transcripción"]
+    TEXT --> OLLAMA["Ollama LLM"]
     OLLAMA --> PARSER["Intent Parser"]
     PARSER --> UI["Acción UI"]
-    PARSER --> PARAMS["Parámetros"]
+    PARSER --> PARAMS["Parámetros análisis"]
+```
 
 **Memoria conversacional:** Los últimos 3 turnos (6 mensajes) se mantienen en contexto para comandos encadenados como:
 > *"Ve a mapas"* → *"Ahora ejecuta el clustering"* → *"¿Cuántos clusters encontró?"*
