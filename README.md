@@ -517,10 +517,11 @@ El **FAB (Floating Action Button)** 🎤 activa el asistente de voz MILPÍN en c
 
 El corazón agronómico de MILPÍN implementa la **metodología FAO-56 Penman-Monteith** completa:
 
+```
 ETo = [0.408·Δ·(Rn - G) + γ·(900/(T+273))·u₂·(es - ea)]
 ─────────────────────────────────────────────────────
 [Δ + γ·(1 + 0.34·u₂)]
-
+```
 
 **Donde:**
 - `ETo` = Evapotranspiración de referencia (mm/día)
