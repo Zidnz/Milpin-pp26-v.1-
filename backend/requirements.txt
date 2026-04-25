@@ -5,13 +5,16 @@ uvicorn[standard]==0.30.6
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0          # driver async para PostgreSQL
 psycopg2-binary==2.9.10  # driver sync (para init_db.py y scripts)
+aiosqlite==0.20.0        # driver async para SQLite (fallback dev / tests)
 
 # Variables de entorno
 python-dotenv==1.0.1
 
 # ML / Agronómico
 numpy==1.26.4
+pandas==2.2.3            # DataFrames para ETL (tools/nasa_power_etl.py)
 scikit-learn==1.5.2
+shapely==2.0.6           # centroide de GeoJSON para obtener lat/lon por parcela
 
 # Voz
 openai-whisper==20240930

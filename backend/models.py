@@ -1,12 +1,13 @@
 """
 models.py — Modelos ORM de SQLAlchemy para el MVP de MILPÍN AgTech v2.0
 
-5 tablas del MVP:
+6 tablas del MVP:
     usuarios          → Agricultores / operadores del ERP
     cultivos_catalogo → Parámetros FAO-56 por especie (tabla de referencia)
     parcelas          → Lotes de cultivo con atributos edáficos y geometría GeoJSON
     recomendaciones   → Recomendaciones de riego generadas por el motor FAO-56
     historial_riego   → Registro permanente de eventos de riego ejecutados
+    clima_diario      → Series climáticas diarias por parcela (fuente: NASA POWER)
 
 Nota sobre geometría (parcelas.geom):
     En el MVP, la geometría se almacena como JSONB (GeoJSON).
@@ -213,6 +214,14 @@ class Parcela(Base):
     recomendaciones: Mapped[list["Recomendacion"]] = relationship(
         "Recomendacion", back_populates="parcela", lazy="noload"
     )
+    costos_ciclo: Mapped[list["CostoCiclo"]] = relationship(
+        "CostoCiclo", back_populates="parcela", lazy="noload"
+    )
+    clima_diario: Mapped[list["ClimaDiario"]] = relationship(
+        "ClimaDiario", back_populates="parcela", lazy="noload",
+        cascade="all, delete-orphan",
+        order_by="ClimaDiario.fecha.desc()"
+    )
 
     @property
     def agua_disponible_mm(self) -> Optional[float]:
@@ -381,4 +390,99 @@ class HistorialRiego(Base):
     )
     recomendacion: Mapped[Optional["Recomendacion"]] = relationship(
         "Recomendacion", back_populates="historial_riego"
+    )
+
+
+# -- 6. costos_ciclo -----------------------------------------------------------
+class CostoCiclo(Base):
+    """Resumen economico por parcela y ciclo agricola."""
+    __tablename__ = "costos_ciclo"
+
+    id_costo: Mapped[uuid.UUID] = uuid_pk()
+    id_parcela: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("parcelas.id_parcela", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    ciclo_agricola: Mapped[str] = mapped_column(String(20), nullable=False)
+    cultivo: Mapped[Optional[str]] = mapped_column(String(80))
+    volumen_agua_total_m3: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    costo_agua_mxn: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    costo_fertilizantes_mxn: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    costo_agroquimicos_mxn: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    costo_semilla_mxn: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    costo_maquinaria_mxn: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    costo_mano_obra_mxn: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    ingreso_estimado_mxn: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    margen_contribucion_mxn: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+
+    parcela: Mapped["Parcela"] = relationship(
+        "Parcela", back_populates="costos_ciclo"
+    )
+
+
+# -- 7. clima_diario -----------------------------------------------------------
+class ClimaDiario(Base):
+    """
+    Serie climática diaria por parcela. Fuente primaria: NASA POWER API
+    (modelo MERRA-2 + CERES), granularidad punto-geográfico × día.
+
+    Se alimenta desde `tools/nasa_power_etl.py`. La columna `et0` se calcula
+    con `backend/core/balance_hidrico.calcular_eto_penman_monteith_serie`
+    sobre los 5 inputs meteorológicos, sin almacenar cálculos derivados
+    adicionales (Kc, ETc, balance — esos son responsabilidad de la capa de
+    recomendaciones).
+
+    Clave primaria compuesta (id_parcela, fecha) = una observación por parcela
+    por día. Las re-ejecuciones del ETL usan INSERT ... ON CONFLICT DO NOTHING
+    para ser idempotentes.
+
+    Imputación de NaN:
+        - Variables continuas (T, HR, viento, radiación): interpolación lineal
+          hasta 3 días consecutivos (responsabilidad del ETL).
+        - Lluvia: NaN → 0, nunca interpolar.
+    """
+    __tablename__ = "clima_diario"
+
+    # PK compuesta
+    id_parcela: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("parcelas.id_parcela", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    fecha: Mapped[date] = mapped_column(Date, primary_key=True)
+
+    # Variables meteorológicas NASA POWER
+    t_max: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 2), comment="Temperatura máxima diaria a 2m (°C)"
+    )
+    t_min: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 2), comment="Temperatura mínima diaria a 2m (°C)"
+    )
+    humedad_rel: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 2), comment="Humedad relativa media a 2m (%)"
+    )
+    viento: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 2), comment="Viento medio a 2m (m/s)"
+    )
+    radiacion: Mapped[Optional[float]] = mapped_column(
+        Numeric(6, 3), comment="Radiación solar superficial (MJ/m²/día)"
+    )
+    lluvia: Mapped[Optional[float]] = mapped_column(
+        Numeric(6, 2), comment="Precipitación total diaria corregida (mm)"
+    )
+
+    # Valor derivado persistido (costoso de recalcular por serie completa)
+    et0: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 2),
+        comment="Evapotranspiración de referencia FAO-56 Penman-Monteith (mm/día)"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    # Relación inversa
+    parcela: Mapped["Parcela"] = relationship(
+        "Parcela", back_populates="clima_diario"
     )

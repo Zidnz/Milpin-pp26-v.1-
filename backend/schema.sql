@@ -65,18 +65,18 @@ COMMENT ON COLUMN cultivos_catalogo.kc_inicial      IS 'Coeficiente de cultivo e
 COMMENT ON COLUMN cultivos_catalogo.kc_medio        IS 'Kc en etapa de máximo desarrollo hídrico.';
 COMMENT ON COLUMN cultivos_catalogo.ky_total        IS 'Factor de sensibilidad al estrés hídrico total (FAO-33 Tabla 25).';
 
--- Datos semilla: cultivos principales del DR-041
+-- Datos semilla: catálogo definitivo MILPÍN (5 cultivos objetivo)
 INSERT INTO cultivos_catalogo
     (nombre_comun, nombre_cientifico,
      kc_inicial, kc_medio, kc_final, ky_total,
      dias_etapa_inicial, dias_etapa_desarrollo, dias_etapa_media, dias_etapa_final,
      rendimiento_potencial_ton)
 VALUES
-    ('Trigo',    'Triticum aestivum',    0.40, 1.15, 0.25, 1.05, 20, 35, 60, 30,  6.5),
-    ('Cartamo',  'Carthamus tinctorius', 0.35, 1.10, 0.35, 0.80, 20, 35, 45, 25,  2.2),
-    ('Garbanzo', 'Cicer arietinum',      0.40, 1.00, 0.35, 0.85, 20, 30, 40, 20,  1.8),
-    ('Maiz',     'Zea mays',             0.30, 1.20, 0.60, 1.25, 25, 40, 45, 30, 10.0),
-    ('Algodon',  'Gossypium hirsutum',   0.35, 1.20, 0.70, 0.85, 30, 50, 55, 45,  4.0)
+    ('Maíz',    'Zea mays',             0.30, 1.20, 0.60, 1.25, 25, 40, 45, 30, 10.0),
+    ('Frijol',  'Phaseolus vulgaris',   0.40, 1.15, 0.35, 1.15, 20, 30, 40, 20,  2.0),
+    ('Algodón', 'Gossypium hirsutum',   0.35, 1.20, 0.70, 0.85, 30, 50, 55, 45,  3.5),
+    ('Uva',     'Vitis vinifera',       0.30, 0.85, 0.45, 0.85, 30, 60, 75, 50, 22.5),
+    ('Chile',   'Capsicum annuum',      0.60, 1.05, 0.90, 1.10, 30, 35, 40, 20, 30.0)
 ON CONFLICT DO NOTHING;
 
 
@@ -233,6 +233,73 @@ CREATE INDEX IF NOT EXISTS idx_riego_parcela_fecha
 
 
 -- =============================================================================
+-- 6. costos_ciclo
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS costos_ciclo (
+    id_costo                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_parcela                UUID         NOT NULL
+        REFERENCES parcelas(id_parcela) ON DELETE RESTRICT,
+    ciclo_agricola            VARCHAR(20)  NOT NULL,
+    cultivo                   VARCHAR(80),
+    volumen_agua_total_m3     NUMERIC(12,2),
+    costo_agua_mxn            NUMERIC(12,2),
+    costo_fertilizantes_mxn   NUMERIC(12,2),
+    costo_agroquimicos_mxn    NUMERIC(12,2),
+    costo_semilla_mxn         NUMERIC(12,2),
+    costo_maquinaria_mxn      NUMERIC(12,2),
+    costo_mano_obra_mxn       NUMERIC(12,2),
+    ingreso_estimado_mxn      NUMERIC(12,2),
+    margen_contribucion_mxn   NUMERIC(12,2)
+);
+
+COMMENT ON TABLE costos_ciclo IS 'Resumen economico por parcela y ciclo agricola.';
+COMMENT ON COLUMN costos_ciclo.volumen_agua_total_m3 IS 'Volumen total absoluto de agua aplicado durante el ciclo.';
+COMMENT ON COLUMN costos_ciclo.margen_contribucion_mxn IS 'Ingreso estimado menos costos directos del ciclo.';
+
+CREATE INDEX IF NOT EXISTS idx_costos_ciclo_parcela
+    ON costos_ciclo (id_parcela, ciclo_agricola);
+
+
+-- =============================================================================
+-- 7. clima_diario
+-- =============================================================================
+-- Serie climática diaria por parcela. Fuente primaria: NASA POWER API
+-- (modelo MERRA-2 + CERES), granularidad punto-geográfico × día.
+-- Alimentada por tools/nasa_power_etl.py. ON CONFLICT DO NOTHING permite
+-- re-ejecutar el ETL sin duplicar filas.
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS clima_diario (
+    id_parcela  UUID        NOT NULL
+        REFERENCES parcelas(id_parcela) ON DELETE CASCADE,
+    fecha       DATE        NOT NULL,
+
+    -- Variables meteorológicas NASA POWER
+    t_max        NUMERIC(5,2),  -- Temperatura máxima diaria a 2m (°C)
+    t_min        NUMERIC(5,2),  -- Temperatura mínima diaria a 2m (°C)
+    humedad_rel  NUMERIC(5,2),  -- Humedad relativa media a 2m (%)
+    viento       NUMERIC(5,2),  -- Viento medio a 2m (m/s)
+    radiacion    NUMERIC(6,3),  -- Radiación solar superficial (MJ/m²/día)
+    lluvia       NUMERIC(6,2),  -- Precipitación total diaria corregida (mm)
+
+    -- Valor derivado persistido
+    et0          NUMERIC(5,2),  -- ET0 FAO-56 Penman-Monteith (mm/día)
+
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (id_parcela, fecha)
+);
+
+COMMENT ON TABLE  clima_diario           IS 'Series climáticas diarias por parcela. Fuente: NASA POWER API. ET0 calculada con FAO-56 Penman-Monteith.';
+COMMENT ON COLUMN clima_diario.et0       IS 'Evapotranspiración de referencia (mm/día). Calculada con core.balance_hidrico.calcular_eto_penman_monteith_serie.';
+COMMENT ON COLUMN clima_diario.radiacion IS 'ALLSKY_SFC_SW_DWN de NASA POWER. Valores pico > 12 mm/día de ET0 derivada sugieren ruido satelital.';
+COMMENT ON COLUMN clima_diario.lluvia    IS 'PRECTOTCORR. NaN se imputa como 0, NO se interpola (interpolar crearía lluvia ficticia).';
+
+-- Índice para queries de series temporales (últimos N días de una parcela)
+CREATE INDEX IF NOT EXISTS idx_clima_parcela_fecha
+    ON clima_diario (id_parcela, fecha DESC);
+
+
+-- =============================================================================
 -- Vista KPI: consumo anual por parcela vs. baseline DR-041
 -- =============================================================================
 CREATE OR REPLACE VIEW v_kpi_consumo AS
@@ -263,7 +330,7 @@ FROM information_schema.tables
 WHERE table_schema = 'public'
   AND table_name IN (
       'usuarios', 'cultivos_catalogo', 'parcelas',
-      'recomendaciones', 'historial_riego',
-      'v_agua_disponible', 'v_kpi_consumo'
+      'recomendaciones', 'historial_riego', 'clima_diario',
+      'costos_ciclo', 'v_agua_disponible', 'v_kpi_consumo'
   )
 ORDER BY table_type, table_name;

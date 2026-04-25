@@ -142,8 +142,8 @@ def _llamar_ollama(user_text: str) -> dict:
     try:
         resp = requests.post(
             OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "messages": messages, "stream": False},
-            timeout=40,
+            json={"model": OLLAMA_MODEL, "messages": messages, "stream": False, "options": {"num_ctx": 1024}}
+
         )
         resp.raise_for_status()
         raw = resp.json()["message"]["content"].strip()
@@ -238,3 +238,27 @@ def interpretar_comando_voz(audio_path: str) -> dict:
 
     resultado["transcripcion"] = transcripcion
     return resultado
+
+
+def interpretar_texto(texto: str) -> dict:
+    """
+    Clasifica la intención de un texto plano usando Ollama (sin STT).
+    Útil para pruebas unitarias del LLM que no requieren audio.
+
+    A diferencia de interpretar_comando_voz, NO actualiza _history para
+    mantener los casos de prueba completamente aislados entre sí.
+
+    Retorna el mismo esquema JSON que interpretar_comando_voz, con
+    'transcripcion' igual al texto de entrada.
+    """
+    resultado = _llamar_ollama(texto)
+    resultado["transcripcion"] = texto
+    return resultado
+
+
+def limpiar_historial() -> None:
+    """
+    Vacía el buffer de historial de conversación.
+    Llamar antes de cada suite de pruebas para garantizar aislamiento entre casos.
+    """
+    _history.clear()

@@ -22,47 +22,8 @@ from database import AsyncSessionLocal, create_all_tables, drop_all_tables, engi
 from models import CultivoCatalogo, Usuario
 
 
-# ── Datos semilla: cultivos del Valle del Yaqui (FAO-56 Tabla 12) ─────────────
+# ── Datos semilla: catálogo definitivo MILPÍN (FAO-56 Tabla 12, FAO-33 Tabla 25)
 CULTIVOS_SEMILLA = [
-    {
-        "nombre_comun": "Trigo",
-        "nombre_cientifico": "Triticum aestivum",
-        "kc_inicial": 0.40,
-        "kc_medio": 1.15,
-        "kc_final": 0.25,
-        "ky_total": 1.05,          # FAO-33 Tabla 25
-        "dias_etapa_inicial": 20,
-        "dias_etapa_desarrollo": 35,
-        "dias_etapa_media": 60,
-        "dias_etapa_final": 30,
-        "rendimiento_potencial_ton": 6.5,
-    },
-    {
-        "nombre_comun": "Cártamo",
-        "nombre_cientifico": "Carthamus tinctorius",
-        "kc_inicial": 0.35,
-        "kc_medio": 1.10,
-        "kc_final": 0.35,
-        "ky_total": 0.80,
-        "dias_etapa_inicial": 20,
-        "dias_etapa_desarrollo": 35,
-        "dias_etapa_media": 45,
-        "dias_etapa_final": 25,
-        "rendimiento_potencial_ton": 2.2,
-    },
-    {
-        "nombre_comun": "Garbanzo",
-        "nombre_cientifico": "Cicer arietinum",
-        "kc_inicial": 0.40,
-        "kc_medio": 1.00,
-        "kc_final": 0.35,
-        "ky_total": 0.85,
-        "dias_etapa_inicial": 20,
-        "dias_etapa_desarrollo": 30,
-        "dias_etapa_media": 40,
-        "dias_etapa_final": 20,
-        "rendimiento_potencial_ton": 1.8,
-    },
     {
         "nombre_comun": "Maíz",
         "nombre_cientifico": "Zea mays",
@@ -77,6 +38,19 @@ CULTIVOS_SEMILLA = [
         "rendimiento_potencial_ton": 10.0,
     },
     {
+        "nombre_comun": "Frijol",
+        "nombre_cientifico": "Phaseolus vulgaris",
+        "kc_inicial": 0.40,
+        "kc_medio": 1.15,
+        "kc_final": 0.35,
+        "ky_total": 1.15,
+        "dias_etapa_inicial": 20,
+        "dias_etapa_desarrollo": 30,
+        "dias_etapa_media": 40,
+        "dias_etapa_final": 20,
+        "rendimiento_potencial_ton": 2.0,
+    },
+    {
         "nombre_comun": "Algodón",
         "nombre_cientifico": "Gossypium hirsutum",
         "kc_inicial": 0.35,
@@ -87,7 +61,33 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_desarrollo": 50,
         "dias_etapa_media": 55,
         "dias_etapa_final": 45,
-        "rendimiento_potencial_ton": 4.0,
+        "rendimiento_potencial_ton": 3.5,
+    },
+    {
+        "nombre_comun": "Uva",
+        "nombre_cientifico": "Vitis vinifera",
+        "kc_inicial": 0.30,
+        "kc_medio": 0.85,
+        "kc_final": 0.45,
+        "ky_total": 0.85,
+        "dias_etapa_inicial": 30,
+        "dias_etapa_desarrollo": 60,
+        "dias_etapa_media": 75,
+        "dias_etapa_final": 50,
+        "rendimiento_potencial_ton": 22.5,
+    },
+    {
+        "nombre_comun": "Chile",
+        "nombre_cientifico": "Capsicum annuum",
+        "kc_inicial": 0.60,
+        "kc_medio": 1.05,
+        "kc_final": 0.90,
+        "ky_total": 1.10,
+        "dias_etapa_inicial": 30,
+        "dias_etapa_desarrollo": 35,
+        "dias_etapa_media": 40,
+        "dias_etapa_final": 20,
+        "rendimiento_potencial_ton": 30.0,
     },
 ]
 

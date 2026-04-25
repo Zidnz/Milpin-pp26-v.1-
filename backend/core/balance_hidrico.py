@@ -14,7 +14,14 @@ Contexto geográfico por defecto: Valle del Yaqui, Sonora, México
     - Latitud: 27.37°N
 """
 
+from typing import TYPE_CHECKING
+
 import numpy as np
+
+if TYPE_CHECKING:
+    # Sólo para type hints — pandas se importa lazy dentro de la función
+    # vectorizada para no forzar pandas como dependencia del API escalar.
+    import pandas as pd
 
 
 # ---------------------------------------------------------------------------
@@ -23,29 +30,25 @@ import numpy as np
 # Estructura: {cultivo: {etapas_dias: (ini, des, med, fin), kc: (kc_ini, kc_med, kc_fin)}}
 # ---------------------------------------------------------------------------
 KC_TABLE = {
-    "trigo": {
-        "duracion_etapas": (20, 35, 60, 30),   # días por etapa: ini, des, med, fin
-        "kc": (0.4, 1.15, 0.25),                # Kc_ini, Kc_med, Kc_fin (FAO-56 Table 12)
-    },
     "maiz": {
-        "duracion_etapas": (20, 35, 40, 30),
-        "kc": (0.3, 1.20, 0.60),
+        "duracion_etapas": (25, 40, 45, 30),   # días por etapa: ini, des, med, fin
+        "kc": (0.30, 1.20, 0.60),               # Kc_ini, Kc_med, Kc_fin (FAO-56 Table 12)
+    },
+    "frijol": {
+        "duracion_etapas": (20, 30, 40, 20),
+        "kc": (0.40, 1.15, 0.35),
     },
     "algodon": {
         "duracion_etapas": (30, 50, 55, 45),
         "kc": (0.35, 1.20, 0.70),
     },
-    "frijol": {
-        "duracion_etapas": (15, 25, 25, 10),
-        "kc": (0.40, 1.15, 0.35),
+    "uva": {
+        "duracion_etapas": (30, 60, 75, 50),
+        "kc": (0.30, 0.85, 0.45),
     },
     "chile": {
-        "duracion_etapas": (25, 35, 40, 20),
+        "duracion_etapas": (30, 35, 40, 20),
         "kc": (0.60, 1.05, 0.90),
-    },
-    "uva": {
-        "duracion_etapas": (20, 40, 60, 40),
-        "kc": (0.30, 0.85, 0.45),
     },
 }
 
@@ -104,6 +107,124 @@ def _radiacion_extraterrestre(latitud_grados: float, dia_del_ano: int) -> float:
         + np.cos(phi) * np.cos(delta) * np.sin(ws)
     )
     return float(Ra)
+
+
+def _radiacion_extraterrestre_array(
+    latitud_grados: float,
+    dia_del_ano,
+):
+    """Versión vectorizada de _radiacion_extraterrestre.
+
+    Acepta `dia_del_ano` como escalar, lista o ndarray. No hace cast a float
+    para poder operar sobre series largas. Usa exactamente las mismas
+    fórmulas FAO-56 Ec. 21-25 que la versión escalar, garantizando que el
+    API punto-a-punto y el ETL produzcan resultados idénticos.
+    """
+    Gsc = 0.0820
+    phi = np.radians(latitud_grados)
+    J   = np.asarray(dia_del_ano, dtype=float)
+
+    dr      = 1.0 + 0.033 * np.cos(2.0 * np.pi * J / 365.0)
+    delta_s = 0.409 * np.sin(2.0 * np.pi * J / 365.0 - 1.39)
+
+    # Guardar contra latitudes extremas donde -tan(phi)*tan(delta) > 1
+    arg = -np.tan(phi) * np.tan(delta_s)
+    arg = np.clip(arg, -1.0, 1.0)
+    ws  = np.arccos(arg)
+
+    Ra = (24.0 * 60.0 / np.pi) * Gsc * dr * (
+        ws * np.sin(phi) * np.sin(delta_s)
+        + np.cos(phi) * np.cos(delta_s) * np.sin(ws)
+    )
+    return Ra
+
+
+def calcular_eto_penman_monteith_serie(
+    df: "pd.DataFrame",
+    latitud: float = 27.37,
+    altitud: float = 40.0,
+) -> "pd.Series":
+    """Versión vectorizada de Penman-Monteith FAO-56 para ETL masivo.
+
+    Aplica la misma ecuación FAO-56 Ec. 6 que `calcular_eto_penman_monteith`,
+    pero operando sobre arrays numpy para procesar miles de días en una sola
+    llamada. Reutiliza las funciones privadas del módulo (`_presion_saturacion`,
+    `_pendiente_curva_saturacion`, `_presion_atmosferica`, etc.) para garantizar
+    consistencia numérica con el API escalar.
+
+    Caso de uso típico: pipeline de ingesta NASA POWER en `tools/nasa_power_etl.py`.
+
+    Parámetros
+    ----------
+    df : DataFrame con columnas [fecha, t_max, t_min, humedad_rel, viento, radiacion].
+         No debe contener NaN en estas columnas — manejar antes de llamar.
+         La columna `fecha` puede ser string "YYYY-MM-DD" o datetime.
+    latitud : latitud en grados decimales (positivo = norte). Default: 27.37 (Valle del Yaqui).
+    altitud : m.s.n.m. del sitio. Default: 40m (Cd. Obregón).
+
+    Retorna
+    -------
+    pd.Series con ET0 en mm/día, indexada igual que `df`, nombre 'et0'.
+
+    Raises
+    ------
+    ImportError : si pandas no está instalado.
+    KeyError    : si falta alguna columna requerida.
+    """
+    try:
+        import pandas as pd
+    except ImportError as e:
+        raise ImportError(
+            "pandas es requerido para calcular_eto_penman_monteith_serie. "
+            "Instalar con: pip install pandas"
+        ) from e
+
+    T_max = df["t_max"].to_numpy(dtype=float)
+    T_min = df["t_min"].to_numpy(dtype=float)
+    T_med = (T_max + T_min) / 2.0
+    HR    = df["humedad_rel"].to_numpy(dtype=float)
+    u2    = df["viento"].to_numpy(dtype=float)
+    Rs    = df["radiacion"].to_numpy(dtype=float)
+    J     = pd.to_datetime(df["fecha"]).dt.dayofyear.to_numpy()
+
+    # ── Presiones de vapor (FAO-56 Ec. 11, 12, 17) ────────────────────────────
+    es_max = _presion_saturacion(T_max)
+    es_min = _presion_saturacion(T_min)
+    es     = (es_max + es_min) / 2.0
+    ea     = (HR / 100.0) * es
+
+    # ── Pendiente de la curva de presión de vapor (FAO-56 Ec. 13) ────────────
+    delta = _pendiente_curva_saturacion(T_med)
+
+    # ── Constante psicrométrica γ con altitud real (FAO-56 Ec. 7, 8) ─────────
+    P     = _presion_atmosferica(altitud)
+    gamma = _constante_psicrometrica(P)
+
+    # ── Radiación neta (FAO-56 Ec. 21-40) ────────────────────────────────────
+    Ra  = _radiacion_extraterrestre_array(latitud, J)
+    Rso = (0.75 + 2e-5 * altitud) * Ra               # FAO-56 Ec. 37
+    Rns = (1.0 - 0.23) * Rs                          # FAO-56 Ec. 38 (albedo 0.23)
+
+    sigma = 4.903e-9
+    with np.errstate(invalid="ignore", divide="ignore"):
+        # Relación Rs/Rso saturada en 1.0 — cielos totalmente despejados
+        Rs_Rso_ratio = np.minimum(Rs / np.maximum(Rso, 0.01), 1.0)
+
+    Rnl = (sigma
+           * ((T_max + 273.16) ** 4 + (T_min + 273.16) ** 4) / 2.0
+           * (0.34 - 0.14 * np.sqrt(np.maximum(ea, 0.0)))
+           * (1.35 * Rs_Rso_ratio - 0.35))
+
+    Rn = Rns - Rnl
+    G  = 0.0  # flujo de calor del suelo despreciable en promedios diarios
+
+    # ── Penman-Monteith FAO-56 (Ec. 6) ───────────────────────────────────────
+    numerador   = (0.408 * delta * (Rn - G)
+                   + gamma * (900.0 / (T_med + 273.0)) * u2 * (es - ea))
+    denominador = delta + gamma * (1.0 + 0.34 * u2)
+    ET0         = np.maximum(numerador / denominador, 0.0)
+
+    return pd.Series(ET0, index=df.index, name="et0")
 
 
 def calcular_eto_penman_monteith(
