@@ -6,7 +6,7 @@
 <h3>Sistema Inteligente de Optimización de Riego — Valle del Yaqui, DR-041</h3>
 
 <p>
-  <img src="https://img.shields.io/badge/versión-pp26--v.1-4CAF50?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/estado-pre--MVP-orange?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi"/>
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white"/>
   <img src="https://img.shields.io/badge/PostgreSQL-15+-336791?style=for-the-badge&logo=postgresql&logoColor=white"/>
@@ -20,7 +20,7 @@
 </p>
 
 <blockquote>
-<strong>Meta principal:</strong> Reducir el consumo hídrico de <code>8,000 m³/ha/ciclo</code> a <code>6,000 m³/ha/ciclo</code> — un ahorro del <strong>25%</strong> equivalente a ~$1.68 MXN/m³.
+<strong>Meta principal:</strong> Reducir el consumo hídrico de <code>8,000 m³/ha/ciclo</code> a <code>6,000 m³/ha/ciclo</code> — un ahorro del <strong>25%</strong> equivalente a ~$1.68 MXN/m³ (tarifa CFE 9-CU, bombeo 80 m).
 </blockquote>
 
 </div>
@@ -30,6 +30,7 @@
 ## 📋 Tabla de Contenidos
 
 - [¿Qué es MILPÍN?](#-qué-es-milpín)
+- [Estado del proyecto](#-estado-del-proyecto)
 - [Características principales](#-características-principales)
 - [Arquitectura del sistema](#-arquitectura-del-sistema)
 - [Stack tecnológico](#-stack-tecnológico)
@@ -50,6 +51,27 @@
 > El nombre honra a la **milpa**, el sistema agrícola ancestral mesoamericano, fusionándolo con tecnología de punta.
 
 **Usuarios objetivo:** Productores, técnicos de campo y administradores del módulo DR-041.
+
+---
+
+## 📊 Estado del proyecto
+
+**Fase actual: Prototipo funcional (pre-MVP)**
+
+✔ Backend FastAPI 2.0 con lifespan y 4 routers  
+✔ Base de datos PostgreSQL con 7 tablas, 2 vistas KPI y seeders  
+✔ Motor agronómico FAO-56 Penman-Monteith implementado  
+✔ Pipeline de voz (Whisper → Ollama → Intent JSON)  
+✔ Clustering K-Means de parcelas  
+✔ Frontend vanilla JS + Leaflet con capas GIS  
+
+**Pendiente para MVP:**  
+◻ PostGIS real (geometría almacenada como JSONB actualmente)  
+◻ Autenticación (sin auth, `id_usuario` llega como UUID en body)  
+◻ Migraciones Alembic (hoy se usa `drop_all_tables()`)  
+◻ Tests automatizados  
+◻ Motor FAO-56 conectado a BD (actualmente recibe params por query string)  
+◻ Loop recomendación→feedback (tablas existen, no se escriben desde el motor)  
 
 ---
 
@@ -146,6 +168,13 @@ flowchart TB
             CULTIVOS["cultivos_catalogo"]
             RECOM["recomendaciones"]
             HIST["historial_riego"]
+            COSTOS["costos_ciclo"]
+            CLIMA["clima_diario"]
+        end
+
+        subgraph VIEWS["Vistas"]
+            V_AGUA["v_agua_disponible"]
+            V_KPI["v_kpi_consumo"]
         end
     end
 
@@ -166,13 +195,16 @@ flowchart TB
 | Tecnología | Versión | Rol |
 |-----------|---------|-----|
 | **FastAPI** | 0.115.0 | Framework REST asíncrono |
-| **SQLAlchemy** | 2.0 | ORM asíncrono |
+| **SQLAlchemy** | 2.0.36 | ORM asíncrono |
 | **asyncpg** | 0.30.0 | Driver PostgreSQL async |
+| **aiosqlite** | 0.20.0 | Driver SQLite async (fallback dev) |
 | **Uvicorn** | 0.30.6 | Servidor ASGI |
 | **OpenAI Whisper** | 20240930 | Speech-to-Text local |
 | **Ollama** | latest | LLM local (llama3.2) |
 | **scikit-learn** | 1.5.2 | K-Means clustering |
 | **numpy** | 1.26.4 | Cálculos numéricos |
+| **pandas** | 2.2.3 | DataFrames para ETL |
+| **shapely** | 2.0.6 | Centroide GeoJSON para lat/lon |
 | **Pydantic** | 2.9.2 | Validación de datos |
 | **httpx** | 0.27.2 | Cliente HTTP async |
 
@@ -181,7 +213,7 @@ flowchart TB
 | Tecnología | Rol |
 |-----------|-----|
 | **HTML5 / CSS3** | SPA estructurada con sistema de diseño propio |
-| **Vanilla JavaScript** | Lógica de tabs, voz, filtrado colaborativo |
+| **JavaScript** | Lógica de tabs, voz, filtrado colaborativo |
 | **Leaflet.js 1.9.4** | Motor GIS interactivo |
 | **Web Audio API** | Captura de micrófono y streaming de audio |
 
@@ -189,45 +221,53 @@ flowchart TB
 
 ## 📁 Estructura del proyecto
 
-```
 milpin-pp26-v.1/
 │
 ├── 📂 backend/
-│   ├── main.py                  ← Punto de entrada FastAPI, CORS, routers
-│   ├── database.py              ← Engine async, SessionLocal factory
-│   ├── models.py                ← 5 modelos ORM (usuarios, parcelas, etc.)
-│   ├── schema.sql               ← DDL PostgreSQL con datos semilla
-│   ├── init_db.py               ← Script de inicialización de BD
+│   ├── main.py                  ← Punto de entrada FastAPI 2.0, lifespan, CORS, 4 routers
+│   ├── database.py              ← Engine async, SessionLocal factory, IS_SQLITE flag
+│   ├── models.py                ← 6 modelos ORM (usuarios, parcelas, cultivos, recomendaciones, historial, clima)
+│   ├── schema.sql               ← DDL PostgreSQL: 7 tablas + 2 vistas KPI + seed de 5 cultivos
+│   ├── init_db.py               ← Script de inicialización de BD (--reset, --check)
+│   ├── .env                     ← Variables de entorno (⚠ contiene secretos, rotar)
 │   ├── requirements.txt         ← Dependencias Python
 │   │
 │   ├── 📂 API/
 │   │   ├── analytics_api.py     ← K-Means: /logistica_inteligente, /zonas_manejo
-│   │   ├── db_api.py            ← CRUD: usuarios, cultivos, parcelas, riego
-│   │   ├── riego_api.py         ← FAO-56: /balance_hidrico
-│   │   └── voice_endpoint.py   ← Voz: /voice-command (Whisper + Ollama)
+│   │   ├── db_api.py            ← CRUD: usuarios, cultivos, parcelas, riego, recomendaciones
+│   │   ├── riego_api.py         ← FAO-56: /balance_hidrico, /kc/{cultivo}
+│   │   └── voice_endpoint.py    ← Voz: /voice-command (Whisper + Ollama)
 │   │
-│   └── 📂 core/
-│       ├── balance_hidrico.py   ← Motor Penman-Monteith / Hargreaves
-│       ├── kmeans_model.py      ← Wrapper K-Means scikit-learn
-│       └── llm_orchestrator.py ← Pipeline STT → LLM → JSON intent
+│   ├── 📂 core/
+│   │   ├── balance_hidrico.py   ← Motor Penman-Monteith / Hargreaves (FAO-56)
+│   │   ├── kmeans_model.py      ← Wrapper K-Means scikit-learn
+│   │   └── llm_orchestrator.py  ← Pipeline STT → LLM → JSON intent
+│   │
+│   └── 📂 tests/
+│       ├── run_tests.py         ← Runner de tests de voz
+│       ├── test_cases.json      ← Casos de prueba
+│       ├── grabar.py            ← Utilidad de grabación de audio
+│       └── generar_audios_tts.py ← Generador de audios de prueba
 │
 ├── 📂 frontend/
 │   ├── index.html               ← SPA principal (4 tabs + FAB de voz)
+│   ├── main.py                  ← ⚠ Stub muerto (pendiente de borrar)
 │   ├── 📂 css/
 │   │   └── styles.css           ← Sistema de diseño tierra (#7BB395, #4A3B28)
 │   ├── 📂 src/
 │   │   ├── voice_client.js      ← Web Audio API, grabación, envío
 │   │   ├── map_engine.js        ← Leaflet, capas GeoJSON, rampa de color
-│   │   └── ui_tabs.js           ← Routing de tabs, filtrado colaborativo
+│   │   └── ui_tabs.js           ← Routing de tabs, filtrado colaborativo (demo hardcoded)
 │   └── 📂 data/
 │       └── lotes.geojson        ← Geometrías de parcelas DR-041
 │
+├── 📂 doc/                      ← Documentación del proyecto (.docx)
 ├── 📂 imagenes/                 ← Recursos visuales
 ├── 📂 tools/
-│   └── geo_pipeline.py          ← Utilidades de procesamiento geodatos
+│   ├── geo_pipeline.py          ← Pipeline GIS: geopandas + make_valid + Douglas-Peucker
+│   └── generar_datos_sinteticos.py ← Generador de CSVs sintéticos para BD
 ├── requirements.txt             ← Dependencias top-level
 └── .gitignore
-```
 
 ---
 
@@ -241,7 +281,7 @@ GET /api/balance_hidrico
 
 | Parámetro | Tipo | Descripción |
 |-----------|------|-------------|
-| `parcela_id` | UUID | ID de la parcela |
+| `parcela_id` | UUID | ID de la parcela (recibido pero no usado para SELECT — deuda técnica) |
 | `cultivo` | string | Nombre del cultivo |
 | `dias_siembra` | int | Días desde siembra |
 | `tmax` / `tmin` | float | Temperatura máx/mín (°C) |
@@ -255,6 +295,18 @@ GET /api/balance_hidrico
 | `profundidad_raiz` | float | Profundidad radicular (cm) |
 
 **Respuesta:** `ETo`, `Kc`, `ETc`, `déficit`, `lámina recomendada (mm)`, `volumen (m³/ha)`, `costo (MXN)`
+
+> **Nota:** Este endpoint recibe los 13 parámetros por query string en vez de leerlos de la BD. `parcela_id` llega pero no se usa para consultar la parcela. El resultado nunca se persiste en la tabla `recomendaciones`. Esto es deuda técnica prioritaria.
+
+---
+
+### Curvas Kc por cultivo
+
+```http
+GET /api/kc/{cultivo}
+```
+
+Devuelve los coeficientes Kc y duración de etapas fenológicas para un cultivo del catálogo.
 
 ---
 
@@ -286,6 +338,8 @@ audio_file: <blob WebM>
 | `saludo` | Saludo conversacional |
 | `desconocido` | Solicita aclaración |
 
+> **⚠ Seguridad:** El nombre del archivo de audio no se sanitiza (path traversal). No hay límite de tamaño ni validación de content-type.
+
 ---
 
 ### Clustering ML
@@ -301,20 +355,25 @@ GET /api/zonas_manejo            # Zonas de manejo diferenciado
 
 | Endpoint | Método | Descripción |
 |----------|--------|-------------|
-| `/api/usuarios` | POST | Registrar productor |
-| `/api/usuarios/{id}` | GET | Obtener usuario con parcelas |
-| `/api/cultivos` | GET | Catálogo de cultivos (FAO-56) |
-| `/api/parcelas` | POST | Registrar parcela |
-| `/api/parcelas/{id}/kpi` | GET | KPI hídrico vs. baseline |
+| `/api/usuarios` | POST | Crear usuario |
+| `/api/usuarios/{id}` | GET | Obtener usuario con sus parcelas |
+| `/api/cultivos` | GET | Listar catálogo de cultivos (FAO-56) |
+| `/api/cultivos/{id}` | GET | Obtener cultivo por ID |
+| `/api/parcelas` | POST | Crear parcela |
+| `/api/parcelas/{id}` | GET | Obtener parcela con historial reciente |
+| `/api/parcelas/{id}/kpi` | GET | KPI de consumo vs. baseline DR-041 |
 | `/api/riego` | POST | Registrar evento de riego |
-| `/api/recomendaciones/{id}/feedback` | PATCH | Retroalimentación del productor |
+| `/api/riego/parcela/{id}` | GET | Historial de riego de una parcela |
+| `/api/recomendaciones` | POST | Guardar recomendación del motor FAO-56 |
+| `/api/recomendaciones/{id}` | GET | Obtener recomendación por ID |
+| `/api/recomendaciones/{id}/feedback` | PATCH | Feedback del agricultor |
 | `/health` | GET | Estado del servicio |
 
 ---
 
 ## 🗄️ Base de datos
 
-### Modelos principales
+### Esquema completo (7 tablas + 2 vistas)
 
 ```mermaid
 erDiagram
@@ -322,29 +381,52 @@ erDiagram
     CULTIVOS_CATALOGO ||--o{ PARCELAS : define
     PARCELAS ||--o{ RECOMENDACIONES : genera
     PARCELAS ||--o{ HISTORIAL_RIEGO : registra
+    PARCELAS ||--o{ COSTOS_CICLO : acumula
+    PARCELAS ||--o{ CLIMA_DIARIO : registra
+    RECOMENDACIONES ||--o| HISTORIAL_RIEGO : origina
+    CULTIVOS_CATALOGO ||--o{ RECOMENDACIONES : referencia
 ```
+
+| Tabla | Descripción |
+|-------|-------------|
+| `usuarios` | Agricultores, técnicos y administradores |
+| `cultivos_catalogo` | Parámetros FAO-56 (Kc) y FAO-33 (Ky) por especie |
+| `parcelas` | Lotes con atributos edáficos y geometría GeoJSON (JSONB) |
+| `recomendaciones` | Recomendaciones del motor FAO-56 con feedback del agricultor |
+| `historial_riego` | Eventos de riego ejecutados (KPI vs. baseline) |
+| `costos_ciclo` | Resumen económico por parcela y ciclo agrícola |
+| `clima_diario` | Series climáticas diarias por parcela (fuente: NASA POWER) |
+
+| Vista | Descripción |
+|-------|-------------|
+| `v_agua_disponible` | ADT (mm) = (CC - PMP) × profundidad_raiz × 10 |
+| `v_kpi_consumo` | Consumo anual por parcela vs. baseline DR-041 (8,000 m³/ha) |
 
 ### Cultivos precargados (semilla FAO-56)
 
 | Cultivo | Kc inicial | Kc medio | Kc final | Ky |
 |---------|-----------|---------|---------|-----|
-| Trigo | 0.40 | 1.15 | 0.25 | 1.05 |
-| Cártamo | 0.35 | 1.10 | 0.35 | 0.80 |
-| Garbanzo | 0.40 | 1.00 | 0.35 | 0.85 |
 | Maíz | 0.30 | 1.20 | 0.60 | 1.25 |
+| Frijol | 0.40 | 1.15 | 0.35 | 1.15 |
 | Algodón | 0.35 | 1.20 | 0.70 | 0.85 |
+| Uva | 0.30 | 0.85 | 0.45 | 0.85 |
+| Chile | 0.60 | 1.05 | 0.90 | 1.10 |
 
 ### KPI de consumo hídrico
 
 ```sql
--- Vista v_kpi_consumo
+-- Vista v_kpi_consumo (schema.sql)
 SELECT
-    nombre_parcela,
-    volumen_total_m3_ha,
-    8000 AS baseline_dr041_m3_ha,
-    ROUND((1 - volumen_total_m3_ha / 8000.0) * 100, 2) AS ahorro_pct,
-    (8000 - volumen_total_m3_ha) * area_ha * 1.68 AS ahorro_estimado_mxn
-FROM v_kpi_consumo;
+    p.id_parcela,
+    p.nombre_parcela,
+    EXTRACT(YEAR FROM h.fecha_riego)::INT              AS anno,
+    ROUND(SUM(h.volumen_m3_ha), 2)                     AS volumen_total_m3_ha,
+    8000.0                                              AS baseline_dr041_m3_ha,
+    ROUND((1.0 - SUM(h.volumen_m3_ha) / 8000.0) * 100, 2) AS ahorro_pct,
+    ROUND((8000.0 - SUM(h.volumen_m3_ha)) * 1.68, 2)  AS ahorro_estimado_mxn
+FROM historial_riego h
+JOIN parcelas p ON p.id_parcela = h.id_parcela
+GROUP BY p.id_parcela, p.nombre_parcela, EXTRACT(YEAR FROM h.fecha_riego);
 ```
 
 ---
@@ -373,11 +455,12 @@ venv\Scripts\activate           # Windows
 pip install -r backend/requirements.txt
 
 # 3. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con tu DATABASE_URL y configuración de Ollama
+# Editar backend/.env con tu DATABASE_URL y configuración de Ollama
 
 # 4. Inicializar la base de datos
-python backend/init_db.py
+python backend/init_db.py            # Crea tablas + seed
+python backend/init_db.py --reset    # DROP + CREATE + seed (destructivo)
+python backend/init_db.py --check    # Solo verifica conexión
 
 # 5. Iniciar el servidor
 uvicorn backend.main:app --reload --port 8000
@@ -425,17 +508,17 @@ El **FAB (Floating Action Button)** 🎤 activa el asistente de voz MILPÍN en c
 | Tierra oscura | `#4A3B28` | Texto principal |
 | Alerta | `#E63946` | Grabando, errores críticos |
 | Fondo | `#F5F0E8` | Superficie principal |
+
 ---
 
 ## 🧮 Motor FAO-56
 
 El corazón agronómico de MILPÍN implementa la **metodología FAO-56 Penman-Monteith** completa:
 
-```
 ETo = [0.408·Δ·(Rn - G) + γ·(900/(T+273))·u₂·(es - ea)]
-      ─────────────────────────────────────────────────────
-              [Δ + γ·(1 + 0.34·u₂)]
-```
+─────────────────────────────────────────────────────
+[Δ + γ·(1 + 0.34·u₂)]
+
 
 **Donde:**
 - `ETo` = Evapotranspiración de referencia (mm/día)
@@ -449,6 +532,8 @@ ETo = [0.408·Δ·(Rn - G) + γ·(900/(T+273))·u₂·(es - ea)]
 - Latitud: 27.37°N (Cajeme, Valle del Yaqui)
 - Altitud: 40 m (Cd. Obregón)
 - Tarifa energética: $1.68 MXN/m³ (CFE 9-CU, bombeo 80 m)
+
+**Catálogo de cultivos soportados:** Maíz, Frijol, Algodón, Uva, Chile — con coeficientes Kc y duración de etapas fenológicas definidos en `balance_hidrico.py::KC_TABLE` y sincronizados en `schema.sql`.
 
 ---
 
@@ -477,6 +562,6 @@ flowchart LR
 
 <sub>Desarrollado para el Distrito de Riego DR-041 · Valle del Yaqui, Sonora, México</sub>
 
-<sub>⚠️ MVP v1.0 — Fase 2 incluirá integración PostGIS y modelos de predicción climática</sub>
+<sub>⚠️ Pre-MVP — Fase 2 incluirá PostGIS real, autenticación, migraciones Alembic y conexión FAO-56 → BD</sub>
 
 </div>
