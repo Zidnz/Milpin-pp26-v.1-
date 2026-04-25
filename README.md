@@ -221,6 +221,7 @@ flowchart TB
 
 ## 📁 Estructura del proyecto
 
+```
 milpin-pp26-v.1/
 │
 ├── 📂 backend/
@@ -268,6 +269,7 @@ milpin-pp26-v.1/
 │   └── generar_datos_sinteticos.py ← Generador de CSVs sintéticos para BD
 ├── requirements.txt             ← Dependencias top-level
 └── .gitignore
+```
 
 ---
 
