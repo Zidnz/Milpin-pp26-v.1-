@@ -227,7 +227,7 @@ milpin-pp26-v.1/
 ├── 📂 backend/
 │   ├── main.py                  ← Punto de entrada FastAPI 2.0, lifespan, CORS, 4 routers
 │   ├── database.py              ← Engine async, SessionLocal factory, IS_SQLITE flag
-│   ├── models.py                ← 6 modelos ORM (usuarios, parcelas, cultivos, recomendaciones, historial, clima)
+│   ├── models.py                ← 7 modelos ORM (usuarios, cultivos_catalogo, parcelas, recomendaciones, historial_riego, costos_ciclo, clima_diario)
 │   ├── schema.sql               ← DDL PostgreSQL: 7 tablas + 2 vistas KPI + seed de 5 cultivos
 │   ├── init_db.py               ← Script de inicialización de BD (--reset, --check)
 │   ├── .env                     ← Variables de entorno (⚠ contiene secretos, rotar)
@@ -239,20 +239,14 @@ milpin-pp26-v.1/
 │   │   ├── riego_api.py         ← FAO-56: /balance_hidrico, /kc/{cultivo}
 │   │   └── voice_endpoint.py    ← Voz: /voice-command (Whisper + Ollama)
 │   │
-│   ├── 📂 core/
-│   │   ├── balance_hidrico.py   ← Motor Penman-Monteith / Hargreaves (FAO-56)
-│   │   ├── kmeans_model.py      ← Wrapper K-Means scikit-learn
-│   │   └── llm_orchestrator.py  ← Pipeline STT → LLM → JSON intent
-│   │
-│   └── 📂 tests/
-│       ├── run_tests.py         ← Runner de tests de voz
-│       ├── test_cases.json      ← Casos de prueba
-│       ├── grabar.py            ← Utilidad de grabación de audio
-│       └── generar_audios_tts.py ← Generador de audios de prueba
+│   └── 📂 core/
+│       ├── balance_hidrico.py   ← Motor Penman-Monteith / Hargreaves (FAO-56)
+│       ├── kmeans_model.py      ← Wrapper K-Means scikit-learn
+│       └── llm_orchestrator.py  ← Pipeline STT → LLM → JSON intent
 │
 ├── 📂 frontend/
 │   ├── index.html               ← SPA principal (4 tabs + FAB de voz)
-│   ├── main.py                  ← ⚠ Stub muerto (pendiente de borrar)
+│   ├── main.py                  ← ⚠ Stub FastAPI residual (pendiente de borrar — no es código frontend)
 │   ├── 📂 css/
 │   │   └── styles.css           ← Sistema de diseño tierra (#7BB395, #4A3B28)
 │   ├── 📂 src/
@@ -264,9 +258,9 @@ milpin-pp26-v.1/
 │
 ├── 📂 doc/                      ← Documentación del proyecto (.docx)
 ├── 📂 imagenes/                 ← Recursos visuales
+├── 📂 synthetic/                ← CSVs sintéticos para seed/desarrollo
 ├── 📂 tools/
-│   ├── geo_pipeline.py          ← Pipeline GIS: geopandas + make_valid + Douglas-Peucker
-│   └── generar_datos_sinteticos.py ← Generador de CSVs sintéticos para BD
+│   └── geo_pipeline.py          ← Pipeline GIS: geopandas + make_valid + Douglas-Peucker
 ├── requirements.txt             ← Dependencias top-level
 └── .gitignore
 ```
