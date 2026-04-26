@@ -27,7 +27,7 @@
 
 ---
 
-## 📋 Tabla de Contenidos
+## Tabla de Contenidos
 
 - [¿Qué es MILPÍN?](#-qué-es-milpín)
 - [Estado del proyecto](#-estado-del-proyecto)
@@ -44,7 +44,7 @@
 
 ---
 
-## 🌱 ¿Qué es MILPÍN?
+## ¿Qué es MILPÍN?
 
 **MILPÍN** es un ERP agrícola inteligente diseñado para los productores del **Distrito de Riego DR-041 (Valle del Yaqui, Sonora, México)**. Combina modelos agronómicos científicos, inteligencia artificial local y visualización geoespacial para brindar recomendaciones de riego precisas, controlables por voz.
 
@@ -54,7 +54,7 @@
 
 ---
 
-## 📊 Estado del proyecto
+## Estado del proyecto
 
 **Fase actual: Prototipo funcional (pre-MVP)**
 
@@ -75,13 +75,13 @@
 
 ---
 
-## ✨ Características principales
+## Características principales
 
 <table>
 <tr>
 <td width="50%">
 
-### 🧠 Inteligencia Agronómica
+### Inteligencia Agronómica
 - Motor **FAO-56 Penman-Monteith** para cálculo de evapotranspiración
 - Fallback **Hargreaves** cuando los datos son incompletos
 - Interpolación de coeficientes **Kc** por etapa fenológica
@@ -90,7 +90,7 @@
 </td>
 <td width="50%">
 
-### 🗣️ Asistente de Voz IA
+### Asistente de Voz IA
 - Reconocimiento de voz local con **OpenAI Whisper**
 - Razonamiento con **Ollama LLM** (llama3.2, sin nube)
 - Clasificación de 6 intents en español
@@ -101,7 +101,7 @@
 <tr>
 <td width="50%">
 
-### 🗺️ GIS Interactivo
+### GIS Interactivo
 - Mapa vectorial con **Leaflet.js**
 - Capas: lotes, ríos, canales, pozos, límites
 - Rampa de color por NDVI/rendimiento
@@ -110,7 +110,7 @@
 </td>
 <td width="50%">
 
-### 📊 Machine Learning
+### Machine Learning
 - **K-Means** para optimización de logística de almacenamiento
 - **K-Means** para zonas de manejo diferenciado en campo
 - **Filtrado colaborativo** (similitud coseno) para recomendaciones de mercado
@@ -121,7 +121,7 @@
 
 ---
 
-## 🏗️ Arquitectura del sistema
+## Arquitectura del sistema
 
 ```mermaid
 flowchart TB
@@ -188,7 +188,7 @@ flowchart TB
 
 ```
 
-## 🛠️ Stack tecnológico
+## Stack tecnológico
 
 ### Backend
 
@@ -267,7 +267,7 @@ milpin-pp26-v.1/
 
 ---
 
-## 📡 API Reference
+## API Reference
 
 ### Balance Hídrico FAO-56
 
@@ -367,7 +367,7 @@ GET /api/zonas_manejo            # Zonas de manejo diferenciado
 
 ---
 
-## 🗄️ Base de datos
+## Base de datos
 
 ### Esquema completo (7 tablas + 2 vistas)
 
@@ -427,7 +427,7 @@ GROUP BY p.id_parcela, p.nombre_parcela, EXTRACT(YEAR FROM h.fecha_riego);
 
 ---
 
-## 🚀 Instalación y uso
+## Instalación y uso
 
 ### Requisitos previos
 
@@ -483,7 +483,7 @@ OLLAMA_MODEL=llama3.2:latest
 
 ---
 
-## 🌐 Frontend (SPA)
+## Frontend (SPA)
 
 La interfaz es una **Single Page Application** con 4 pestañas y un botón flotante de voz.
 
@@ -507,7 +507,7 @@ El **FAB (Floating Action Button)** 🎤 activa el asistente de voz MILPÍN en c
 
 ---
 
-## 🧮 Motor FAO-56
+## Motor FAO-56
 
 El corazón agronómico de MILPÍN implementa la **metodología FAO-56 Penman-Monteith** completa:
 
@@ -534,7 +534,7 @@ ETo = [0.408·Δ·(Rn - G) + γ·(900/(T+273))·u₂·(es - ea)]
 
 ---
 
-## 🗣️ Asistente de voz MILPÍN AI
+## Asistente de voz MILPÍN AI
 
 ```mermaid
 flowchart LR
