@@ -1,0 +1,482 @@
+{
+  "version": "1.0",
+  "descripcion": "Corpus de evaluación del pipeline de voz MILPÍN AgTech v2.0 — Valle del Yaqui, DR-041",
+  "baseline_kpi": 85,
+  "categorias": {
+    "navegacion": "Comandos de navegación entre pestañas del ERP",
+    "ejecutar_analisis": "Solicitudes de ejecución de modelos de clustering / análisis espacial",
+    "prescripcion": "Dictado de parámetros para el formulario de fertilización",
+    "consultar": "Preguntas sobre datos del sistema (sin acción inmediata en UI)",
+    "saludo": "Saludos y verificación de actividad del asistente",
+    "desconocido": "Comandos fuera del dominio agronómico del ERP"
+  },
+  "casos": [
+
+    {
+      "id": "TC-001",
+      "categoria": "navegacion",
+      "descripcion": "Comando directo a mapas satelitales",
+      "texto": "Muéstrame los mapas satelitales",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-mapas", "parameters": null }
+    },
+    {
+      "id": "TC-002",
+      "categoria": "navegacion",
+      "descripcion": "Variante: abrir módulo de mapas",
+      "texto": "Abre el módulo de mapas del terreno",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-mapas", "parameters": null }
+    },
+    {
+      "id": "TC-003",
+      "categoria": "navegacion",
+      "descripcion": "Referencia implícita al mapa NDVI",
+      "texto": "Quiero ver el índice de vegetación de la parcela",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-mapas", "parameters": null }
+    },
+    {
+      "id": "TC-004",
+      "categoria": "navegacion",
+      "descripcion": "Navegación al tablero de indicadores BI",
+      "texto": "Llévame al tablero de indicadores de producción",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-bi", "parameters": null }
+    },
+    {
+      "id": "TC-005",
+      "categoria": "navegacion",
+      "descripcion": "Abrir análisis de datos / BI",
+      "texto": "Abre el análisis de datos del ciclo",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-bi", "parameters": null }
+    },
+    {
+      "id": "TC-006",
+      "categoria": "navegacion",
+      "descripcion": "Variante coloquial hacia BI",
+      "texto": "Quiero ver las gráficas de producción del mes",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-bi", "parameters": null }
+    },
+    {
+      "id": "TC-007",
+      "categoria": "navegacion",
+      "descripcion": "Navegación a módulo de costos / prescripción",
+      "texto": "Muéstrame los costos de riego del ciclo",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-costos", "parameters": null }
+    },
+    {
+      "id": "TC-008",
+      "categoria": "navegacion",
+      "descripcion": "Ir a formulario de prescripción de fertilizantes",
+      "texto": "Ir a prescripción de fertilizantes",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-costos", "parameters": null }
+    },
+    {
+      "id": "TC-009",
+      "categoria": "navegacion",
+      "descripcion": "Abrir configuración del sistema",
+      "texto": "Abre la configuración del sistema",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-ajustes", "parameters": null }
+    },
+    {
+      "id": "TC-010",
+      "categoria": "navegacion",
+      "descripcion": "Variante: quiero cambiar los ajustes",
+      "texto": "Quiero cambiar los ajustes del asistente de voz",
+      "audio_file": null,
+      "expected": { "intent": "navegar", "target": "tab-ajustes", "parameters": null }
+    },
+
+    {
+      "id": "TC-011",
+      "categoria": "ejecutar_analisis",
+      "descripcion": "Comando explícito de clustering logístico",
+      "texto": "Ejecuta el clustering logístico de almacenes",
+      "audio_file": null,
+      "expected": { "intent": "ejecutar_analisis", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-012",
+      "categoria": "ejecutar_analisis",
+      "descripcion": "Análisis de zonas de manejo del terreno",
+      "texto": "Corre el análisis de zonas de manejo del terreno",
+      "audio_file": null,
+      "expected": { "intent": "ejecutar_analisis", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-013",
+      "categoria": "ejecutar_analisis",
+      "descripcion": "Solicitud de análisis de productividad",
+      "texto": "Analiza las zonas de productividad de las parcelas",
+      "audio_file": null,
+      "expected": { "intent": "ejecutar_analisis", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-014",
+      "categoria": "ejecutar_analisis",
+      "descripcion": "Iniciar clustering de parcelas",
+      "texto": "Inicia el clustering de las parcelas del módulo",
+      "audio_file": null,
+      "expected": { "intent": "ejecutar_analisis", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-015",
+      "categoria": "ejecutar_analisis",
+      "descripcion": "Análisis de distribución de puntos de entrega",
+      "texto": "Necesito el análisis de distribución de almacenes de insumos",
+      "audio_file": null,
+      "expected": { "intent": "ejecutar_analisis", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-016",
+      "categoria": "ejecutar_analisis",
+      "descripcion": "Referencia al modelo de IA de forma genérica",
+      "texto": "Corre el modelo de inteligencia artificial del campo",
+      "audio_file": null,
+      "expected": { "intent": "ejecutar_analisis", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-017",
+      "categoria": "ejecutar_analisis",
+      "descripcion": "Análisis espacial con mención de rutas",
+      "texto": "Ejecuta el análisis espacial de distribución logística",
+      "audio_file": null,
+      "expected": { "intent": "ejecutar_analisis", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-018",
+      "categoria": "ejecutar_analisis",
+      "descripcion": "Comando de rutas óptimas de entrega",
+      "texto": "Calcula las rutas óptimas para entregar insumos",
+      "audio_file": null,
+      "expected": { "intent": "ejecutar_analisis", "target": null, "parameters": null }
+    },
+
+    {
+      "id": "TC-019",
+      "categoria": "prescripcion",
+      "descripcion": "Prescripción completa — algodón urea zona 5",
+      "texto": "Llena la prescripción para algodón con 300 kilos de urea en la zona 5",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "algodon", "variedad": null, "insumo": "urea", "tasa": 300, "zona": 5 }
+      }
+    },
+    {
+      "id": "TC-020",
+      "categoria": "prescripcion",
+      "descripcion": "Prescripción con variedad — maíz Pioneer sulfato de amonio",
+      "texto": "Pon maíz variedad Pioneer con sulfato de amonio a 180 kilos zona 3",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "maiz", "variedad": "Pioneer", "insumo": "sulfato de amonio", "tasa": 180, "zona": 3 }
+      }
+    },
+    {
+      "id": "TC-021",
+      "categoria": "prescripcion",
+      "descripcion": "Prescripción con número cardinal — uva Flame 200 kg",
+      "texto": "Prescripción para uva variedad Flame con Nitrogen doscientos kilos zona siete",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "uva", "variedad": "Flame", "insumo": "Nitrogen", "tasa": 200, "zona": 7 }
+      }
+    },
+    {
+      "id": "TC-022",
+      "categoria": "prescripcion",
+      "descripcion": "Prescripción con número cardinal — frijol fosfato 150 kg",
+      "texto": "Frijol con fosfato diamónico ciento cincuenta kilos zona dos",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "frijol", "variedad": null, "insumo": "fosfato diamónico", "tasa": 150, "zona": 2 }
+      }
+    },
+    {
+      "id": "TC-023",
+      "categoria": "prescripcion",
+      "descripcion": "Chile jalapeño con nitrato de calcio zona 4",
+      "texto": "Chile jalapeño con nitrato de calcio a 120 kilos zona cuatro",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "chile", "variedad": "jalapeño", "insumo": "nitrato de calcio", "tasa": 120, "zona": 4 }
+      }
+    },
+    {
+      "id": "TC-024",
+      "categoria": "prescripcion",
+      "descripcion": "Registro rápido sin variedad — algodón urea 250 kg",
+      "texto": "Registra algodón urea doscientos cincuenta kilos zona uno",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "algodon", "variedad": null, "insumo": "urea", "tasa": 250, "zona": 1 }
+      }
+    },
+    {
+      "id": "TC-025",
+      "categoria": "prescripcion",
+      "descripcion": "Maíz con potasio — sinónimo lingüístico zona seis",
+      "texto": "Maíz con potasio a doscientos kilos zona seis",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "maiz", "variedad": null, "insumo": "potasio", "tasa": 200, "zona": 6 }
+      }
+    },
+    {
+      "id": "TC-026",
+      "categoria": "prescripcion",
+      "descripcion": "Algodón triple 17 — nombre comercial de fertilizante",
+      "texto": "Quiero registrar algodón con triple 17 en zona 6 a 180 kilos",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "algodon", "variedad": null, "insumo": "triple 17", "tasa": 180, "zona": 6 }
+      }
+    },
+    {
+      "id": "TC-027",
+      "categoria": "prescripcion",
+      "descripcion": "Cotton — mapeo de inglés a español del enum",
+      "texto": "Cotton variedad DPL 1637 con nitrato de amonio 200 kilos zona cinco",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "algodon", "variedad": "DPL 1637", "insumo": "nitrato de amonio", "tasa": 200, "zona": 5 }
+      }
+    },
+    {
+      "id": "TC-028",
+      "categoria": "prescripcion",
+      "descripcion": "Corn — mapeo inglés de maíz, número cardinal",
+      "texto": "Corn zona dos con urea a ciento setenta kilos",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "maiz", "variedad": null, "insumo": "urea", "tasa": 170, "zona": 2 }
+      }
+    },
+    {
+      "id": "TC-029",
+      "categoria": "prescripcion",
+      "descripcion": "Vid — sinónimo de uva con variedad Thompson",
+      "texto": "Vid variedad Thompson con potasio ciento veinte kilogramos zona ocho",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "uva", "variedad": "Thompson", "insumo": "potasio", "tasa": 120, "zona": 8 }
+      }
+    },
+    {
+      "id": "TC-030",
+      "categoria": "prescripcion",
+      "descripcion": "Elote — sinónimo regional de maíz con DAP",
+      "texto": "Elote con DAP a doscientos kilos zona tres",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "maiz", "variedad": null, "insumo": "DAP", "tasa": 200, "zona": 3 }
+      }
+    },
+    {
+      "id": "TC-031",
+      "categoria": "prescripcion",
+      "descripcion": "Frijoles (plural) con MAP — zona cuatro",
+      "texto": "Frijoles zona cuatro con MAP noventa kilos",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "frijol", "variedad": null, "insumo": "MAP", "tasa": 90, "zona": 4 }
+      }
+    },
+    {
+      "id": "TC-032",
+      "categoria": "prescripcion",
+      "descripcion": "Chile serrano con urea — número cien",
+      "texto": "Chile variedad serrano con urea cien kilos zona nueve",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "chile", "variedad": "serrano", "insumo": "urea", "tasa": 100, "zona": 9 }
+      }
+    },
+    {
+      "id": "TC-033",
+      "categoria": "prescripcion",
+      "descripcion": "Uva con sulfato de potasio — tasa baja 50 kg",
+      "texto": "Uva 50 kilos de sulfato de potasio zona diez",
+      "audio_file": null,
+      "expected": {
+        "intent": "llenar_prescripcion",
+        "target": "tab-costos",
+        "parameters": { "cultivo": "uva", "variedad": null, "insumo": "sulfato de potasio", "tasa": 50, "zona": 10 }
+      }
+    },
+
+    {
+      "id": "TC-034",
+      "categoria": "consultar",
+      "descripcion": "Consulta de consumo hídrico semanal",
+      "texto": "¿Cuánta agua usé esta semana en las parcelas?",
+      "audio_file": null,
+      "expected": { "intent": "consultar", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-035",
+      "categoria": "consultar",
+      "descripcion": "Consulta de consumo total del ciclo",
+      "texto": "¿Cuál es el consumo hídrico total del ciclo agrícola?",
+      "audio_file": null,
+      "expected": { "intent": "consultar", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-036",
+      "categoria": "consultar",
+      "descripcion": "Historial de riego últimos 30 días",
+      "texto": "Muéstrame el historial de riego de los últimos 30 días",
+      "audio_file": null,
+      "expected": { "intent": "consultar", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-037",
+      "categoria": "consultar",
+      "descripcion": "Ahorro vs baseline DR-041",
+      "texto": "¿Cuánto he ahorrado comparado con el baseline del distrito de riego?",
+      "audio_file": null,
+      "expected": { "intent": "consultar", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-038",
+      "categoria": "consultar",
+      "descripcion": "Cultivo con mayor déficit hídrico",
+      "texto": "¿Qué parcela tiene mayor déficit hídrico hoy?",
+      "audio_file": null,
+      "expected": { "intent": "consultar", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-039",
+      "categoria": "consultar",
+      "descripcion": "Consulta de ETo actual",
+      "texto": "¿Cuál es la evapotranspiración de referencia de hoy en el valle?",
+      "audio_file": null,
+      "expected": { "intent": "consultar", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-040",
+      "categoria": "consultar",
+      "descripcion": "Resumen de recomendaciones pendientes de riego",
+      "texto": "Dame el resumen de recomendaciones de riego pendientes",
+      "audio_file": null,
+      "expected": { "intent": "consultar", "target": null, "parameters": null }
+    },
+
+    {
+      "id": "TC-041",
+      "categoria": "saludo",
+      "descripcion": "Saludo directo con nombre del asistente",
+      "texto": "Hola Milpín",
+      "audio_file": null,
+      "expected": { "intent": "saludo", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-042",
+      "categoria": "saludo",
+      "descripcion": "Buenos días al sistema",
+      "texto": "Buenos días sistema",
+      "audio_file": null,
+      "expected": { "intent": "saludo", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-043",
+      "categoria": "saludo",
+      "descripcion": "Saludo coloquial sonorense",
+      "texto": "Qué onda Milpín ¿estás activo?",
+      "audio_file": null,
+      "expected": { "intent": "saludo", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-044",
+      "categoria": "saludo",
+      "descripcion": "Verificación de actividad del asistente",
+      "texto": "Oye sistema buenas tardes ¿me escuchas?",
+      "audio_file": null,
+      "expected": { "intent": "saludo", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-045",
+      "categoria": "saludo",
+      "descripcion": "Pregunta de presencia del asistente",
+      "texto": "¿Me escuchas Milpín?",
+      "audio_file": null,
+      "expected": { "intent": "saludo", "target": null, "parameters": null }
+    },
+
+    {
+      "id": "TC-046",
+      "categoria": "desconocido",
+      "descripcion": "Comentario sobre el clima sin acción",
+      "texto": "El clima está muy caliente hoy en Obregón",
+      "audio_file": null,
+      "expected": { "intent": "desconocido", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-047",
+      "categoria": "desconocido",
+      "descripcion": "Consulta de precio de mercado fuera del dominio",
+      "texto": "¿A qué precio está el trigo en el mercado esta semana?",
+      "audio_file": null,
+      "expected": { "intent": "desconocido", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-048",
+      "categoria": "desconocido",
+      "descripcion": "Acción personal sin relación con el ERP",
+      "texto": "Necesito llamar a mi técnico de campo del CIMMYT",
+      "audio_file": null,
+      "expected": { "intent": "desconocido", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-049",
+      "categoria": "desconocido",
+      "descripcion": "Logística externa al sistema",
+      "texto": "¿Cuándo llega el tractor de la asociación de agricultores?",
+      "audio_file": null,
+      "expected": { "intent": "desconocido", "target": null, "parameters": null }
+    },
+    {
+      "id": "TC-050",
+      "categoria": "desconocido",
+      "descripcion": "Infraestructura física fuera del dominio del ERP",
+      "texto": "El canal de riego del módulo tres está bloqueado",
+      "audio_file": null,
+      "expected": { "intent": "desconocido", "target": null, "parameters": null }
+    }
+
+  ]
+}

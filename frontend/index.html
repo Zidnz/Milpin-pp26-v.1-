@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MILPÍN ERP - v2.3</title>
+    <title>MILPÍN DSS - v4</title>
+    <link rel="icon" type="image/png" href="../imagenes/logo.png">
+    <link rel="apple-touch-icon" href="../imagenes/logo.png">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -14,7 +16,7 @@
 <main id="main-container">
 <div id="tab-bi" class="tab-content">
     <div class="data-card">
-        <h3 class="title-prescripcion">📊 Inteligencia de Mercado</h3>
+        <h3 class="title-prescripcion">Inteligencia de Mercado</h3>
         <p>Seleccione un perfil para calcular predicciones basadas en similitud de demanda.</p>
         
         <select id="select-cliente-bi" onchange="actualizarAnalisisBI()" style="margin-bottom: 20px;">
@@ -45,49 +47,91 @@
     </div>
 
     <div id="tab-costos" class="tab-content" style="display: none;">
-        <div class="prescripcion-container">
-            <h2 class="title-prescripcion">Prescripción de fertilización</h2>
+        <div class="riego-container">
 
-            <form id="form-prescripcion">
-                <div class="input-group">
-                    <label>Cultivo</label>
-                    <select id="select-cultivo">
-                        <option value="uva">Uva de mesa</option>
-                        <option value="maiz">Maíz para grano</option>                     
-                        <option value="algodon">Algodón</option>
-                        <option value="frijol">Frijol</option>
-                        <option value="chile">Chile verde</option>
+            <!-- Encabezado y selector -->
+            <div class="riego-header">
+                <div>
+                    <h2 class="riego-titulo">Mi Riego</h2>
+                    <p class="riego-subtitulo">Recomendaciones FAO-56 · Valle del Yaqui DR-041</p>
+                </div>
+                <div class="riego-selector-wrap">
+                    <label class="riego-label" for="select-parcela-riego">Parcela</label>
+                    <select id="select-parcela-riego" class="riego-select" onchange="cargarRecomendacion(this.value)">
+                        <option value="">— Selecciona una parcela —</option>
                     </select>
-                    <input type="text" placeholder="Variedad / híbrido" id="variedad" style="margin-top: 10px;">
                 </div>
+            </div>
 
-                <div class="input-group">
-                    <label>Nombre de insumo</label>
-                    <input type="text" value="Carbamide" id="insumo">
+            <!-- Estado vacío / cargando -->
+            <div id="riego-estado" class="riego-estado">
+                <span class="riego-estado-icono">💧</span>
+                <p>Selecciona una parcela para ver la recomendación activa.</p>
+            </div>
+
+            <!-- Card de recomendación activa -->
+            <div id="riego-card-activa" style="display:none;">
+                <div class="riego-urgencia-wrap">
+                    <span id="riego-badge-urgencia" class="riego-badge">—</span>
+                    <span id="riego-badge-cultivo" class="riego-badge-cultivo">—</span>
                 </div>
-
-                <div class="input-group">
-                    <label>Tasa estándar</label>
-                    <div class="rate-box">
-                        <input type="number" value="250" class="rate-input">
-                        <div class="unit-toggle">kg/ha</div>
+                <div class="riego-metricas">
+                    <div class="riego-metrica-main">
+                        <span class="riego-metrica-num" id="riego-lamina">—</span>
+                        <span class="riego-metrica-unidad">mm de riego</span>
+                        <span class="riego-metrica-desc">Lámina recomendada</span>
+                    </div>
+                    <div class="riego-metricas-secundarias">
+                        <div class="riego-metrica-item">
+                            <span class="riego-metrica-label">ET₀</span>
+                            <span id="riego-eto" class="riego-metrica-val">—</span>
+                        </div>
+                        <div class="riego-metrica-item">
+                            <span class="riego-metrica-label">ETc</span>
+                            <span id="riego-etc" class="riego-metrica-val">—</span>
+                        </div>
+                        <div class="riego-metrica-item">
+                            <span class="riego-metrica-label">Déficit</span>
+                            <span id="riego-deficit" class="riego-metrica-val">—</span>
+                        </div>
+                        <div class="riego-metrica-item">
+                            <span class="riego-metrica-label">Sin riego</span>
+                            <span id="riego-dias" class="riego-metrica-val">—</span>
+                        </div>
                     </div>
                 </div>
+                <p class="riego-fecha-sugerida" id="riego-fecha-sugerida"></p>
+                <div class="riego-feedback-btns">
+                    <button class="riego-btn-si" id="btn-riego-si" onclick="confirmarRiego('aceptada')">
+                        ✓ Regué hoy
+                    </button>
+                    <button class="riego-btn-no" id="btn-riego-no" onclick="confirmarRiego('ignorada')">
+                        ✗ No regué
+                    </button>
+                </div>
+            </div>
 
-                <div class="input-group">
-                    <label>Zonas de productividad</label>
-                    <div class="zones-selector">
-                        <button type="button" class="zone-btn active">3</button>
-                        <button type="button" class="zone-btn">5</button>
-                        <button type="button" class="zone-btn">7</button>
+            <!-- Sin recomendación pendiente -->
+            <div id="riego-sin-activa" style="display:none;">
+                <div class="riego-calcular-card">
+                    <p class="riego-calcular-msg">No hay recomendación pendiente para esta parcela.</p>
+                    <div class="riego-calcular-form">
+                        <label class="riego-label">Días desde siembra</label>
+                        <input type="number" id="input-dias-siembra" min="1" max="365"
+                               placeholder="Ej: 45" class="riego-input">
+                        <button class="riego-btn-calcular" onclick="calcularNuevaRecomendacion()">
+                            Calcular recomendación FAO-56
+                        </button>
                     </div>
                 </div>
+            </div>
 
-                <div class="form-actions">
-                    <button type="button" class="btn-main" onclick="ejecutarPrescripcion()">Guardar</button>
-                    <button type="button" class="btn-secondary">Ensayos ➜</button>
-                </div>
-            </form>
+            <!-- Historial de recomendaciones recientes -->
+            <div id="riego-historial-wrap" style="display:none;">
+                <h3 class="riego-historial-titulo">Últimas recomendaciones</h3>
+                <div id="riego-historial-lista" class="riego-historial-lista"></div>
+            </div>
+
         </div>
     </div>
 
@@ -100,8 +144,12 @@
         </div>
         <p class="ajustes-subtitle">Las voces marcadas con ★ son neurales de alta calidad.</p>
 
-        <div id="vozLista" class="voz-lista">
-            <div class="voz-card-loading">Cargando voces del sistema...</div>
+        <div class="voz-dropdown" id="vozDropdown">
+            <button type="button" class="voz-dropdown-trigger" id="vozDropdownTrigger">
+                <span id="vozDropdownLabel">Cargando voces...</span>
+                <svg viewBox="0 0 24 24" class="voz-dropdown-chevron"><path d="M7 10l5 5 5-5z"/></svg>
+            </button>
+            <ul class="voz-dropdown-list" id="vozDropdownList" role="listbox"></ul>
         </div>
 
         <button class="btn-main ajustes-btn-probar" id="btnProbarVoz">
@@ -144,7 +192,7 @@
 <div class="milpin-fab" id="milpinBtn">
     <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
 </div>
-<div id="statusLabel" class="status-label">MILPÍN listo</div>
+<div id="statusLabel" class="status-label">MILPIN listo</div>
 
 <nav class="nav-bar">
     <a href="#" class="nav-item active" onclick="cambiarPestana(event, 'tab-bi')">
@@ -157,8 +205,8 @@
     </a>
     <div style="width: 75px;"></div>
     <a href="#" class="nav-item" onclick="cambiarPestana(event, 'tab-costos')">
-        <svg viewBox="0 0 24 24"><path d="M7 15h2c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1H7c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm0-4h2v2H7v-2z"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/><path d="M15 15h2c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1h-2c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1zm0-4h2v2h-2v-2z"/></svg>
-        <span>Costos</span>
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/><path d="M11 7h2v6h-2zm0 8h2v2h-2z"/></svg>
+        <span>Riego</span>
     </a>
     <a href="#" class="nav-item" onclick="cambiarPestana(event, 'tab-ajustes')">
         <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2 3.46c.12.22.07.49-.12.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
