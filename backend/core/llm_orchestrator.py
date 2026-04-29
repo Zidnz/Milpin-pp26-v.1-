@@ -8,6 +8,16 @@ import os
 import requests
 from collections import deque
 
+# Cliente Groq (reemplaza Ollama para inferencia en la nube)
+try:
+    from groq import Groq
+    _groq_api_key = os.getenv("GROQ_API_KEY")
+    _groq_client = Groq(api_key=_groq_api_key) if _groq_api_key else None
+    _USE_GROQ = bool(_groq_api_key)
+except (ImportError, Exception):
+    _groq_client = None
+    _USE_GROQ = False
+
 # imageio_ffmpeg trae su propio binario pero con nombre largo (ej. ffmpeg-win64-v6.exe).
 # Whisper lo llama por nombre exacto "ffmpeg", así que copiamos el binario
 # a un directorio temporal con el nombre correcto y lo añadimos al PATH.
@@ -106,14 +116,28 @@ Usuario: "Prescripción de uva para la variedad Flame sin Nitrogen, zona 7, dosc
 {"intent":"llenar_prescripcion","target":"tab-costos","message":"Formulario actualizado: uva Flame, Nitrogen, 200 kilogramos por hectárea, zona 7.","parameters":{"cultivo":"uva","variedad":"Flame","insumo":"Nitrogen","tasa":200,"zona":7}}
 """
 
-# ── STT: Whisper ──────────────────────────────────────────────────────────────
-print("[MILPÍN] Cargando motor Whisper…")
-try:
-    _whisper_model = whisper.load_model("base")
-    print("[MILPÍN] Whisper listo.")
-except Exception as _e:
-    print(f"[MILPÍN] Whisper no disponible: {_e}")
-    _whisper_model = None
+# ── STT: Whisper (lazy load) ──────────────────────────────────────────────────
+# No se carga al importar el módulo. Se inicializa en el primer request de voz.
+# Ahorra ~30-60s de startup y ~150MB de RAM si nadie usa el micrófono.
+_whisper_model = None
+_whisper_loaded = False
+
+
+def _get_whisper():
+    """Carga Whisper la primera vez que se necesita y reutiliza la instancia."""
+    global _whisper_model, _whisper_loaded
+    if _whisper_loaded:
+        return _whisper_model
+    print("[MILPÍN] Cargando motor Whisper (primer uso)…")
+    try:
+        _whisper_model = whisper.load_model("base")
+        print("[MILPÍN] Whisper listo.")
+    except Exception as e:
+        print(f"[MILPÍN] Whisper no disponible: {e}")
+        _whisper_model = None
+    _whisper_loaded = True
+    return _whisper_model
+
 
 # ── Session memory (ring buffer, single-user) ─────────────────────────────────
 # Stores alternating {"role":"user"/"assistant", "content":"..."} dicts.
@@ -123,27 +147,51 @@ _history: deque = deque(maxlen=HISTORY_TURNS * 2)
 # ── Private helpers ───────────────────────────────────────────────────────────
 
 def _transcribir(audio_path: str) -> str | None:
-    if not _whisper_model:
+    model = _get_whisper()
+    if not model:
         return None
     try:
-        result = _whisper_model.transcribe(audio_path, language="es", fp16=False)
+        result = model.transcribe(audio_path, language="es", fp16=False)
         return result["text"].strip()
     except Exception as e:
         print(f"[Whisper] Error: {e}")
         return None
 
 
-def _llamar_ollama(user_text: str) -> dict:
-    """Build the full message list (system + history + current) and call Ollama."""
+def _llamar_llm(user_text: str) -> dict:
+    """Llama al LLM disponible: Groq (nube, rápido) u Ollama (local, fallback)."""
     messages = [{"role": "system", "content": _SYSTEM_PROMPT}]
     messages.extend(list(_history))
     messages.append({"role": "user", "content": user_text})
 
+    if _USE_GROQ and _groq_client:
+        return _llamar_groq(messages)
+    return _llamar_ollama(messages)
+
+
+def _llamar_groq(messages: list) -> dict:
+    """Inferencia en Groq Cloud — ~1s de latencia."""
+    try:
+        resp = _groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=messages,
+            max_tokens=200,
+            temperature=0.1,
+        )
+        raw = resp.choices[0].message.content.strip()
+        print(f"[Groq] Respuesta raw: {raw[:100]}")
+        return _parsear_y_validar(raw)
+    except Exception as e:
+        print(f"[Groq] Error: {e}. Cayendo a Ollama.")
+        return _llamar_ollama(messages)
+
+
+def _llamar_ollama(messages: list) -> dict:
+    """Inferencia local con Ollama — fallback si Groq no está configurado."""
     try:
         resp = requests.post(
             OLLAMA_URL,
             json={"model": OLLAMA_MODEL, "messages": messages, "stream": False, "options": {"num_ctx": 1024}}
-
         )
         resp.raise_for_status()
         raw = resp.json()["message"]["content"].strip()
@@ -230,7 +278,7 @@ def interpretar_comando_voz(audio_path: str) -> dict:
 
     print(f"[Whisper] '{transcripcion}'")
 
-    resultado = _llamar_ollama(transcripcion)
+    resultado = _llamar_llm(transcripcion)
 
     # Persist this turn in session memory
     _history.append({"role": "user",      "content": transcripcion})
@@ -242,16 +290,11 @@ def interpretar_comando_voz(audio_path: str) -> dict:
 
 def interpretar_texto(texto: str) -> dict:
     """
-    Clasifica la intención de un texto plano usando Ollama (sin STT).
-    Útil para pruebas unitarias del LLM que no requieren audio.
-
-    A diferencia de interpretar_comando_voz, NO actualiza _history para
-    mantener los casos de prueba completamente aislados entre sí.
-
-    Retorna el mismo esquema JSON que interpretar_comando_voz, con
-    'transcripcion' igual al texto de entrada.
+    Clasifica la intención de un texto plano usando el LLM activo (sin STT).
+    Útil para pruebas unitarias que no requieren audio.
+    No actualiza _history para mantener aislamiento entre casos de prueba.
     """
-    resultado = _llamar_ollama(texto)
+    resultado = _llamar_llm(texto)
     resultado["transcripcion"] = texto
     return resultado
 

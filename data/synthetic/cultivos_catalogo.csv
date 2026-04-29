@@ -1,0 +1,6 @@
+id_cultivo,nombre_comun,nombre_cientifico,kc_inicial,kc_medio,kc_final,ky_total,dias_etapa_inicial,dias_etapa_desarrollo,dias_etapa_media,dias_etapa_final,rendimiento_potencial_ton
+08335fd5-4745-4f08-bba5-eae27b47214f,Maíz,Zea mays,0.3,1.2,0.6,1.25,25,40,45,30,10.0
+edc7409e-c2e5-4acd-be6f-1b9a453768c3,Frijol,Phaseolus vulgaris,0.4,1.15,0.35,1.15,20,30,40,20,2.0
+0543177f-a27b-4e03-94fc-b67cd11c1346,Algodón,Gossypium hirsutum,0.35,1.2,0.7,0.85,30,50,55,45,3.5
+dfdc996a-824e-42d0-8b0d-5e1d805bcf95,Uva,Vitis vinifera,0.3,0.85,0.45,0.85,30,60,75,50,22.5
+665d7746-fa81-4c11-a29f-d5ad07de4cda,Chile,Capsicum annuum,0.6,1.05,0.9,1.1,30,35,40,20,30.0

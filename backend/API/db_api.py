@@ -1,23 +1,27 @@
 """
-db_api.py — Endpoints CRUD para las 5 tablas del MVP de MILPÍN AgTech v2.0
+db_api.py — Endpoints CRUD para las tablas del MVP de MILPÍN AgTech v2.0
 
 Endpoints disponibles:
-    POST   /api/usuarios                    → Crear usuario
-    GET    /api/usuarios/{id}               → Obtener usuario con sus parcelas
+    POST   /api/usuarios                        → Crear usuario
+    GET    /api/usuarios/{id}                   → Obtener usuario con sus parcelas
 
-    GET    /api/cultivos                    → Listar catálogo de cultivos
-    GET    /api/cultivos/{id}               → Obtener cultivo por ID
+    GET    /api/cultivos                        → Listar catálogo de cultivos
+    GET    /api/cultivos/{id}                   → Obtener cultivo por ID
 
-    POST   /api/parcelas                    → Crear parcela
-    GET    /api/parcelas/{id}               → Obtener parcela con historial reciente
-    GET    /api/parcelas/{id}/kpi           → KPI de consumo vs baseline DR-041
+    POST   /api/parcelas                        → Crear parcela
+    GET    /api/parcelas                        → Listar todas las parcelas activas
+    GET    /api/parcelas/{id}                   → Obtener parcela con historial reciente
+    GET    /api/parcelas/{id}/kpi               → KPI de consumo vs baseline DR-041
 
-    POST   /api/riego                       → Registrar evento de riego
-    GET    /api/riego/parcela/{id}          → Historial de riego de una parcela
+    POST   /api/riego                           → Registrar evento de riego
+    GET    /api/riego/parcela/{id}              → Historial de riego de una parcela
 
-    POST   /api/recomendaciones             → Guardar recomendación del motor FAO-56
-    GET    /api/recomendaciones/{id}        → Obtener recomendación
-    PATCH  /api/recomendaciones/{id}/feedback → Registrar feedback del agricultor
+    POST   /api/recomendaciones                 → Guardar recomendación del motor FAO-56
+    GET    /api/recomendaciones/{id}            → Obtener recomendación
+    PATCH  /api/recomendaciones/{id}/feedback   → Registrar feedback del agricultor
+
+    POST   /api/costos                          → Registrar costos de un ciclo agrícola
+    GET    /api/costos/parcela/{id}             → Costos por ciclo de una parcela
 """
 
 import uuid
@@ -30,7 +34,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models import CultivoCatalogo, HistorialRiego, Parcela, Recomendacion, Usuario
+from models import CostoCiclo, CultivoCatalogo, HistorialRiego, Parcela, Recomendacion, Usuario
 
 router = APIRouter(tags=["Base de Datos MVP"])
 
@@ -206,6 +210,15 @@ async def obtener_cultivo(id_cultivo: uuid.UUID, db: AsyncSession = Depends(get_
 
 # ── Endpoints: parcelas ───────────────────────────────────────────────────────
 
+@router.get("/parcelas", response_model=list[ParcelaOut])
+async def listar_parcelas(db: AsyncSession = Depends(get_db)):
+    """Lista todas las parcelas activas. Usado por el tab de Costos para el selector."""
+    resultado = await db.execute(
+        select(Parcela).where(Parcela.activo == True).order_by(Parcela.nombre_parcela)
+    )
+    return resultado.scalars().all()
+
+
 @router.post("/parcelas", response_model=ParcelaOut, status_code=status.HTTP_201_CREATED)
 async def crear_parcela(data: ParcelaCreate, db: AsyncSession = Depends(get_db)):
     """Registra un nuevo lote de cultivo asociado a un usuario."""
@@ -355,6 +368,69 @@ async def guardar_recomendacion(data: RecomendacionCreate, db: AsyncSession = De
     return rec
 
 
+@router.get("/recomendaciones/parcela/{id_parcela}")
+async def recomendaciones_por_parcela(
+    id_parcela: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Devuelve el estado de recomendaciones para una parcela:
+      - activa: la recomendacion pendiente mas reciente (None si no hay)
+      - historial: las ultimas 5 recomendaciones cerradas (aceptada/modificada/ignorada)
+
+    El frontend usa este endpoint para renderizar el tab de Riego.
+    """
+    p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == id_parcela))
+    if not p_res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+
+    # Recomendacion pendiente mas reciente
+    res_activa = await db.execute(
+        select(Recomendacion)
+        .where(
+            Recomendacion.id_parcela == id_parcela,
+            Recomendacion.aceptada == "pendiente",
+        )
+        .order_by(Recomendacion.fecha_generacion.desc())
+        .limit(1)
+    )
+    activa = res_activa.scalar_one_or_none()
+
+    # Ultimas 5 cerradas
+    res_hist = await db.execute(
+        select(Recomendacion)
+        .where(
+            Recomendacion.id_parcela == id_parcela,
+            Recomendacion.aceptada != "pendiente",
+        )
+        .order_by(Recomendacion.fecha_generacion.desc())
+        .limit(5)
+    )
+    historial = res_hist.scalars().all()
+
+    def _fmt(r: Recomendacion) -> dict:
+        return {
+            "id_recomendacion": str(r.id_recomendacion),
+            "fecha_generacion": r.fecha_generacion.isoformat(),
+            "fecha_riego_sugerida": r.fecha_riego_sugerida.isoformat() if r.fecha_riego_sugerida else None,
+            "lamina_recomendada_mm": float(r.lamina_recomendada_mm) if r.lamina_recomendada_mm else None,
+            "eto_referencia": float(r.eto_referencia) if r.eto_referencia else None,
+            "etc_calculada": float(r.etc_calculada) if r.etc_calculada else None,
+            "deficit_acumulado_mm": float(r.deficit_acumulado_mm) if r.deficit_acumulado_mm else None,
+            "dias_sin_riego": r.dias_sin_riego,
+            "nivel_urgencia": r.nivel_urgencia,
+            "aceptada": r.aceptada,
+            "lamina_ejecutada_mm": float(r.lamina_ejecutada_mm) if r.lamina_ejecutada_mm else None,
+            "cultivo": r.parametros_json.get("cultivo") if r.parametros_json else None,
+        }
+
+    return {
+        "id_parcela": str(id_parcela),
+        "activa": _fmt(activa) if activa else None,
+        "historial": [_fmt(r) for r in historial],
+    }
+
+
 @router.get("/recomendaciones/{id_recomendacion}", response_model=RecomendacionOut)
 async def obtener_recomendacion(
     id_recomendacion: uuid.UUID, db: AsyncSession = Depends(get_db)
@@ -374,18 +450,13 @@ async def feedback_recomendacion(
     feedback: FeedbackRecomendacion,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Registra la respuesta del agricultor a una recomendación.
-
-    Valores válidos para 'aceptada': 'aceptada', 'modificada', 'ignorada'.
-    Si fue 'modificada', proporcionar lamina_ejecutada_mm con el valor real aplicado.
-    """
+    """Registra la respuesta del agricultor a una recomendacion (aceptada/modificada/ignorada)."""
     resultado = await db.execute(
         select(Recomendacion).where(Recomendacion.id_recomendacion == id_recomendacion)
     )
     rec = resultado.scalar_one_or_none()
     if not rec:
-        raise HTTPException(status_code=404, detail="Recomendación no encontrada.")
+        raise HTTPException(status_code=404, detail="Recomendacion no encontrada.")
 
     rec.aceptada = feedback.aceptada
     if feedback.lamina_ejecutada_mm is not None:
@@ -393,3 +464,78 @@ async def feedback_recomendacion(
 
     await db.flush()
     return rec
+
+
+# Schemas: costos_ciclo
+
+class CostoCicloCreate(BaseModel):
+    id_parcela: uuid.UUID
+    ciclo_agricola: str = Field(..., description="Formato OI-YYYY o PV-YYYY")
+    cultivo: str | None = None
+    volumen_agua_total_m3: float | None = None
+    costo_agua_mxn: float | None = None
+    costo_fertilizantes_mxn: float | None = None
+    costo_agroquimicos_mxn: float | None = None
+    costo_semilla_mxn: float | None = None
+    costo_maquinaria_mxn: float | None = None
+    costo_mano_obra_mxn: float | None = None
+    ingreso_estimado_mxn: float | None = None
+    margen_contribucion_mxn: float | None = None
+
+class CostoCicloOut(BaseModel):
+    id_costo: uuid.UUID
+    id_parcela: uuid.UUID
+    ciclo_agricola: str
+    cultivo: str | None
+    volumen_agua_total_m3: float | None
+    costo_agua_mxn: float | None
+    costo_fertilizantes_mxn: float | None
+    costo_agroquimicos_mxn: float | None
+    costo_semilla_mxn: float | None
+    costo_maquinaria_mxn: float | None
+    costo_mano_obra_mxn: float | None
+    ingreso_estimado_mxn: float | None
+    margen_contribucion_mxn: float | None
+    model_config = {"from_attributes": True}
+
+
+# Endpoints: costos_ciclo
+
+@router.post("/costos", response_model=CostoCicloOut, status_code=status.HTTP_201_CREATED)
+async def registrar_costo_ciclo(data: CostoCicloCreate, db: AsyncSession = Depends(get_db)):
+    """Registra el resumen economico de un ciclo agricola. Calcula margen si no se provee."""
+    p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == data.id_parcela))
+    if not p_res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+
+    payload = data.model_dump()
+
+    if payload.get("margen_contribucion_mxn") is None and payload.get("ingreso_estimado_mxn") is not None:
+        costos_directos = sum(
+            payload.get(k) or 0.0
+            for k in (
+                "costo_agua_mxn", "costo_fertilizantes_mxn", "costo_agroquimicos_mxn",
+                "costo_semilla_mxn", "costo_maquinaria_mxn", "costo_mano_obra_mxn",
+            )
+        )
+        payload["margen_contribucion_mxn"] = payload["ingreso_estimado_mxn"] - costos_directos
+
+    costo = CostoCiclo(id_costo=uuid.uuid4(), **payload)
+    db.add(costo)
+    await db.flush()
+    return costo
+
+
+@router.get("/costos/parcela/{id_parcela}", response_model=list[CostoCicloOut])
+async def costos_por_parcela(id_parcela: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Retorna todos los ciclos de una parcela ordenados del mas reciente al mas antiguo."""
+    p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == id_parcela))
+    if not p_res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+
+    resultado = await db.execute(
+        select(CostoCiclo)
+        .where(CostoCiclo.id_parcela == id_parcela)
+        .order_by(CostoCiclo.ciclo_agricola.desc())
+    )
+    return resultado.scalars().all()
