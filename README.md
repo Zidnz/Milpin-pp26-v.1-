@@ -27,7 +27,7 @@
 
 ---
 
-## 📋 Tabla de Contenidos
+## Tabla de Contenidos
 
 - [¿Qué es MILPÍN?](#-qué-es-milpín)
 - [Estado del proyecto](#-estado-del-proyecto)
@@ -44,9 +44,9 @@
 
 ---
 
-## 🌱 ¿Qué es MILPÍN?
+## ¿Qué es MILPÍN?
 
-**MILPÍN** es un ERP agrícola inteligente diseñado para los productores del **Distrito de Riego DR-041 (Valle del Yaqui, Sonora, México)**. Combina modelos agronómicos científicos, inteligencia artificial local y visualización geoespacial para brindar recomendaciones de riego precisas, controlables por voz.
+**MILPÍN** es un DDS agrícola inteligente diseñado para los productores del **Distrito de Riego DR-041 (Valle del Yaqui, Sonora, México)**. Combina modelos agronómicos científicos, inteligencia artificial local y visualización geoespacial para brindar recomendaciones de riego precisas, controlables por voz.
 
 > El nombre honra a la **milpa**, el sistema agrícola ancestral mesoamericano, fusionándolo con tecnología de punta.
 
@@ -85,7 +85,7 @@
 <tr>
 <td width="50%">
 
-### 🧠 Inteligencia Agronómica
+### Inteligencia Agronómica
 - Motor **FAO-56 Penman-Monteith** para cálculo de evapotranspiración
 - Fallback **Hargreaves** cuando los datos son incompletos
 - Interpolación de coeficientes **Kc** por etapa fenológica
@@ -105,7 +105,7 @@
 <tr>
 <td width="50%">
 
-### 🗺️ GIS Interactivo
+### GIS Interactivo
 - Mapa vectorial con **Leaflet.js**
 - Capas: lotes, ríos, canales, pozos, límites
 - Rampa de color por NDVI/rendimiento
@@ -114,7 +114,7 @@
 </td>
 <td width="50%">
 
-### 📊 Machine Learning
+### Machine Learning
 - **K-Means** para optimización de logística de almacenamiento
 - **K-Means** para zonas de manejo diferenciado en campo
 - **Filtrado colaborativo** (similitud coseno) para recomendaciones de mercado
@@ -125,7 +125,7 @@
 
 ---
 
-## 🏗️ Arquitectura del sistema
+## Arquitectura del sistema
 
 ```mermaid
 flowchart TB
@@ -192,7 +192,7 @@ flowchart TB
 
 ```
 
-## 🛠️ Stack tecnológico
+## Stack tecnológico
 
 ### Backend
 
@@ -219,7 +219,7 @@ flowchart TB
 | Tecnología | Rol |
 |-----------|-----|
 | **HTML5 / CSS3** | SPA estructurada con sistema de diseño propio |
-| **Vanilla JavaScript** | Lógica de tabs, voz, filtrado colaborativo |
+| **JavaScript** | Lógica de tabs, voz, filtrado colaborativo |
 | **Leaflet.js 1.9.4** | Motor GIS interactivo |
 | **Web Audio API** | Captura de micrófono y streaming de audio |
 
@@ -233,7 +233,7 @@ milpin-pp26-v.1/
 ├── 📂 backend/
 │   ├── main.py                  ← Punto de entrada FastAPI 2.0, lifespan, CORS, 4 routers
 │   ├── database.py              ← Engine async, SessionLocal factory, IS_SQLITE flag
-│   ├── models.py                ← 6 modelos ORM (usuarios, parcelas, cultivos, recomendaciones, historial, clima)
+│   ├── models.py                ← 7 modelos ORM (usuarios, cultivos_catalogo, parcelas, recomendaciones, historial_riego, costos_ciclo, clima_diario)
 │   ├── schema.sql               ← DDL PostgreSQL: 7 tablas + 2 vistas KPI + seed de 5 cultivos
 │   ├── init_db.py               ← Script de inicialización de BD (--reset, --check)
 │   ├── .env                     ← Variables de entorno (⚠ contiene secretos, rotar)
@@ -248,7 +248,7 @@ milpin-pp26-v.1/
 │   ├── 📂 core/
 │   │   ├── balance_hidrico.py   ← Motor Penman-Monteith / Hargreaves (FAO-56)
 │   │   ├── kmeans_model.py      ← Wrapper K-Means scikit-learn
-│   │   └── llm_orchestrator.py  ← Pipeline STT → LLM → JSON intent
+│   │   └── llm_orchestrator.py  ← Pipeline STT → LLM → JSON intent (Groq/Ollama)
 │   │
 │   └── 📂 tests/
 │       ├── run_tests.py         ← Runner de tests de voz
@@ -269,16 +269,19 @@ milpin-pp26-v.1/
 │
 ├── 📂 doc/                      ← Documentación del proyecto (.docx)
 ├── 📂 imagenes/                 ← Recursos visuales
+├── 📂 synthetic/                ← CSVs sintéticos para seed/desarrollo
 ├── 📂 tools/
 │   ├── geo_pipeline.py          ← Pipeline GIS: geopandas + make_valid + Douglas-Peucker
-│   └── generar_datos_sinteticos.py ← Generador de CSVs sintéticos para BD
+│   ├── generar_datos_sinteticos.py ← Generador de CSVs sintéticos para BD
+│   ├── nasa_power_etl.py        ← ETL clima NASA POWER → clima_diario
+│   └── add_eda_sections.py      ← Utilidad EDA
 ├── requirements.txt             ← Dependencias top-level
 └── .gitignore
 ```
 
 ---
 
-## 📡 API Reference
+## API Reference
 
 ### Balance Hídrico FAO-56 (principal — lee de BD, persiste)
 
@@ -298,16 +301,6 @@ Lee los datos edáficos de `parcelas`, el cultivo de `cultivos_catalogo` y el cl
 
 ---
 
-### Balance Hídrico manual (legacy — sin BD)
-
-```http
-GET /api/balance_hidrico_manual?parcela_id=...&cultivo=...&tmax=...&tmin=...&...
-```
-
-Recibe todos los parámetros por query string. No lee de BD ni persiste. Útil para pruebas rápidas y para el frontend que aún no usa el endpoint principal.
-
----
-
 ### Curvas Kc por cultivo
 
 ```http
@@ -315,6 +308,16 @@ GET /api/kc/{cultivo}
 ```
 
 Devuelve los coeficientes Kc y duración de etapas fenológicas para un cultivo del catálogo.
+
+---
+
+### Balance Hídrico manual (legacy — sin BD)
+
+```http
+GET /api/balance_hidrico_manual?parcela_id=...&cultivo=...&tmax=...&tmin=...&...
+```
+
+Recibe todos los parámetros por query string. No lee de BD ni persiste. Útil para pruebas rápidas y para el frontend que aún no usa el endpoint principal.
 
 ---
 
@@ -382,7 +385,7 @@ GET /api/zonas_manejo            # Zonas de manejo diferenciado
 
 ---
 
-## 🗄️ Base de datos
+## Base de datos
 
 ### Esquema completo (7 tablas + 2 vistas)
 
@@ -442,7 +445,7 @@ GROUP BY p.id_parcela, p.nombre_parcela, EXTRACT(YEAR FROM h.fecha_riego);
 
 ---
 
-## 🚀 Instalación y uso
+## Instalación y uso
 
 ### Requisitos previos
 
@@ -498,7 +501,7 @@ OLLAMA_MODEL=llama3.2:latest
 
 ---
 
-## 🌐 Frontend (SPA)
+## Frontend (SPA)
 
 La interfaz es una **Single Page Application** con 4 pestañas y un botón flotante de voz.
 
@@ -522,14 +525,14 @@ El **FAB (Floating Action Button)** 🎤 activa el asistente de voz MILPÍN en c
 
 ---
 
-## 🧮 Motor FAO-56
+## Motor FAO-56
 
 El corazón agronómico de MILPÍN implementa la **metodología FAO-56 Penman-Monteith** completa:
 
 ```
 ETo = [0.408·Δ·(Rn - G) + γ·(900/(T+273))·u₂·(es - ea)]
-      ─────────────────────────────────────────────────────
-              [Δ + γ·(1 + 0.34·u₂)]
+─────────────────────────────────────────────────────
+[Δ + γ·(1 + 0.34·u₂)]
 ```
 
 **Donde:**
@@ -549,7 +552,7 @@ ETo = [0.408·Δ·(Rn - G) + γ·(900/(T+273))·u₂·(es - ea)]
 
 ---
 
-## 🗣️ Asistente de voz MILPÍN AI
+## Asistente de voz MILPÍN AI
 
 ```mermaid
 flowchart LR
