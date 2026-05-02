@@ -11,11 +11,11 @@ juicio agronómico.
 
 ---
 
-## Estado actual (2026-04-30)
+## Estado actual (2026-05-01)
 
-Pre-MVP con core técnico sólido. Los bloqueadores de geometría y migraciones
-quedaron resueltos esta semana; lo que falta es autenticación, tests y
-persistencia end-to-end del loop recomendación→feedback.
+Pre-MVP con core técnico sólido. Quedan resueltos geometría, migraciones,
+tests y el loop recomendación→feedback. El único bloqueador funcional pendiente
+es autenticación.
 
 **Ya funciona:**
 
@@ -36,14 +36,16 @@ persistencia end-to-end del loop recomendación→feedback.
 - Pipeline GIS con geopandas + shapely `make_valid` + Douglas-Peucker.
 - Alembic activo: `backend/migrations/` + `alembic.ini`. Próximas migraciones
   con `alembic revision -m "descripcion"` + `alembic upgrade head`.
+- **77 tests** — 42 unitarios FAO-56 (`test_fao56_unit.py`) + 35 e2e con
+  SQLite/aiosqlite (`test_riego_e2e.py`). Ejecutar con `pytest backend/tests/`.
+- **Loop recomendación→feedback completo.** `PATCH /recomendaciones/{id}/feedback`
+  actualiza el estado y auto-inserta en `historial_riego` cuando `aceptada` es
+  `"aceptada"` o `"modificada"`. Verificado con `TestFeedbackLoop` (7 casos).
 
 **Falta para MVP:**
 
 - Autenticación — `id_usuario` entra como UUID en body; cualquiera puede
   crear parcelas a nombre de cualquiera.
-- Tests automatizados de backend.
-- Loop recomendación→feedback end-to-end con datos reales (las tablas existen,
-  los endpoints están, no se ha probado con flujo completo).
 
 ---
 
@@ -118,6 +120,9 @@ backend/
     kmeans_model.py
     llm_orchestrator.py # VALID_CULTIVOS + Ollama client
   tests/
+    conftest.py           # fixtures SQLite async
+    test_fao56_unit.py    # 42 tests unitarios FAO-56
+    test_riego_e2e.py     # 35 tests e2e (endpoints + BD)
 
 frontend/
   index.html
@@ -262,14 +267,4 @@ GROQ_API_KEY=
 ```
 
 > **⚠ Seguridad:** rotar las credenciales y agregar `.env` al `.gitignore`
-> antes de cualquier push a repositorio no privado.
-
----
-
-## Notas
-
-- `backend/models.py` es la fuente de verdad del schema en runtime.
-  `backend/schema.sql` está desalineado y documenta la fase pre-PostGIS.
-- `balance_hidrico_manual` es un endpoint legacy que no persiste datos.
-- El usuario de prueba seeded es Ramón Valenzuela Torres
-  (`rvalenzuela@dr041-dev.com`, Módulo 3).
+> antes de cualquier push a repositorio 
