@@ -55,7 +55,7 @@
 
 ---
 
-## 📊 Estado del proyecto
+## Estado del proyecto
 
 **Fase actual: DSS — core técnico sólido, bloqueador único: autenticación**
 
@@ -78,13 +78,13 @@
 
 ---
 
-## ✨ Características principales
+## Características principales
 
 <table>
 <tr>
 <td width="50%">
 
-### 🌱 Inteligencia Agronómica
+### Inteligencia Agronómica
 
 - Motor **FAO-56 Penman-Monteith** para cálculo de evapotranspiración
 - Fallback **Hargreaves** cuando los datos son incompletos
@@ -95,7 +95,7 @@
 </td>
 <td width="50%">
 
-### 🗣️ Asistente de Voz IA
+### Asistente de Voz IA
 
 - STT doble: **Web Speech API** (browser, sin latencia de red) vía `/api/text-command` + **Whisper** (fallback local, carga lazy)
 - Razonamiento con **Ollama** (local, sin internet) o **Groq** (nube, rápido)
@@ -107,7 +107,7 @@
 <tr>
 <td width="50%">
 
-### 🗺️ GIS Interactivo
+###  GIS Interactivo
 
 - Mapa vectorial con **Leaflet.js**
 - Geometrías desde **PostGIS** vía `GET /api/parcelas/geojson`
@@ -118,7 +118,7 @@
 </td>
 <td width="50%">
 
-### 📈 Machine Learning
+### Machine Learning
 
 - **K-Means** para optimización de logística de almacenamiento
 - **K-Means** para zonas de manejo diferenciado en campo
@@ -531,19 +531,6 @@ open frontend/index.html
 npx live-server frontend --port=5500
 ```
 
-### Variables de entorno (`backend/.env`)
-
-```env
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/milpin_mvp
-MILPIN_OLLAMA_URL=http://localhost:11434/api/chat
-MILPIN_OLLAMA_MODEL=llama3.2:latest
-GROQ_API_KEY=                     # opcional — LLM cloud alternativo
-```
-
-> **⚠ Seguridad:** rotar las credenciales y agregar `.env` al `.gitignore` antes de cualquier push a repositorio no privado.
-
----
-
 ## Frontend (SPA)
 
 La interfaz es una **Single Page Application** con 4 pestañas y un botón flotante de voz.
@@ -555,7 +542,7 @@ La interfaz es una **Single Page Application** con 4 pestañas y un botón flota
 | **Riego** | Recomendación FAO-56 por parcela, historial y feedback | Funcional |
 | **Ajustes** | Configuración de voz, notificaciones y preferencias | Funcional |
 
-El **FAB (Floating Action Button)** 🎤 activa el asistente de voz MILPÍN en cualquier pestaña.
+El **FAB (Floating Action Button)** activa el asistente de voz MILPÍN en cualquier pestaña.
 
 **Paleta de diseño:**
 
@@ -625,16 +612,7 @@ flowchart LR
 
 ---
 
-## 🗺️ Roadmap de interfaz
-
-### Módulos actuales (4 tabs)
-
-| Tab | Nombre | Estado |
-|---|---|---|
-| BI/R | Inteligencia de Mercado | ⚠️ Demo — filtrado colaborativo hardcoded |
-| Mapas | GIS interactivo | ✅ Funcional — Leaflet + PostGIS |
-| Riego | Mi Riego — Recomendaciones FAO-56 | ✅ Funcional — conectado a BD, feedback cableado |
-| Ajustes | Voz y preferencias | ✅ Funcional |
+##  Roadmap de interfaz
 
 ### Próxima evolución planificada — Alertas / Parcelas críticas
 
@@ -657,6 +635,6 @@ flowchart LR
 
 <sub>Desarrollado para el Distrito de Riego DR-041 · Valle del Yaqui, Sonora, México</sub>
 
-<sub>⚠️ Pre-MVP — Bloqueador principal: autenticación. PostGIS ✅ · Migraciones ✅ · Tests 77 ✅ · Loop feedback ✅</sub>
+<sub> DSS Agricola — Bloqueador principal: autenticación. PostGIS ✅ · Migraciones ✅ · Tests 77 ✅ · Loop feedback ✅</sub>
 
 </div>
