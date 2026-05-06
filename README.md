@@ -87,19 +87,6 @@
 
 ---
 
-## 🔧 Deuda técnica vigente
-
-1. **Credenciales expuestas.** `backend/.env` tiene la password de postgres en texto plano y aparentemente no está en `.gitignore`. Rotar y agregar al ignore antes de cualquier push.
-2. **Path traversal en voz.** `voice_endpoint.py` usa `temp_path = f"temp_{audio_file.filename}"` sin sanitizar. Sin límite de tamaño ni validación de content-type.
-3. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist con los dominios del frontend.
-4. **Sin autenticación.** Ver tabla de pendientes arriba — es el bloqueador funcional para MVP.
-5. **Recomendador BI falso.** `frontend/src/ui_tabs.js` hace cosine similarity sobre una matriz 4×3×3 hardcoded. Es demo, no ML real.
-6. **`schema.sql` desalineado.** El DDL todavía documenta la fase JSONB; el runtime ya usa GeoAlchemy2. `backend/models.py` es la fuente de verdad real del schema.
-7. **Stub muerto.** `frontend/main.py` neutralizado con `RuntimeError`. Pendiente `git rm frontend/main.py`.
-8. **Catálogo de cultivos duplicado.** Los cultivos válidos viven en constantes en 6 archivos distintos (`KC_TABLE`, `VALID_CULTIVOS`, `CULTIVOS_SEMILLA`, `schema.sql`, `index.html`, `generar_datos_sinteticos.py`). Debería leerse desde la tabla `cultivos_catalogo` en runtime.
-
----
-
 ## ✨ Características principales
 
 <table>
