@@ -28,6 +28,9 @@ function cambiarPestana(event, tabId) {
         if (tabId === 'tab-costos') {
             _cargarParcelasEnSelect('select-parcela-riego');
         }
+        if (tabId === 'tab-bi') {
+            BI.init();
+        }
     }
 
     document.querySelectorAll(".nav-item").forEach(i => {
@@ -36,6 +39,10 @@ function cambiarPestana(event, tabId) {
         }
     });
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    cambiarPestana(null, 'tab-bi');
+});
 
 // ── Utilidad compartida: poblar un <select> con parcelas ─────────────────────
 
@@ -103,6 +110,8 @@ function _renderizarCardActiva(rec) {
     const urgenciaLabel = { critico: '🔴 CRÍTICO', moderado: '🟡 MODERADO', preventivo: '🟢 PREVENTIVO' };
     badgeEl.textContent = urgenciaLabel[rec.nivel_urgencia] || rec.nivel_urgencia || '—';
     badgeEl.className = 'riego-badge riego-badge-' + (rec.nivel_urgencia || 'preventivo');
+    document.getElementById('riego-metricas-card').className =
+        'riego-metricas riego-metricas-' + (rec.nivel_urgencia || 'preventivo');
 
     document.getElementById('riego-badge-cultivo').textContent = rec.cultivo || '—';
 
@@ -128,6 +137,12 @@ function _renderizarCardActiva(rec) {
     }
 
     document.getElementById('riego-card-activa').style.display = 'block';
+
+    // Cargar proyección 7 días si tenemos dias_siembra en el snapshot
+    const diasSiembra = rec.parametros_json?.dias_siembra;
+    if (_parcelaRiegoActual && diasSiembra) {
+        cargarForecast(_parcelaRiegoActual, diasSiembra);
+    }
 }
 
 function _renderizarHistorial(historial) {
@@ -228,7 +243,7 @@ function _riegoEstado(msg) {
 }
 
 function _riegoOcultarPaneles() {
-    ['riego-card-activa', 'riego-sin-activa', 'riego-historial-wrap'].forEach(id => {
+    ['riego-card-activa', 'riego-sin-activa', 'riego-historial-wrap', 'riego-forecast-wrap'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
@@ -244,56 +259,121 @@ function formatNum(val) {
     return new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 }).format(val);
 }
 
-// ── Módulo BI (demo — mantener hasta reemplazar con lógica real) ───────────────
+// ── Módulo BI: reemplazado por bi_dashboard.js (vanilla JS + SVG + API real) ──
+// Las funciones actualizarAnalisisBI, cosineSimilarity y las matrices
+// hardcoded fueron eliminadas. El tab BI ahora usa BI.init() al abrirse.
 
-const productos = ["Uva", "Maíz", "Frijol"];
-const historial = [
-    [[200, 230, 260], [0, 0, 0], [0, 0, 0]],
-    [[210, 230, 250], [100, 120, 140], [200, 220, 240]],
-    [[0, 0, 0], [90, 110, 130], [180, 200, 220]],
-    [[190, 220, 250], [80, 90, 100], [160, 180, 200]]
-];
+// ── Módulo Forecast: Proyección FAO-56 a 7 días con Ridge Regression ─────────
 
-function cosineSimilarity(vecA, vecB) {
-    let dotProduct = 0; let normA = 0; let normB = 0;
-    for (let i = 0; i < vecA.length; i++) {
-        dotProduct += vecA[i] * vecB[i];
-        normA += vecA[i] * vecA[i];
-        normB += vecB[i] * vecB[i];
+async function cargarForecast(idParcela, diasSiembra) {
+    const wrap      = document.getElementById('riego-forecast-wrap');
+    const timeline  = document.getElementById('riego-forecast-timeline');
+    const alertaEl  = document.getElementById('riego-forecast-alerta');
+    const advertEl  = document.getElementById('riego-forecast-advertencia');
+    const badgeEl   = document.getElementById('riego-forecast-metodo');
+
+    if (!idParcela || !diasSiembra) {
+        if (wrap) wrap.style.display = 'none';
+        return;
     }
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}
 
-function actualizarAnalisisBI() {
-    const element = document.getElementById('select-cliente-bi');
-    if(!element) return;
-    const idx = parseInt(element.value);
+    if (wrap) wrap.style.display = 'block';
+    if (timeline) timeline.innerHTML = '<div class="riego-forecast-loading">⏳ Calculando proyección Ridge…</div>';
+    if (alertaEl) alertaEl.style.display = 'none';
+    if (advertEl) advertEl.style.display = 'none';
 
-    const promedios = historial.map(c => c.map(p => p.reduce((a,b) => a+b)/3));
-    const promedioActual = promedios[idx];
-
-    let maxSim = -1; let similarIdx = -1;
-    promedios.forEach((p, i) => {
-        if (i !== idx) {
-            let sim = cosineSimilarity(promedioActual, p);
-            if (sim > maxSim) { maxSim = sim; similarIdx = i; }
+    try {
+        const url = `${API_BASE}/parcelas/${idParcela}/forecast?dias_siembra=${diasSiembra}&horizon=7`;
+        const res = await fetch(url);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${res.status}`);
         }
-    });
-
-    let htmlRecs = "<h4>Producción Recomendada:</h4><ul>";
-    promedioActual.forEach((p, i) => {
-        let cantidad = p > 0 ? p : promedios[similarIdx][i];
-        let esNuevo = p === 0 && promedios[similarIdx][i] > 0;
-
-        htmlRecs += `<li>
-            <b>${productos[i]}:</b> ${Math.round(cantidad)} kg
-            ${esNuevo ? '<span style="color: #7BB395;">(✨ Sugerencia IA)</span>' : ''}
-        </li>`;
-    });
-    htmlRecs += "</ul>";
-
-    document.getElementById('resultados-bi').innerHTML = `
-        <p><b>Cliente más similar:</b> Perfil ${similarIdx + 1}</p>
-        ${htmlRecs}
-    `;
+        const data = await res.json();
+        _renderForecast(data, timeline, alertaEl, advertEl, badgeEl);
+    } catch (err) {
+        console.error('[MILPÍN Forecast]', err);
+        if (timeline) {
+            timeline.innerHTML = `<div class="riego-forecast-error">
+                ⚠️ No se pudo cargar la proyección.<br>
+                <small>${err.message}</small>
+            </div>`;
+        }
+    }
 }
+
+function _renderForecast(data, timeline, alertaEl, advertEl, badgeEl) {
+    const dias          = data.dias_proyectados || [];
+    const diaRiego      = data.dia_riego_estimado;
+    const fechaRiego    = data.fecha_riego_estimada;
+    const incertidumbre = data.incertidumbre_dias ?? 1;
+    const metodo        = data.metodo_eto || 'ridge_regression';
+
+    // Badge del método
+    if (badgeEl) {
+        const esML = metodo === 'ridge_regression';
+        badgeEl.textContent  = esML ? '🤖 Ridge ML' : '📊 Media 14d';
+        badgeEl.className    = 'riego-forecast-badge ' +
+            (esML ? 'riego-forecast-badge--ml' : 'riego-forecast-badge--fallback');
+    }
+
+    // Alerta de riego estimado
+    if (alertaEl) {
+        if (diaRiego !== null && diaRiego !== undefined) {
+            const fechaFmt = fechaRiego
+                ? new Date(fechaRiego + 'T12:00:00').toLocaleDateString(
+                    'es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
+                : `en ${diaRiego} días`;
+            alertaEl.innerHTML =
+                `💧 <strong>Próximo riego estimado: ${fechaFmt}</strong>` +
+                `<span class="riego-forecast-incert">&nbsp;±${incertidumbre} días</span>`;
+            alertaEl.style.display = 'block';
+            alertaEl.className = 'riego-forecast-alerta riego-forecast-alerta--activa';
+        } else {
+            alertaEl.innerHTML = '✓ Sin déficit crítico proyectado en los próximos 7 días.';
+            alertaEl.style.display = 'block';
+            alertaEl.className = 'riego-forecast-alerta riego-forecast-alerta--ok';
+        }
+    }
+
+    // Timeline día a día
+    if (timeline && dias.length) {
+        const DIAS_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        timeline.innerHTML = dias.map(d => {
+            const fecha      = new Date(d.fecha + 'T12:00:00');
+            const diaSemana  = DIAS_ES[fecha.getDay()];
+            const diaNum     = fecha.getDate();
+            const esRiego    = diaRiego !== null && d.dia === diaRiego;
+            // Normalizar barra: 25 mm déficit = barra llena
+            const deficitPct = Math.min(100, (d.deficit_mm / 25) * 100);
+            const barColor   = d.deficit_mm > 20 ? '#E63946'
+                             : d.deficit_mm > 10 ? '#E8C27D'
+                             : '#7BB395';
+
+            return `<div class="riego-fc-dia${esRiego ? ' riego-fc-dia--riego' : ''}">
+                <div class="riego-fc-fecha">
+                    <span class="riego-fc-ds">${diaSemana}</span>
+                    <span class="riego-fc-dn">${diaNum}</span>
+                </div>
+                <div class="riego-fc-barra-wrap" title="Déficit: ${d.deficit_mm} mm">
+                    <div class="riego-fc-barra"
+                         style="height:${deficitPct}%;background:${barColor}"></div>
+                </div>
+                <div class="riego-fc-vals">
+                    <span class="riego-fc-etc" title="ETc estimada">~${d.etc_mm} mm</span>
+                    <span class="riego-fc-deficit" style="color:${barColor}">${d.deficit_mm} mm</span>
+                </div>
+                ${esRiego ? '<div class="riego-fc-pin">💧 riego</div>' : ''}
+            </div>`;
+        }).join('');
+    }
+
+    // Advertencia de fallback o datos insuficientes
+    if (advertEl && data.advertencia) {
+        advertEl.textContent  = `ℹ️ ${data.advertencia}`;
+        advertEl.style.display = 'block';
+    }
+}
+
+function _iconSi() { return '✓'; }
+function _iconNo() { return '✗'; }

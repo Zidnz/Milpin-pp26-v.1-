@@ -3,16 +3,126 @@
   "name": "lotes_milpin_prototipo",
   "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::4326" } },
   "features": [
-    { "type": "Feature", "properties": { "nombre": "Lote 05", "rendimiento": 92, "estado": "Vigor Alto" }, "geometry": { "type": "Polygon", "coordinates": [[[-109.935, 27.371], [-109.927, 27.371], [-109.927, 27.363], [-109.935, 27.363], [-109.935, 27.371]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 06", "rendimiento": 65, "estado": "Normal" }, "geometry": { "type": "Polygon", "coordinates": [[[-109.943, 27.371], [-109.935, 27.371], [-109.935, 27.363], [-109.943, 27.363], [-109.943, 27.371]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 07", "rendimiento": 20, "estado": "Estrés Hídrico" }, "geometry": { "type": "Polygon", "coordinates": [[[-109.943, 27.363], [-109.935, 27.363], [-109.935, 27.355], [-109.943, 27.355], [-109.943, 27.363]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 10 (Norte)", "rendimiento": 88, "estado": "Óptimo" }, "geometry": { "type": "Polygon", "coordinates": [[[-110.010, 27.500], [-110.000, 27.500], [-110.000, 27.490], [-110.010, 27.490], [-110.010, 27.500]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 11 (Norte)", "rendimiento": 78, "estado": "Normal-Alto" }, "geometry": { "type": "Polygon", "coordinates": [[[-110.020, 27.500], [-110.010, 27.500], [-110.010, 27.490], [-110.020, 27.490], [-110.020, 27.500]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 15 (Oeste)", "rendimiento": 45, "estado": "Alerta Amarilla" }, "geometry": { "type": "Polygon", "coordinates": [[[-110.080, 27.420], [-110.070, 27.420], [-110.070, 27.410], [-110.080, 27.410], [-110.080, 27.420]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 16 (Oeste)", "rendimiento": 35, "estado": "Estrés Hídrico Moderado" }, "geometry": { "type": "Polygon", "coordinates": [[[-110.080, 27.410], [-110.070, 27.410], [-110.070, 27.400], [-110.080, 27.400], [-110.080, 27.410]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 20 (Costa)", "rendimiento": 18, "estado": "Crítico - Salinidad" }, "geometry": { "type": "Polygon", "coordinates": [[[-110.150, 27.280], [-110.140, 27.280], [-110.140, 27.270], [-110.150, 27.270], [-110.150, 27.280]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 21 (Costa)", "rendimiento": 25, "estado": "Crítico" }, "geometry": { "type": "Polygon", "coordinates": [[[-110.140, 27.280], [-110.130, 27.280], [-110.130, 27.270], [-110.140, 27.270], [-110.140, 27.280]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 25 (Este)", "rendimiento": 95, "estado": "Vigor Excelente" }, "geometry": { "type": "Polygon", "coordinates": [[[-109.850, 27.450], [-109.840, 27.450], [-109.840, 27.440], [-109.850, 27.440], [-109.850, 27.450]]] }},
-    { "type": "Feature", "properties": { "nombre": "Lote 26 (Este)", "rendimiento": 60, "estado": "Normal" }, "geometry": { "type": "Polygon", "coordinates": [[[-109.860, 27.450], [-109.850, 27.450], [-109.850, 27.440], [-109.860, 27.440], [-109.860, 27.450]]] }}
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 05", "rendimiento": 92, "estado": "Vigor Alto",
+        "ndvi": 0.82, "cultivo": "Maíz", "area_ha": 28.5,
+        "tipo_suelo": "Migajón arcilloso", "sistema_riego": "Gravedad",
+        "modulo": "Módulo 3", "dias_sin_riego": 4, "deficit_hidrico": 12.3,
+        "consumo_ciclo_m3ha": 7120
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-109.935, 27.371], [-109.927, 27.371], [-109.927, 27.363], [-109.935, 27.363], [-109.935, 27.371]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 06", "rendimiento": 65, "estado": "Normal",
+        "ndvi": 0.58, "cultivo": "Frijol", "area_ha": 15.2,
+        "tipo_suelo": "Franco-arcilloso", "sistema_riego": "Aspersión",
+        "modulo": "Módulo 3", "dias_sin_riego": 7, "deficit_hidrico": 28.5,
+        "consumo_ciclo_m3ha": 7650
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-109.943, 27.371], [-109.935, 27.371], [-109.935, 27.363], [-109.943, 27.363], [-109.943, 27.371]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 07", "rendimiento": 20, "estado": "Estrés Hídrico",
+        "ndvi": 0.19, "cultivo": "Maíz", "area_ha": 32.0,
+        "tipo_suelo": "Arcillo-limoso", "sistema_riego": "Gravedad",
+        "modulo": "Módulo 3", "dias_sin_riego": 18, "deficit_hidrico": 85.2,
+        "consumo_ciclo_m3ha": 8400
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-109.943, 27.363], [-109.935, 27.363], [-109.935, 27.355], [-109.943, 27.355], [-109.943, 27.363]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 10 (Norte)", "rendimiento": 88, "estado": "Óptimo",
+        "ndvi": 0.77, "cultivo": "Algodón", "area_ha": 45.8,
+        "tipo_suelo": "Franco-arenoso", "sistema_riego": "Goteo",
+        "modulo": "Módulo 7", "dias_sin_riego": 2, "deficit_hidrico": 8.1,
+        "consumo_ciclo_m3ha": 6380
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-110.010, 27.500], [-110.000, 27.500], [-110.000, 27.490], [-110.010, 27.490], [-110.010, 27.500]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 11 (Norte)", "rendimiento": 78, "estado": "Normal-Alto",
+        "ndvi": 0.70, "cultivo": "Algodón", "area_ha": 38.3,
+        "tipo_suelo": "Franco-arenoso", "sistema_riego": "Goteo",
+        "modulo": "Módulo 7", "dias_sin_riego": 5, "deficit_hidrico": 21.4,
+        "consumo_ciclo_m3ha": 6720
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-110.020, 27.500], [-110.010, 27.500], [-110.010, 27.490], [-110.020, 27.490], [-110.020, 27.500]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 15 (Oeste)", "rendimiento": 45, "estado": "Alerta Amarilla",
+        "ndvi": 0.41, "cultivo": "Frijol", "area_ha": 22.1,
+        "tipo_suelo": "Franco-limoso", "sistema_riego": "Gravedad",
+        "modulo": "Módulo 5", "dias_sin_riego": 12, "deficit_hidrico": 52.8,
+        "consumo_ciclo_m3ha": 7900
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-110.080, 27.420], [-110.070, 27.420], [-110.070, 27.410], [-110.080, 27.410], [-110.080, 27.420]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 16 (Oeste)", "rendimiento": 35, "estado": "Estrés Hídrico Moderado",
+        "ndvi": 0.30, "cultivo": "Maíz", "area_ha": 19.4,
+        "tipo_suelo": "Arcillo-limoso", "sistema_riego": "Gravedad",
+        "modulo": "Módulo 5", "dias_sin_riego": 15, "deficit_hidrico": 67.3,
+        "consumo_ciclo_m3ha": 8150
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-110.080, 27.410], [-110.070, 27.410], [-110.070, 27.400], [-110.080, 27.400], [-110.080, 27.410]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 20 (Costa)", "rendimiento": 18, "estado": "Crítico – Salinidad",
+        "ndvi": 0.15, "cultivo": "Chile", "area_ha": 12.7,
+        "tipo_suelo": "Franco-arcilloso salino", "sistema_riego": "Goteo",
+        "modulo": "Módulo 9", "dias_sin_riego": 22, "deficit_hidrico": 91.5,
+        "consumo_ciclo_m3ha": 9200
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-110.150, 27.280], [-110.140, 27.280], [-110.140, 27.270], [-110.150, 27.270], [-110.150, 27.280]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 21 (Costa)", "rendimiento": 25, "estado": "Crítico",
+        "ndvi": 0.22, "cultivo": "Chile", "area_ha": 10.3,
+        "tipo_suelo": "Franco-arcilloso salino", "sistema_riego": "Goteo",
+        "modulo": "Módulo 9", "dias_sin_riego": 20, "deficit_hidrico": 78.9,
+        "consumo_ciclo_m3ha": 8950
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-110.140, 27.280], [-110.130, 27.280], [-110.130, 27.270], [-110.140, 27.270], [-110.140, 27.280]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 25 (Este)", "rendimiento": 95, "estado": "Vigor Excelente",
+        "ndvi": 0.87, "cultivo": "Uva", "area_ha": 8.5,
+        "tipo_suelo": "Franco-arenoso", "sistema_riego": "Goteo",
+        "modulo": "Módulo 2", "dias_sin_riego": 1, "deficit_hidrico": 5.2,
+        "consumo_ciclo_m3ha": 5800
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-109.850, 27.450], [-109.840, 27.450], [-109.840, 27.440], [-109.850, 27.440], [-109.850, 27.450]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nombre": "Lote 26 (Este)", "rendimiento": 60, "estado": "Normal",
+        "ndvi": 0.55, "cultivo": "Uva", "area_ha": 7.8,
+        "tipo_suelo": "Franco-arenoso", "sistema_riego": "Goteo",
+        "modulo": "Módulo 2", "dias_sin_riego": 8, "deficit_hidrico": 34.1,
+        "consumo_ciclo_m3ha": 7200
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-109.860, 27.450], [-109.850, 27.450], [-109.850, 27.440], [-109.860, 27.440], [-109.860, 27.450]]] }
+    }
   ]
 }

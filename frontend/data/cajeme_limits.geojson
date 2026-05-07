@@ -1,0 +1,50 @@
+{
+  "type": "FeatureCollection",
+  "name": "cajeme_limite_municipal",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::4326" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "CVEGEO": "26018",
+        "NOMGEO": "Cajeme",
+        "NOM_ENT": "Sonora",
+        "NOM_ABR": "Son.",
+        "area_km2": 4037,
+        "distrito_riego": "DR-041 Río Yaqui",
+        "nota": "Polígono aproximado — fuente de verdad: INEGI Marco Geoestadístico CVE 26018"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-110.38, 27.70],
+          [-110.30, 27.74],
+          [-110.18, 27.77],
+          [-110.02, 27.79],
+          [-109.90, 27.76],
+          [-109.78, 27.73],
+          [-109.68, 27.67],
+          [-109.60, 27.58],
+          [-109.53, 27.47],
+          [-109.49, 27.34],
+          [-109.49, 27.20],
+          [-109.53, 27.08],
+          [-109.60, 26.98],
+          [-109.70, 26.91],
+          [-109.82, 26.86],
+          [-109.96, 26.83],
+          [-110.10, 26.81],
+          [-110.22, 26.81],
+          [-110.33, 26.85],
+          [-110.43, 26.94],
+          [-110.50, 27.06],
+          [-110.54, 27.20],
+          [-110.55, 27.35],
+          [-110.52, 27.50],
+          [-110.46, 27.62],
+          [-110.38, 27.70]
+        ]]
+      }
+    }
+  ]
+}

@@ -170,14 +170,19 @@ document.addEventListener('DOMContentLoaded', () => {
         ?.addEventListener('change', e => localStorage.setItem('milpin_bi_auto', e.target.checked));
 });
 
-// Envía el texto transcrito por Web Speech API al backend
+// Envía el texto transcrito por Web Speech API al backend.
+// Incluye parcela_id si hay una parcela activa en el módulo de riego,
+// para que el backend pueda enriquecer respuestas de consulta con datos reales.
 async function _enviarTextoAlBackend(texto) {
     const statusText = document.getElementById('statusLabel');
     try {
         const response = await fetch(`${API_BASE}/text-command`, {
             method : "POST",
             headers: { "Content-Type": "application/json" },
-            body   : JSON.stringify({ texto }),
+            body   : JSON.stringify({
+                texto,
+                parcela_id: typeof _parcelaRiegoActual !== 'undefined' ? _parcelaRiegoActual : null,
+            }),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -345,75 +350,35 @@ function hablar(texto) {
     }, 50);
 }
 
-// ── Llenado de formulario de prescripción ───────────────────────────
+// ── Selección de parcela por nombre (para intents de riego con nombre) ──────
 /**
- * Navega a tab-costos (si no está visible) e inyecta los parámetros
- * extraídos por el LLM en los campos del formulario #form-prescripcion.
+ * Busca en #select-parcela-riego una opción cuyo texto contenga `nombre`
+ * (match parcial, case-insensitive). Si el select está vacío, espera a que
+ * _cargarParcelasEnSelect lo pueble desde la API antes de buscar.
  *
- * @param {Object} data - Respuesta completa del backend.
- * @param {Object|null} data.parameters - Entidades extraídas por el LLM.
- * @param {string|null} data.parameters.cultivo  - Clave del select (uva|maiz|algodon|frijol|chile).
- * @param {string|null} data.parameters.variedad - Texto libre para el input #variedad.
- * @param {string|null} data.parameters.insumo   - Texto libre para el input #insumo.
- * @param {number|null} data.parameters.tasa     - kg/ha para el input .rate-input.
- * @param {number|null} data.parameters.zona     - Número del botón .zone-btn a activar.
+ * @param {string} nombre - Nombre o fragmento del nombre dicho por el usuario.
+ * @returns {Promise<string|null>} id_parcela (UUID) si hay match, null si no.
  */
-function ejecutarAccionIA(data) {
-    const p = data.parameters;
-    if (!p) return;
+async function _seleccionarParcelaPorNombre(nombre) {
+    const sel = document.getElementById('select-parcela-riego');
+    if (!sel) return null;
 
-    // 1. Navegar a la pestaña de costos si no es la activa
-    const tabCostos = document.getElementById('tab-costos');
-    if (tabCostos && tabCostos.style.display === 'none') {
-        if (typeof cambiarPestana === 'function') {
-            cambiarPestana(null, 'tab-costos');
+    // Asegurar que las opciones estén cargadas antes de buscar
+    if (sel.options.length <= 1 && typeof _cargarParcelasEnSelect === 'function') {
+        await _cargarParcelasEnSelect('select-parcela-riego');
+    }
+
+    const nombreLower = nombre.toLowerCase().trim();
+    for (const opt of sel.options) {
+        if (opt.value && opt.textContent.toLowerCase().includes(nombreLower)) {
+            sel.value = opt.value;
+            console.log(`[MILPÍN] Parcela seleccionada por voz: "${opt.textContent}" → ${opt.value}`);
+            return opt.value;
         }
     }
 
-    // 2. Rellenar el formulario tras un breve tick para que el DOM esté visible
-    setTimeout(() => {
-        // Cultivo (select)
-        if (p.cultivo) {
-            const selectCultivo = document.getElementById('select-cultivo');
-            if (selectCultivo) selectCultivo.value = p.cultivo;
-        }
-
-        // Variedad (text input)
-        if (p.variedad) {
-            const inputVariedad = document.getElementById('variedad');
-            if (inputVariedad) inputVariedad.value = p.variedad;
-        }
-
-        // Insumo (text input)
-        if (p.insumo) {
-            const inputInsumo = document.getElementById('insumo');
-            if (inputInsumo) inputInsumo.value = p.insumo;
-        }
-
-        // Tasa estándar (number input — sin ID, sólo clase)
-        if (p.tasa !== null && p.tasa !== undefined) {
-            const inputTasa = document.querySelector('#form-prescripcion .rate-input');
-            if (inputTasa) inputTasa.value = p.tasa;
-        }
-
-        // Zona de productividad (toggle buttons por contenido de texto)
-        if (p.zona !== null && p.zona !== undefined) {
-            document.querySelectorAll('#form-prescripcion .zone-btn').forEach(btn => {
-                const esZona = parseInt(btn.textContent.trim(), 10) === p.zona;
-                btn.classList.toggle('active', esZona);
-            });
-        }
-
-        // Feedback visual: highlight breve en el formulario
-        const form = document.getElementById('form-prescripcion');
-        if (form) {
-            form.style.transition = 'box-shadow 0.3s ease';
-            form.style.boxShadow = '0 0 0 3px #7BB395';
-            setTimeout(() => { form.style.boxShadow = ''; }, 1500);
-        }
-
-        console.log("[MILPÍN] Formulario rellenado:", p);
-    }, 350);
+    console.warn(`[MILPÍN] No se encontró parcela con nombre: "${nombre}"`);
+    return null;
 }
 
 // ── Orquestador de respuestas del ERP ───────────────────────────────
@@ -457,13 +422,64 @@ function procesarRespuestaIA(data) {
             }, 600);
             break;
 
-        case "llenar_prescripcion":
-            ejecutarAccionIA(data);
+        case "confirmar_riego":
+        case "ignorar_riego": {
+            const decision = data.intent === "confirmar_riego" ? 'aceptada' : 'ignorada';
+            const nombreParcelaConf = data.parameters?.nombre_parcela ?? null;
+            if (typeof cambiarPestana === 'function') cambiarPestana(null, 'tab-costos');
+            // IIFE async: necesitamos await para la selección de parcela y carga de rec.
+            setTimeout(async () => {
+                if (nombreParcelaConf) {
+                    const parcelaId = await _seleccionarParcelaPorNombre(nombreParcelaConf);
+                    if (!parcelaId) {
+                        hablar(`No encontré una parcela con ese nombre. Selecciónala manualmente en el módulo de riego.`);
+                        return;
+                    }
+                    // Esperar a que la recomendación cargue (popula _recActualId)
+                    if (typeof cargarRecomendacion === 'function') {
+                        await cargarRecomendacion(parcelaId);
+                    }
+                }
+                if (!_recActualId) {
+                    hablar("No hay recomendación activa para esta parcela. Calcula una nueva primero.");
+                    return;
+                }
+                if (typeof confirmarRiego === 'function') confirmarRiego(decision);
+            }, 600);
             break;
+        }
+
+        case "calcular_riego": {
+            const nombreParcelaCalc = data.parameters?.nombre_parcela ?? null;
+            if (typeof cambiarPestana === 'function') cambiarPestana(null, 'tab-costos');
+            setTimeout(async () => {
+                if (nombreParcelaCalc) {
+                    const parcelaId = await _seleccionarParcelaPorNombre(nombreParcelaCalc);
+                    if (!parcelaId) {
+                        hablar(`No encontré una parcela con ese nombre. Selecciónala manualmente.`);
+                        return;
+                    }
+                    // Cargar estado de la parcela antes de calcular
+                    if (typeof cargarRecomendacion === 'function') {
+                        await cargarRecomendacion(parcelaId);
+                    }
+                }
+                const dias = data.parameters?.dias_siembra;
+                if (dias) {
+                    const inputDias = document.getElementById('input-dias-siembra');
+                    if (inputDias) inputDias.value = dias;
+                }
+                if (typeof calcularNuevaRecomendacion === 'function') {
+                    calcularNuevaRecomendacion();
+                }
+            }, 600);
+            break;
+        }
 
         case "consultar":
-            // Por ahora solo muestra el mensaje. En futuras versiones,
-            // aquí se pueden hacer queries a la API de datos.
+            // El mensaje ya viene enriquecido con datos reales desde el backend.
+            // No se necesita acción adicional en el frontend: la respuesta
+            // hablada (data.message) se reproduce arriba via hablar().
             break;
 
         case "error":
