@@ -59,7 +59,7 @@
 
 **Fase actual: DSS — core técnico sólido, bloqueador único: autenticación**
 
-### ✔ Implementado y funcionando
+###  Implementado y funcionando
 
 | Componente | Detalle | Fecha |
 |---|---|---|
