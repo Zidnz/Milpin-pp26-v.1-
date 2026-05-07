@@ -11,11 +11,11 @@ juicio agronómico.
 
 ---
 
-## Estado actual (2026-05-01)
+## Estado actual (2026-05-07)
 
-Pre-MVP con core técnico sólido. Quedan resueltos geometría, migraciones,
-tests y el loop recomendación→feedback. El único bloqueador funcional pendiente
-es autenticación.
+Pre-MVP con core técnico sólido y frontend rediseñado. Quedan resueltos
+geometría, migraciones, tests, el loop recomendación→feedback y el dashboard
+BI. El único bloqueador funcional pendiente es autenticación.
 
 **Ya funciona:**
 
@@ -31,8 +31,14 @@ es autenticación.
 - Pipeline de voz: Whisper STT (carga lazy, startup ~2 s) →
   Ollama `llama3.2:latest` (NLU/intent) → Web Speech API (TTS).
 - Clustering K-Means de parcelas (scikit-learn 1.5).
-- Frontend vanilla JS + Leaflet 1.9.4, capas Esri World Imagery + OpenTopoMap.
-  `map_engine.js` carga parcelas desde la API PostGIS (fallback: `lotes.geojson`).
+- **Frontend rediseñado** — paleta azul/verde profesional, UI responsiva. Leaflet
+  1.9.4 con capas Esri World Imagery + OpenTopoMap + límites municipales Cajeme
+  (`cajeme_limits.geojson`). `map_engine.js` carga geometrías PostGIS vía API
+  (fallback: `lotes.geojson`).
+- **Dashboard BI real** (`bi_dashboard.js`) — conectado a `/api/parcelas`,
+  `/api/parcelas/{id}/kpi`, `/api/riego/parcela/{id}`. Reemplaza el módulo BI
+  falso (cosine similarity hardcodeado) con KPIs en tiempo real: consumo vs.
+  baseline DR-041, ahorros estimados, historial por cultivo y método de riego.
 - Pipeline GIS con geopandas + shapely `make_valid` + Douglas-Peucker.
 - Alembic activo: `backend/migrations/` + `alembic.ini`. Próximas migraciones
   con `alembic revision -m "descripcion"` + `alembic upgrade head`.
@@ -59,14 +65,15 @@ es autenticación.
    tamaño ni validación de content-type.
 3. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist.
 4. **Sin autenticación.** Ver arriba.
-5. **Recomendador BI falso.** `frontend/src/ui_tabs.js` hace cosine similarity
-   sobre una matriz 4×3×3 hardcoded. Es demo, no ML real.
-6. **`schema.sql` desalineado.** El DDL todavía documenta la fase JSONB; el
+5. **`schema.sql` desalineado.** El DDL todavía documenta la fase JSONB; el
    runtime ya usa GeoAlchemy2. `backend/models.py` es la fuente de verdad real.
-7. **Stub muerto.** `frontend/main.py` neutralizado con `RuntimeError`. Pendiente
+6. **Stub muerto.** `frontend/main.py` neutralizado con `RuntimeError`. Pendiente
    `git rm frontend/main.py`.
-8. **Catálogo duplicado.** La lista de cultivos válidos vive en constantes en 6
+7. **Catálogo duplicado.** La lista de cultivos válidos vive en constantes en 6
    archivos distintos; debería leerse desde la tabla `cultivos_catalogo` en runtime.
+8. **`bi_dashboard.js` sin persistencia de filtros.** El dashboard BI carga datos
+   frescos en cada visita al tab; no guarda el estado de filtros ni cachea resultados
+   de la API entre navegaciones.
 
 ---
 
@@ -127,13 +134,15 @@ backend/
 frontend/
   index.html
   css/
-    styles.css
+    styles.css          # paleta azul/verde rediseñada
   src/
-    map_engine.js       # carga GeoJSON desde API PostGIS
-    ui_tabs.js          # ⚠ recomendador BI hardcoded (demo)
+    map_engine.js       # carga GeoJSON desde API PostGIS + límites Cajeme
+    bi_dashboard.js     # dashboard BI real conectado a la API
+    ui_tabs.js          # navegación, tab Riego, tab Costos
     voice_client.js
   data/
-    lotes.geojson       # fallback estático de geometrías
+    lotes.geojson           # fallback estático de geometrías parcelas
+    cajeme_limits.geojson   # límite municipal Cajeme (INEGI, EPSG:4326)
 
 tools/
   generar_datos_sinteticos.py
@@ -150,10 +159,12 @@ doc/
 
 ## Módulos UI
 
-- **Mapas** — visor GIS con Leaflet; geometrías desde PostGIS vía `/api/parcelas/geojson`.
-- **Riego** — recomendación FAO-56 por parcela, con historial y feedback.
-- **BI/R** — demo de inteligencia de mercado con datos hardcodeados (no ML real).
-- **Ajustes** — voz y preferencias.
+- **Mapas** — visor GIS con Leaflet; geometrías PostGIS vía `/api/parcelas/geojson`
+  + capa límites municipales Cajeme.
+- **Riego** — recomendación FAO-56 por parcela, con historial y feedback del agricultor.
+- **BI** — dashboard real conectado a la API: KPIs consumo vs. baseline DR-041,
+  ahorros estimados, gráficas por cultivo y método de riego (`bi_dashboard.js`).
+- **Ajustes** — configuración de voz y preferencias.
 
 ---
 
