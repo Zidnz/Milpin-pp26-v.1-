@@ -4,7 +4,6 @@ main.py — Punto de entrada de la API MILPÍN AgTech v2.0
 Microservicios registrados:
     /api/balance_hidrico  → Motor FAO-56 (cálculo en memoria, sin persistencia)
     /api/kc/{cultivo}     → Curvas Kc por cultivo
-    /api/logistica        → Clustering logístico (K-Means)
     /api/voz              → Pipeline STT + Ollama
     /api/usuarios         → CRUD usuarios (BD)
     /api/cultivos         → Catálogo FAO-56 (BD)
@@ -15,10 +14,13 @@ Microservicios registrados:
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import os
 
-from API.analytics_api import router as analytics_router
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
 from API.db_api import router as db_router
 from API.riego_api import router as riego_router
 from API.voice_endpoint import router as voice_router
@@ -55,31 +57,69 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS: necesario para que el frontend (Leaflet en VS Code Live Server) pueda llamar al backend
+# CORS: orígenes explícitos (no wildcard) para compatibilidad futura con auth/cookies.
+# Agregar aquí cualquier origen adicional de desarrollo o producción.
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5500",   # VS Code Live Server (puerto por defecto)
+    "http://127.0.0.1:5500",
+    "http://localhost:5501",   # VS Code Live Server (si 5500 está ocupado)
+    "http://127.0.0.1:5501",
+    "http://localhost:8080",   # Python http.server / otros servidores locales
+    "http://127.0.0.1:8080",
+    "null",                    # file:// abierto directo en navegador
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
+    allow_credentials=False,
 )
+
+
+# ── Handler global de errores no capturados ───────────────────────────────────
+# Starlette no propaga Access-Control-Allow-Origin en respuestas de error
+# generadas por excepciones no capturadas (bypass del CORSMiddleware).
+# Este handler asegura que los headers CORS lleguen incluso en 500.
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    import traceback
+    origin = request.headers.get("origin", "")
+    cors_header = origin if origin in ALLOWED_ORIGINS else ""
+
+    # Imprimir traceback completo en la terminal del servidor para debug
+    print(f"\n[ERROR 500] {request.method} {request.url}")
+    traceback.print_exc()
+
+    headers = {}
+    if cors_header:
+        headers["Access-Control-Allow-Origin"] = cors_header
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Error interno del servidor: {type(exc).__name__}: {exc}"},
+        headers=headers,
+    )
 
 # ── Registro de routers ───────────────────────────────────────────────────────
 
 # Motor agronómico (en memoria, sin BD)
-app.include_router(analytics_router, prefix="/api")
 app.include_router(voice_router, prefix="/api")
 app.include_router(riego_router, prefix="/api")
 
 # Capa de persistencia (PostgreSQL) — MVP 5 tablas
 app.include_router(db_router, prefix="/api")
 
-
-# ── Health check ──────────────────────────────────────────────────────────────
-@app.get("/health", tags=["Sistema"])
-async def health():
-    return {"status": "ok", "sistema": "MILPÍN AgTech v2.0", "version": "mvp"}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+# ── Archivos estáticos: imágenes de cultivos ──────────────────────────────────
+# Sirve la carpeta /imagenes/ del proyecto en /static/imagenes/
+# URL de acceso: http://localhost:8000/static/imagenes/<archivo>
+_imagenes_dir = os.path.join(os.path.dirname(__file__), "..", "imagenes")
+if os.path.isdir(_imagenes_dir):
+    app.mount(
+        "/static/imagenes",
+        StaticFiles(directory=_imagenes_dir),
+        name="imagenes",
+    )

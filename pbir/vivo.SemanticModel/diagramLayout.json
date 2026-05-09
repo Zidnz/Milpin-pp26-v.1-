@@ -1,0 +1,113 @@
+{
+  "version": "1.1.0",
+  "diagrams": [
+    {
+      "ordinal": 0,
+      "scrollPosition": {
+        "x": 0,
+        "y": 0
+      },
+      "nodes": [
+        {
+          "location": {
+            "x": 1401.5184325265534,
+            "y": 233.41016763631109
+          },
+          "nodeIndex": "Consumo_Semanal",
+          "nodeLineageTag": "de931056-6772-46d1-bf9b-109e04cde56d",
+          "size": {
+            "height": 224,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 651.48717680263849,
+            "y": 0
+          },
+          "nodeIndex": "costos_ciclo",
+          "nodeLineageTag": "ce4b6631-008c-45aa-a448-079ceb1f2574",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 97.832147000000049,
+            "y": 37.910117231481173
+          },
+          "nodeIndex": "cultivos_catalogo",
+          "nodeLineageTag": "909a4173-d290-494c-9935-c2459bf6d812",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 624.27420865511465,
+            "y": 944.9226362726223
+          },
+          "nodeIndex": "historial_riego",
+          "nodeLineageTag": "1c2e9b24-511e-4543-8b77-fab08bd0421f",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 629.43593731751946,
+            "y": 539.33091840297811
+          },
+          "nodeIndex": "parcelas",
+          "nodeLineageTag": "15649e7b-bd20-45a7-b3b2-a941aee709a5",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 65.480406345570373,
+            "y": 551.0209161178268
+          },
+          "nodeIndex": "recomendaciones",
+          "nodeLineageTag": "3479a0d0-403d-4f75-b1ff-d332a6b63e1c",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1114.3716025265533,
+            "y": 609.87281963029852
+          },
+          "nodeIndex": "usuarios",
+          "nodeLineageTag": "7e7d2f45-cc1b-45b4-a43b-0bb1a6e5b3e7",
+          "size": {
+            "height": 248,
+            "width": 234
+          },
+          "zIndex": 0
+        }
+      ],
+      "name": "Todas las tablas",
+      "zoomValue": 44.905697313103985,
+      "pinKeyFieldsToTop": false,
+      "showExtraHeaderInfo": false,
+      "hideKeyFieldsWhenCollapsed": false,
+      "tablesLocked": false
+    }
+  ],
+  "selectedDiagram": "Todas las tablas",
+  "defaultDiagram": "Todas las tablas"
+}

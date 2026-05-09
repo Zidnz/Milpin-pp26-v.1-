@@ -35,15 +35,14 @@ try:
 except ImportError:
     print("[MILPÍN] imageio-ffmpeg no instalado. Whisper buscará ffmpeg en el PATH del sistema.")
 
-import whisper
-
 # ── Configuration ────────────────────────────────────────────────────────────
 OLLAMA_URL   = os.getenv("MILPIN_OLLAMA_URL",   "http://localhost:11434/api/chat")
 OLLAMA_MODEL = os.getenv("MILPIN_OLLAMA_MODEL", "llama3.2:latest")
 HISTORY_TURNS = 3   # conversation turns kept in memory (user+assistant = 2 msgs each)
 
 VALID_INTENTS = frozenset({
-    "navegar", "ejecutar_analisis", "llenar_prescripcion",
+    "navegar", "ejecutar_analisis",
+    "confirmar_riego", "ignorar_riego", "calcular_riego",
     "consultar", "saludo", "desconocido", "error",
 })
 VALID_TARGETS  = frozenset({"tab-bi", "tab-mapas", "tab-costos", "tab-ajustes"})
@@ -61,9 +60,11 @@ ESQUEMA BASE (siempre presente):
 
 CAMPO intent — elige UNO de estos valores exactos:
   navegar           → el usuario quiere ir a una sección de la app
-  ejecutar_analisis → el usuario pide correr un análisis o clustering
-  llenar_prescripcion → el usuario dicta datos para el formulario de fertilización
-  consultar         → el usuario hace una pregunta sobre datos o estadísticas
+  ejecutar_analisis → el usuario pide correr el análisis de clustering en el mapa
+  confirmar_riego   → el usuario confirma que regó hoy su parcela
+  ignorar_riego     → el usuario indica que no regó o va a omitir el riego recomendado
+  calcular_riego    → el usuario pide calcular una nueva recomendación FAO-56
+  consultar         → el usuario hace una pregunta sobre datos de su parcela (lámina, déficit, ETo, días sin riego)
   saludo            → saludo o presentación
   desconocido       → no puedes clasificar el comando
 
@@ -72,48 +73,70 @@ CAMPO target — usa EXACTAMENTE uno de:
 
 CAMPO message — respuesta hablada en español, máximo 35 palabras.
 
-CAMPO parameters — SOLO para llenar_prescripcion, usar este sub-objeto:
-{"cultivo":"...","variedad":"...","insumo":"...","tasa":0,"zona":0}
+CAMPO parameters — SOLO para confirmar_riego, ignorar_riego y calcular_riego:
 
-  cultivo  → uno de: uva | maiz | algodon | frijol | chile | null
-  variedad → string o null
-  insumo   → string o null
-  tasa     → número entero (kg/ha) o null
-  zona     → número entero o null
+  confirmar_riego / ignorar_riego → {"nombre_parcela": "..."}
+    nombre_parcela → nombre de la parcela mencionada por el usuario, o null si no dijo ninguna
+
+  calcular_riego → {"dias_siembra": 0, "nombre_parcela": "..."}
+    dias_siembra   → número entero de días desde la siembra (obligatorio)
+    nombre_parcela → nombre de la parcela mencionada, o null si no la mencionó
 
 Para cualquier otra intención, parameters SIEMPRE es null.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MAPEO DE CULTIVOS (normaliza siempre al valor del enum):
-  uva / vid / uva de mesa            → "uva"
-  maíz / maiz / elote / corn         → "maiz"
-  algodón / algodon / cotton         → "algodon"
-  frijol / frijoles / beans          → "frijol"
-  chile / chili / pimiento / pepper  → "chile"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EJEMPLOS (uno por línea, copia el formato exacto):
 
 Usuario: "Hola Milpín"
-{"intent":"saludo","target":null,"message":"Hola agricultor. Soy MILPÍN. ¿Qué datos del Valle del Yaqui revisaremos hoy?","parameters":null}
+{"intent":"saludo","target":null,"message":"Hola agricultor. Soy MILPÍN. ¿Qué datos del Valle del Yaqui revisamos hoy?","parameters":null}
 
 Usuario: "Muéstrame los mapas satelitales"
-{"intent":"navegar","target":"tab-mapas","message":"Abriendo monitor satelital NDVI.","parameters":null}
+{"intent":"navegar","target":"tab-mapas","message":"Abriendo monitor satelital.","parameters":null}
 
-Usuario: "Lleva a costos"
-{"intent":"navegar","target":"tab-costos","message":"Abriendo módulo de prescripción de fertilización.","parameters":null}
+Usuario: "Lleva a riego"
+{"intent":"navegar","target":"tab-costos","message":"Abriendo módulo de riego FAO-56.","parameters":null}
+
+Usuario: "Ve al dashboard de BI"
+{"intent":"navegar","target":"tab-bi","message":"Abriendo el dashboard de análisis.","parameters":null}
+
+Usuario: "Abre ajustes"
+{"intent":"navegar","target":"tab-ajustes","message":"Abriendo configuración.","parameters":null}
 
 Usuario: "Ejecuta el clustering logístico"
-{"intent":"ejecutar_analisis","target":"tab-mapas","message":"Iniciando análisis de clustering. Calculando ubicaciones óptimas para logística.","parameters":null}
+{"intent":"ejecutar_analisis","target":"tab-mapas","message":"Iniciando análisis de clustering en el mapa.","parameters":null}
 
-Usuario: "Llena la prescripción para algodón con 300 kilos de urea en la zona 5"
-{"intent":"llenar_prescripcion","target":"tab-costos","message":"Prescripción lista: algodón, urea a 300 kg por hectárea, zona 5.","parameters":{"cultivo":"algodon","variedad":null,"insumo":"urea","tasa":300,"zona":5}}
+Usuario: "Regué hoy"
+{"intent":"confirmar_riego","target":"tab-costos","message":"Confirmado. Registrando el riego de hoy.","parameters":{"nombre_parcela":null}}
 
-Usuario: "Pon maíz variedad Pioneer H-514 con sulfato de amonio a 180 kilos zona 3"
-{"intent":"llenar_prescripcion","target":"tab-costos","message":"Llenando formulario: maíz Pioneer H-514, sulfato de amonio, 180 kilogramos, zona 3.","parameters":{"cultivo":"maiz","variedad":"Pioneer H-514","insumo":"sulfato de amonio","tasa":180,"zona":3}}
+Usuario: "Regué hoy la Parcela Norte"
+{"intent":"confirmar_riego","target":"tab-costos","message":"Confirmado. Registrando el riego de la Parcela Norte.","parameters":{"nombre_parcela":"Parcela Norte"}}
 
-Usuario: "Prescripción de uva para la variedad Flame sin Nitrogen, zona 7, doscientos kilos"
-{"intent":"llenar_prescripcion","target":"tab-costos","message":"Formulario actualizado: uva Flame, Nitrogen, 200 kilogramos por hectárea, zona 7.","parameters":{"cultivo":"uva","variedad":"Flame","insumo":"Nitrogen","tasa":200,"zona":7}}
+Usuario: "Ya apliqué el riego en la parcela 3"
+{"intent":"confirmar_riego","target":"tab-costos","message":"Perfecto. Guardando el evento de riego en parcela 3.","parameters":{"nombre_parcela":"parcela 3"}}
+
+Usuario: "No voy a regar"
+{"intent":"ignorar_riego","target":"tab-costos","message":"Entendido. Registrando que no se aplicó riego hoy.","parameters":{"nombre_parcela":null}}
+
+Usuario: "Voy a omitir el riego de la Parcela Sur"
+{"intent":"ignorar_riego","target":"tab-costos","message":"Registrando que se omitió el riego en Parcela Sur.","parameters":{"nombre_parcela":"Parcela Sur"}}
+
+Usuario: "Calcula la recomendación para 45 días desde siembra"
+{"intent":"calcular_riego","target":"tab-costos","message":"Calculando recomendación FAO-56 para 45 días desde siembra.","parameters":{"dias_siembra":45,"nombre_parcela":null}}
+
+Usuario: "Calcula el riego de la Parcela Este con 60 días de siembra"
+{"intent":"calcular_riego","target":"tab-costos","message":"Calculando FAO-56 para Parcela Este, 60 días desde siembra.","parameters":{"dias_siembra":60,"nombre_parcela":"Parcela Este"}}
+
+Usuario: "Tengo 30 días de siembra en la parcela chica, ¿cuánto riego?"
+{"intent":"calcular_riego","target":"tab-costos","message":"Calculando balance hídrico para parcela chica, 30 días de cultivo.","parameters":{"dias_siembra":30,"nombre_parcela":"parcela chica"}}
+
+Usuario: "¿Cuánta agua necesita mi parcela?"
+{"intent":"consultar","target":null,"message":"Consultando datos de riego de tu parcela.","parameters":null}
+
+Usuario: "¿Cuál es mi déficit hídrico?"
+{"intent":"consultar","target":null,"message":"Revisando el balance hídrico de tu parcela.","parameters":null}
+
+Usuario: "¿Cuántos días llevo sin regar?"
+{"intent":"consultar","target":null,"message":"Revisando el historial de riego de tu parcela.","parameters":null}
 """
 
 # ── STT: Whisper (lazy load) ──────────────────────────────────────────────────
@@ -124,12 +147,18 @@ _whisper_loaded = False
 
 
 def _get_whisper():
-    """Carga Whisper la primera vez que se necesita y reutiliza la instancia."""
+    """Carga Whisper la primera vez que se necesita y reutiliza la instancia.
+
+    El import de whisper (que arrastra torch y numpy) se hace aquí dentro,
+    no al importar el módulo. Ahorra ~30-60 s de startup y ~150 MB de RAM
+    cuando nadie usa el micrófono en la sesión.
+    """
     global _whisper_model, _whisper_loaded
     if _whisper_loaded:
         return _whisper_model
     print("[MILPÍN] Cargando motor Whisper (primer uso)…")
     try:
+        import whisper  # import diferido: torch se carga solo si se usa voz
         _whisper_model = whisper.load_model("base")
         print("[MILPÍN] Whisper listo.")
     except Exception as e:
@@ -235,15 +264,16 @@ def _validar_esquema(data: dict) -> dict:
     message = str(data.get("message") or "")[:200]
 
     parameters = None
-    if intent == "llenar_prescripcion":
+    if intent in ("confirmar_riego", "ignorar_riego"):
         raw_p = data.get("parameters") or {}
-        cultivo = raw_p.get("cultivo")
         parameters = {
-            "cultivo":  cultivo if cultivo in VALID_CULTIVOS else None,
-            "variedad": _safe_str(raw_p.get("variedad")),
-            "insumo":   _safe_str(raw_p.get("insumo")),
-            "tasa":     _safe_int(raw_p.get("tasa")),
-            "zona":     _safe_int(raw_p.get("zona")),
+            "nombre_parcela": _safe_str(raw_p.get("nombre_parcela")),
+        }
+    elif intent == "calcular_riego":
+        raw_p = data.get("parameters") or {}
+        parameters = {
+            "dias_siembra":   _safe_int(raw_p.get("dias_siembra")),
+            "nombre_parcela": _safe_str(raw_p.get("nombre_parcela")),
         }
 
     return {"intent": intent, "target": target, "message": message, "parameters": parameters}

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Report",
+    "displayName": "vivo"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "7619c912-5e6a-4e68-9b8b-9ca6f255b15c"
+  }
+}

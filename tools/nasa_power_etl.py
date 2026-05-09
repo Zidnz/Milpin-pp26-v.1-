@@ -50,6 +50,13 @@ import pandas as pd
 from shapely.geometry import shape
 from sqlalchemy import select
 
+# GeoAlchemy2: convierte WKBElement → shapely (disponible post-migración PostGIS)
+try:
+    from geoalchemy2.shape import to_shape as _wkb_to_shape
+    _GEOALCHEMY2_OK = True
+except ImportError:
+    _GEOALCHEMY2_OK = False
+
 # ── Import de módulos del backend ─────────────────────────────────────────────
 # Este script se ejecuta desde la raíz del repo; agregamos backend/ al sys.path
 # para que los imports funcionen tal como lo hace main.py al arrancar uvicorn.
@@ -73,20 +80,32 @@ from settings import nasa_settings  # noqa: E402
 # =============================================================================
 # Utilidades geoespaciales
 # =============================================================================
-def centroide_de_geom(geom_json: Optional[dict]) -> Optional[tuple[float, float]]:
+def centroide_de_geom(geom) -> Optional[tuple[float, float]]:
     """
-    Retorna (lat, lon) del centroide del GeoJSON Polygon de la parcela.
+    Retorna (lat, lon) del centroide de la geometría de la parcela.
 
-    GeoJSON usa el orden (lon, lat) en las coordenadas, pero los APIs climáticos
-    y la función FAO-56 esperan (lat, lon). Shapely internaliza esto como
-    (x=lon, y=lat), así que `centroid.x` es lon y `centroid.y` es lat.
+    Acepta dos formatos:
+      - WKBElement de GeoAlchemy2 (post-migración PostGIS, formato actual)
+      - dict GeoJSON (legado, por compatibilidad con tests o datos históricos)
 
-    Retorna None si la parcela no tiene geometría válida.
+    GeoJSON y WKB usan el orden (lon, lat) en coordenadas; la API NASA POWER
+    y FAO-56 esperan (lat, lon). Shapely almacena (x=lon, y=lat), por lo que
+    `centroid.x` es lon y `centroid.y` es lat.
+
+    Retorna None si la parcela no tiene geometría o la geometría es inválida.
     """
-    if not geom_json:
+    if geom is None:
         return None
     try:
-        poly = shape(geom_json)
+        # WKBElement de GeoAlchemy2 (PostGIS real)
+        if _GEOALCHEMY2_OK and hasattr(geom, "desc"):
+            poly = _wkb_to_shape(geom)
+        # dict GeoJSON (legado / tests)
+        elif isinstance(geom, dict):
+            poly = shape(geom)
+        else:
+            return None
+
         if not poly.is_valid or poly.is_empty:
             return None
         c = poly.centroid

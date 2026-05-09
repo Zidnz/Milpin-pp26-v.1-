@@ -1,0 +1,61 @@
+{
+  "name": "card-adopcion",
+  "position": {
+    "x": 935,
+    "y": 100,
+    "z": 1000,
+    "height": 130,
+    "width": 285,
+    "tabOrder": 3
+  },
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "recomendaciones"
+                    }
+                  },
+                  "Property": "Tasa Adopcion Pct"
+                }
+              },
+              "queryRef": "recomendaciones.Tasa Adopcion Pct",
+              "active": false
+            }
+          ]
+        }
+      }
+    },
+    "prototypeQuery": {
+      "Version": 2,
+      "From": [
+        {
+          "Name": "r",
+          "Entity": "recomendaciones",
+          "Type": 0
+        }
+      ],
+      "Select": [
+        {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Source": "r"
+              }
+            },
+            "Property": "Tasa Adopcion Pct"
+          },
+          "Name": "recomendaciones.Tasa Adopcion Pct"
+        }
+      ]
+    },
+    "columnProperties": {},
+    "vcObjects": {}
+  }
+}

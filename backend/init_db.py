@@ -21,7 +21,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import AsyncSessionLocal, create_all_tables, drop_all_tables, engine
-from models import ClimaDiario, CultivoCatalogo, Parcela, Usuario
+from models import ClimaDiario, CultivoCatalogo, HistorialRiego, Parcela, Recomendacion, Usuario
 
 
 # ── Datos semilla: catálogo definitivo MILPÍN (FAO-56 Tabla 12, FAO-33 Tabla 25)
@@ -99,6 +99,16 @@ USUARIO_PRUEBA = {
     "email": "rvalenzuela@dr041-dev.com",
     "telefono": "+52 644 100 0001",
     "modulo_dr041": "Módulo 3",
+    "rol": "agricultor",
+}
+
+# Usuario administrador (acceso a todas las parcelas)
+USUARIO_ADMIN = {
+    "nombre_completo": "Administrador MILPÍN",
+    "email": "admin@milpin-dr041.com",
+    "telefono": "+52 644 000 0000",
+    "modulo_dr041": "DR-041 Completo",
+    "rol": "admin",
 }
 
 
@@ -157,6 +167,22 @@ async def seed_usuario_prueba(db: AsyncSession) -> bool:
         return False
 
 
+async def seed_usuario_admin(db: AsyncSession) -> bool:
+    """Inserta el usuario administrador si no existe."""
+    resultado = await db.execute(
+        select(Usuario).where(Usuario.email == USUARIO_ADMIN["email"])
+    )
+    if resultado.scalar_one_or_none() is None:
+        admin = Usuario(id_usuario=uuid.uuid4(), **USUARIO_ADMIN)
+        db.add(admin)
+        await db.commit()
+        print(f"  + Admin insertado: {USUARIO_ADMIN['email']}")
+        return True
+    else:
+        print(f"  ○ Admin ya existe: {USUARIO_ADMIN['email']}")
+        return False
+
+
 async def seed_parcela_prueba(db: AsyncSession) -> uuid.UUID | None:
     """Crea una parcela de prueba vinculada al usuario y cultivo semilla.
 
@@ -190,19 +216,25 @@ async def seed_parcela_prueba(db: AsyncSession) -> uuid.UUID | None:
         print(f"  ○ Parcela demo ya existe: {existente.id_parcela}")
         return existente.id_parcela
 
+    # Convertir GeoJSON dict → WKBElement para GeoAlchemy2 (PostGIS)
+    from geoalchemy2.shape import from_shape as _from_shape
+    from shapely.geometry import shape as _shape
+    _geom_dict = {
+        "type": "Polygon",
+        "coordinates": [[
+            [-109.935, 27.365], [-109.930, 27.365],
+            [-109.930, 27.370], [-109.935, 27.370],
+            [-109.935, 27.365],
+        ]],
+    }
+    _geom_wkb = _from_shape(_shape(_geom_dict), srid=4326)
+
     parcela = Parcela(
         id_parcela=uuid.uuid4(),
         id_usuario=usuario.id_usuario,
         id_cultivo_actual=cultivo.id_cultivo if cultivo else None,
         nombre_parcela="Lote Demo A-3",
-        geom={
-            "type": "Polygon",
-            "coordinates": [[
-                [-109.935, 27.365], [-109.930, 27.365],
-                [-109.930, 27.370], [-109.935, 27.370],
-                [-109.935, 27.365],
-            ]],
-        },
+        geom=_geom_wkb,
         area_ha=25.0,
         tipo_suelo="franco-arcilloso",
         conductividad_electrica=1.8,
@@ -321,6 +353,210 @@ async def seed_clima_diario(db: AsyncSession, id_parcela: uuid.UUID) -> int:
     return insertados
 
 
+async def seed_historial_riego(db: AsyncSession, id_parcela: uuid.UUID) -> int:
+    """Genera historial de riego sintético para el ciclo PV-2024 (Maíz).
+
+    Simula el balance hídrico FAO-56 día a día usando los datos de clima_diario
+    ya cargados en BD. Dispara riego cuando el déficit acumulado supera el RAW
+    (Readily Available Water, p=0.55 para maíz — FAO-56 Tabla 22).
+
+    Por cada evento de riego genera un par vinculado:
+        Recomendacion (aceptada="aceptada") + HistorialRiego (origen="sistema")
+
+    Esto permite que la vista v_kpi_consumo, el feedback loop y el forecast
+    tengan datos reales desde el primer `python init_db.py`.
+
+    Parámetros del ciclo PV-2024 (Primavera-Verano):
+        Siembra: 2024-04-15 (práctica habitual maíz DR-041, ciclo primaveral)
+        Duración: 140 días (25+40+45+30 según FAO-56 Tabla 11 para maíz)
+
+    Tarifa energética: $1.68 MXN/m³ (CFE 9-CU, bombeo 80 m — baseline DR-041)
+    Caudal gravedad: 40 m³/h (referencia para calcular duración del riego)
+    """
+    from sqlalchemy import select as _sel
+
+    # Verificar si ya hay datos (idempotente)
+    res = await db.execute(
+        _sel(HistorialRiego).where(HistorialRiego.id_parcela == id_parcela).limit(1)
+    )
+    if res.scalar_one_or_none() is not None:
+        print("  ○ historial_riego ya tiene datos para esta parcela.")
+        return 0
+
+    # Cargar parcela y cultivo Maíz
+    res_p = await db.execute(_sel(Parcela).where(Parcela.id_parcela == id_parcela))
+    parcela = res_p.scalar_one_or_none()
+    if not parcela:
+        print("  ⚠ Parcela no encontrada, no se genera historial.")
+        return 0
+
+    res_c = await db.execute(
+        _sel(CultivoCatalogo).where(CultivoCatalogo.nombre_comun == "Maíz")
+    )
+    cultivo = res_c.scalar_one_or_none()
+    if not cultivo:
+        print("  ⚠ Cultivo Maíz no encontrado en catálogo.")
+        return 0
+
+    # ── Parámetros edáficos de la parcela ─────────────────────────────────────
+    CC      = float(parcela.capacidad_campo)      # 0.34 m³/m³
+    PMP     = float(parcela.punto_marchitez)      # 0.18 m³/m³
+    Zr      = float(parcela.profundidad_raiz_cm)  # 60 cm
+    area_ha = float(parcela.area_ha)              # 25 ha
+    TAW     = (CC - PMP) * Zr * 10               # Agua disponible total (mm) ~96
+    p       = 0.55                                # Fracción de agotamiento maíz
+    RAW     = p * TAW                             # Agua fácilmente disponible ~52.8 mm
+    TARIFA  = 1.68                                # MXN/m³ (CFE 9-CU)
+    CAUDAL  = 40.0                                # m³/h — gravedad, referencia DR-041
+
+    # ── Ciclo Primavera-Verano 2024 ───────────────────────────────────────────
+    fecha_siembra = date(2024, 4, 15)
+    dias_ciclo = (
+        cultivo.dias_etapa_inicial
+        + cultivo.dias_etapa_desarrollo
+        + cultivo.dias_etapa_media
+        + cultivo.dias_etapa_final
+    )
+    fecha_fin_ciclo = fecha_siembra + timedelta(days=dias_ciclo - 1)
+
+    # Cargar datos climáticos del periodo
+    res_clima = await db.execute(
+        _sel(ClimaDiario)
+        .where(
+            ClimaDiario.id_parcela == id_parcela,
+            ClimaDiario.fecha >= fecha_siembra,
+            ClimaDiario.fecha <= fecha_fin_ciclo,
+        )
+        .order_by(ClimaDiario.fecha)
+    )
+    clima_rows = res_clima.scalars().all()
+
+    if not clima_rows:
+        print("  ⚠ Sin datos climáticos para el periodo del ciclo (2024-04-15 a 2024-09-01).")
+        print("    Ejecuta primero seed_clima_diario.")
+        return 0
+
+    # ── Kc lineal por etapa (FAO-56 Figura 25) ────────────────────────────────
+    ini = cultivo.dias_etapa_inicial
+    dev = cultivo.dias_etapa_desarrollo
+    mid = cultivo.dias_etapa_media
+    fin = cultivo.dias_etapa_final
+    Kc_ini = float(cultivo.kc_inicial)
+    Kc_mid = float(cultivo.kc_medio)
+    Kc_fin = float(cultivo.kc_final)
+
+    def kc_dia(ddc: int) -> float:
+        """Kc según día del ciclo (ddc 1-based). Interpolación lineal entre etapas."""
+        if ddc <= ini:
+            return Kc_ini
+        elif ddc <= ini + dev:
+            t = (ddc - ini) / dev
+            return Kc_ini + t * (Kc_mid - Kc_ini)
+        elif ddc <= ini + dev + mid:
+            return Kc_mid
+        else:
+            t = (ddc - ini - dev - mid) / fin
+            return Kc_mid + t * (Kc_fin - Kc_mid)
+
+    # ── Simulación del balance hídrico FAO-56 ─────────────────────────────────
+    # Dr = déficit de humedad del suelo (mm). Dr=0 → suelo a CC.
+    # Balance diario: Dr(t) = Dr(t-1) + ETc - lluvia
+    # Cuando Dr ≥ RAW → riego para reponer CC (lamina = Dr actual).
+    Dr = 0.0  # suelo a capacidad de campo tras siembra
+    insertados = 0
+
+    for idx, clima in enumerate(clima_rows):
+        ddc = idx + 1
+        Kc  = kc_dia(ddc)
+        ET0 = float(clima.et0) if clima.et0 else 4.0   # fallback conservador
+        ETc = Kc * ET0
+        lluvia = float(clima.lluvia) if clima.lluvia else 0.0
+
+        # Actualizar déficit
+        Dr = Dr + ETc - lluvia
+        Dr = max(0.0, min(Dr, TAW))  # acotado [0, TAW]
+
+        if Dr < RAW:
+            continue  # no se necesita riego este día
+
+        # ── Evento de riego ───────────────────────────────────────────────────
+        lamina    = round(Dr, 2)                        # mm a reponer
+        volumen   = round(lamina * 10, 2)               # m³/ha (1 mm = 10 m³/ha)
+        duracion  = round((volumen * area_ha) / CAUDAL, 2)  # horas
+        costo     = round(volumen * area_ha * TARIFA, 2)    # MXN
+
+        # Urgencia: basada en qué tan cerca está del límite crítico
+        if Dr >= 0.85 * TAW:
+            urgencia = "critico"
+        elif Dr >= 0.65 * TAW:
+            urgencia = "moderado"
+        else:
+            urgencia = "preventivo"
+
+        # Recomendación (ya aceptada en el pasado)
+        fecha_dt = datetime(
+            clima.fecha.year, clima.fecha.month, clima.fecha.day,
+            7, 0, 0, tzinfo=timezone.utc
+        )
+        reco = Recomendacion(
+            id_recomendacion=uuid.uuid4(),
+            id_parcela=id_parcela,
+            id_cultivo=cultivo.id_cultivo,
+            fecha_generacion=fecha_dt,
+            fecha_riego_sugerida=clima.fecha,
+            lamina_recomendada_mm=lamina,
+            eto_referencia=round(ET0, 3),
+            etc_calculada=round(ETc, 3),
+            deficit_acumulado_mm=lamina,
+            dias_sin_riego=ddc,
+            nivel_urgencia=urgencia,
+            algoritmo_version="fao56-seed-v1.0",
+            aceptada="aceptada",
+            lamina_ejecutada_mm=lamina,
+            parametros_json={
+                "fuente": "seeder_sintetico_pv2024",
+                "ddc": ddc,
+                "kc": round(Kc, 3),
+                "et0": round(ET0, 2),
+                "etc": round(ETc, 2),
+                "lluvia": round(lluvia, 2),
+                "taw_mm": round(TAW, 2),
+                "raw_mm": round(RAW, 2),
+                "p_factor": p,
+            },
+        )
+        db.add(reco)
+        await db.flush()  # necesario para obtener id_recomendacion antes del commit
+
+        # Historial de riego vinculado a la recomendación
+        riego = HistorialRiego(
+            id_riego=uuid.uuid4(),
+            id_parcela=id_parcela,
+            id_recomendacion=reco.id_recomendacion,
+            fecha_riego=clima.fecha,
+            volumen_m3_ha=volumen,
+            lamina_mm=lamina,
+            duracion_horas=duracion,
+            metodo_riego="gravedad",
+            origen_decision="sistema",
+            costo_energia_mxn=costo,
+            observaciones=(
+                f"Riego sintético PV-2024 — día {ddc} del ciclo. "
+                f"Kc={Kc:.2f}, ETc={ETc:.2f} mm/d, déficit={lamina} mm."
+            ),
+        )
+        db.add(riego)
+        insertados += 1
+        Dr = 0.0  # reponer el suelo a CC tras el riego
+
+    await db.commit()
+    print(
+        f"  + historial_riego: {insertados} eventos de riego insertados "
+        f"(PV-2024, Maíz, parcela {id_parcela})"
+    )
+    return insertados
+
+
 async def main(reset: bool = False, check_only: bool = False) -> None:
     """Punto de entrada principal de la inicialización."""
     print("=" * 60)
@@ -361,6 +597,10 @@ async def main(reset: bool = False, check_only: bool = False) -> None:
     async with AsyncSessionLocal() as db:
         await seed_usuario_prueba(db)
 
+    print("\nCreando usuario administrador...")
+    async with AsyncSessionLocal() as db:
+        await seed_usuario_admin(db)
+
     # 5. Parcela demo con datos edáficos
     print("\nCreando parcela de prueba...")
     async with AsyncSessionLocal() as db:
@@ -371,6 +611,13 @@ async def main(reset: bool = False, check_only: bool = False) -> None:
         print("\nGenerando serie climática sintética (Valle del Yaqui 2024)...")
         async with AsyncSessionLocal() as db:
             await seed_clima_diario(db, id_parcela)
+
+    # 7. Historial de riego sintético (ciclo PV-2024, Maíz)
+    if id_parcela:
+        print("\nGenerando historial de riego sintético (ciclo PV-2024, Maíz)...")
+        async with AsyncSessionLocal() as db:
+            n = await seed_historial_riego(db, id_parcela)
+            print(f"  ✓ {n} eventos de riego con recomendaciones vinculadas.")
 
     print("\n" + "=" * 60)
     print("  ✓ Base de datos inicializada correctamente.")

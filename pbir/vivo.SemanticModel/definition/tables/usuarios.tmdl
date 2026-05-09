@@ -1,0 +1,81 @@
+table usuarios
+	lineageTag: 7e7d2f45-cc1b-45b4-a43b-0bb1a6e5b3e7
+
+	column id_usuario
+		dataType: string
+		lineageTag: dc480d50-1075-4b92-b503-a39e30cbe9e6
+		summarizeBy: none
+		sourceColumn: id_usuario
+
+		annotation SummarizationSetBy = Automatic
+
+	column nombre_completo
+		dataType: string
+		lineageTag: 86864330-dcf2-4311-82f9-e5e16973b49d
+		summarizeBy: none
+		sourceColumn: nombre_completo
+
+		annotation SummarizationSetBy = Automatic
+
+	column email
+		dataType: string
+		lineageTag: e3d30a70-e637-4b5c-acfc-16d80d2152c7
+		summarizeBy: none
+		sourceColumn: email
+
+		annotation SummarizationSetBy = Automatic
+
+	column telefono
+		dataType: int64
+		formatString: 0
+		lineageTag: 1017f5de-fea5-4452-8e92-e916a9605803
+		summarizeBy: sum
+		sourceColumn: telefono
+
+		annotation SummarizationSetBy = Automatic
+
+	column modulo_dr041
+		dataType: string
+		lineageTag: cdd8bc1d-c9bd-4b1e-8c9b-0ce893352cc6
+		summarizeBy: none
+		sourceColumn: modulo_dr041
+
+		annotation SummarizationSetBy = Automatic
+
+	column activo
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 6c63ce5e-15df-41c6-a2b2-bab975846f97
+		summarizeBy: none
+		sourceColumn: activo
+
+		annotation SummarizationSetBy = Automatic
+
+	column created_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: d8c30243-6598-4a94-8204-d9fbabcb1b9f
+		summarizeBy: none
+		sourceColumn: created_at
+
+		variation Variación
+			isDefault
+			relationship: 9251394c-1a08-4c0c-9da2-7a7b3999e9b9
+			defaultHierarchy: LocalDateTable_450f58da-e4b3-4eed-97a5-638620cffbaf.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+	partition usuarios = m
+		mode: import
+		source =
+				let
+				    Origen = Csv.Document(File.Contents("C:\Users\madri\Downloads\pp26(Omar)\synthetic\usuarios.csv"),[Delimiter=",", Columns=7, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+				    #"Encabezados promovidos" = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+				    #"Tipo cambiado" = Table.TransformColumnTypes(#"Encabezados promovidos",{{"id_usuario", type text}, {"nombre_completo", type text}, {"email", type text}, {"telefono", Int64.Type}, {"modulo_dr041", type text}, {"activo", type logical}, {"created_at", type datetime}})
+				in
+				    #"Tipo cambiado"
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+
