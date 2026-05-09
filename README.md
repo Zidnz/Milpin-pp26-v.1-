@@ -55,7 +55,7 @@
 
 ---
 
-## 📊 Estado del proyecto
+##  Estado del proyecto
 
 **Fase actual: Pre-MVP — core técnico sólido, bloqueador único: autenticación**
 
@@ -90,7 +90,7 @@
 
 ---
 
-## 🔧 Deuda técnica vigente
+## Deuda técnica vigente
 
 1. **Sin autenticación — bloqueador MVP.** `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. Es el único bloqueador real para pasar a MVP.
 2. **Credenciales expuestas.** `backend/.env` tiene la password de postgres en texto plano. Rotar antes de abrir el repo públicamente (aunque `.env` ya está en `.gitignore`).
@@ -102,13 +102,13 @@
 
 ---
 
-## ✨ Características principales
+##  Características principales
 
 <table>
 <tr>
 <td width="50%">
 
-### 🌱 Inteligencia Agronómica
+### Inteligencia Agronómica
 
 - Motor **FAO-56 Penman-Monteith** para cálculo de evapotranspiración
 - Fallback **Hargreaves** cuando los datos son incompletos
@@ -119,7 +119,7 @@
 </td>
 <td width="50%">
 
-### 🗣️ Asistente de Voz IA
+### Asistente de Voz IA
 
 - STT doble: **Web Speech API** (browser, sin latencia de red) vía `/api/text-command` + **Whisper** (fallback local, carga lazy)
 - Razonamiento con **Ollama** (local, sin internet) o **Groq** (nube, rápido)
@@ -131,7 +131,7 @@
 <tr>
 <td width="50%">
 
-### 🗺️ GIS Interactivo
+### GIS Interactivo
 
 - Mapa vectorial con **Leaflet.js**
 - Geometrías desde **PostGIS** vía `GET /api/parcelas/geojson`
@@ -142,7 +142,7 @@
 </td>
 <td width="50%">
 
-### 📈 Machine Learning
+### Machine Learning
 
 - **K-Means** para optimización de logística de almacenamiento
 - **K-Means** para zonas de manejo diferenciado en campo
