@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/scikit--learn-ML-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white"/>
 </p>
 <p>
-  <img src="https://img.shields.io/badge/tests-77%20passing-4CAF50?style=for-the-badge&logo=pytest&logoColor=white"/>
+  <img src="https://img.shields.io/badge/tests-83%20passing-4CAF50?style=for-the-badge&logo=pytest&logoColor=white"/>
   <img src="https://img.shields.io/badge/Alembic-migraciones%20activas-blueviolet?style=for-the-badge"/>
 </p>
 <blockquote>
@@ -55,11 +55,11 @@
 
 ---
 
-## Estado del proyecto
+## 📊 Estado del proyecto
 
-**Fase actual: DSS — core técnico sólido, bloqueador único: autenticación**
+**Fase actual: Pre-MVP — core técnico sólido, bloqueador único: autenticación**
 
-###  Implementado y funcionando
+### ✔ Implementado y funcionando
 
 | Componente | Detalle | Fecha |
 |---|---|---|
@@ -69,24 +69,46 @@
 | `GET /api/parcelas/geojson` | GeoJSON FeatureCollection listo para Leaflet, servido desde PostGIS | 2026-04-30 |
 | Motor agronómico FAO-56 | Penman-Monteith (`balance_hidrico.py`), Hargreaves como fallback. Conectado a BD: lee parcela + cultivo + clima, persiste en `recomendaciones`. | — |
 | **Alembic activo** | `backend/migrations/` + `alembic.ini`. Próximas migraciones con `alembic revision -m "descripcion"` + `alembic upgrade head`. | 2026-04-30 |
-| **77 tests** | 42 unitarios FAO-56 (`test_fao56_unit.py`) + 35 e2e con SQLite/aiosqlite (`test_riego_e2e.py`). Ejecutar con `pytest backend/tests/`. | 2026-05-01 |
+| **83 tests** | 51 unitarios FAO-56/propagación (`test_fao56_unit.py`) + 32 e2e con SQLite/aiosqlite (`test_riego_e2e.py`). Ejecutar con `pytest backend/tests/`. | 2026-05-06 |
 | **Loop recomendación→feedback completo** | `PATCH /recomendaciones/{id}/feedback` actualiza estado y auto-inserta en `historial_riego` cuando `aceptada` es `"aceptada"` o `"modificada"`. Verificado con `TestFeedbackLoop` (7 casos). | 2026-05-01 |
+| **Humedad inicial real** | `propagar_balance_hidrico()` en `balance_hidrico.py` reemplaza la estimación `(CC+PMP)/2` con un balance acumulado día a día desde el último riego real. Conectado en `riego_api.py` y `db_api.py`. 9 tests en `TestPropagar`. | 2026-05-06 |
+| **Dashboard BI real** | `frontend/src/bi_dashboard.js` reemplaza el tab BI (que usaba cosine similarity hardcoded) por un dashboard conectado a la API real. Cosine similarity sobre matriz estática eliminado de `ui_tabs.js`. | 2026-05-06 |
+| **Forecast ETo 7 días** | `backend/core/eto_forecast.py`: Ridge Regression sobre `clima_diario` (features: sin/cos doy, lags ETo, T_max). Fallback a media(14 d) si < 60 registros. Endpoint `GET /api/parcelas/{id}/forecast?dias_siembra=N&horizon=7` proyecta déficit diario. Tab Riego muestra sección "Proyección 7 días". | 2026-05-06 |
 | Pipeline de voz | Whisper STT **carga lazy** (startup ~2 s vs. ~45 s anterior) → Ollama `llama3.2:latest` → Web Speech API TTS | 2026-04-30 |
 | Clustering K-Means | scikit-learn 1.5, zonas de manejo y logística | — |
-| Frontend GIS | Vanilla JS + Leaflet 1.9.4, capas Esri World Imagery + OpenTopoMap + límites municipales Cajeme (`cajeme_limits.geojson`). `map_engine.js` carga parcelas desde API PostGIS (fallback: `lotes.geojson` estático). | — |
-| **Frontend rediseñado** | Nueva paleta azul/verde profesional (`#0F6CBD` / `#43B36B`), UI responsiva con sistema de diseño consolidado. | 2026-05-07 |
-| **Dashboard BI real** | `bi_dashboard.js` conectado a `/api/parcelas`, `/api/parcelas/{id}/kpi` y `/api/riego/parcela/{id}`. KPIs en tiempo real: consumo vs. baseline DR-041, ahorros estimados, historial por cultivo y método de riego. Reemplaza la demo de cosine similarity hardcodeada. | 2026-05-07 |
+| Frontend GIS | Vanilla JS + Leaflet 1.9.4, capas Esri World Imagery + OpenTopoMap. `map_engine.js` carga parcelas desde API PostGIS (fallback: `lotes.geojson` estático). | — |
 | Pipeline GIS | geopandas + shapely `make_valid` + Douglas-Peucker | — |
+
+### ◻ Pendiente para MVP
+
+| Ítem | Descripción |
+|---|---|
+| **Autenticación** | `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. Bloqueador principal. |
+| CORS restringido | `allow_origins=["*"]` — reemplazar por allowlist. |
+| Seguridad en voz | Path traversal en `voice_endpoint.py`, sin límite de tamaño ni validación de content-type. |
+| Credenciales rotadas | `backend/.env` contiene password postgres en texto plano. Agregar al `.gitignore`. |
 
 ---
 
-## Características principales
+## 🔧 Deuda técnica vigente
+
+1. **Sin autenticación — bloqueador MVP.** `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. Es el único bloqueador real para pasar a MVP.
+2. **Credenciales expuestas.** `backend/.env` tiene la password de postgres en texto plano. Rotar antes de abrir el repo públicamente (aunque `.env` ya está en `.gitignore`).
+3. **Path traversal en voz.** `voice_endpoint.py` usa `temp_path = f"temp_{audio_file.filename}"` sin sanitizar. Sin límite de tamaño ni validación de content-type.
+4. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist con los dominios reales del frontend.
+5. **`schema.sql` desalineado.** El DDL todavía documenta la fase JSONB; el runtime ya usa GeoAlchemy2. `backend/models.py` es la fuente de verdad real del schema.
+6. **Catálogo de cultivos duplicado.** Los cultivos válidos viven en constantes en 6 archivos (`KC_TABLE`, `VALID_CULTIVOS`, `CULTIVOS_SEMILLA`, `schema.sql`, `index.html`, `generar_datos_sinteticos.py`). Debería leerse desde la tabla `cultivos_catalogo` en runtime.
+7. **Forecast sin validación cruzada.** `eto_forecast.py` entrena Ridge Regression sin split de validación; el RMSE reportado es in-sample. Baja prioridad mientras no haya datos históricos reales suficientes.
+
+---
+
+## ✨ Características principales
 
 <table>
 <tr>
 <td width="50%">
 
-### Inteligencia Agronómica
+### 🌱 Inteligencia Agronómica
 
 - Motor **FAO-56 Penman-Monteith** para cálculo de evapotranspiración
 - Fallback **Hargreaves** cuando los datos son incompletos
@@ -97,7 +119,7 @@
 </td>
 <td width="50%">
 
-### Asistente de Voz IA
+### 🗣️ Asistente de Voz IA
 
 - STT doble: **Web Speech API** (browser, sin latencia de red) vía `/api/text-command` + **Whisper** (fallback local, carga lazy)
 - Razonamiento con **Ollama** (local, sin internet) o **Groq** (nube, rápido)
@@ -109,23 +131,24 @@
 <tr>
 <td width="50%">
 
-###  GIS Interactivo
+### 🗺️ GIS Interactivo
 
 - Mapa vectorial con **Leaflet.js**
 - Geometrías desde **PostGIS** vía `GET /api/parcelas/geojson`
-- Capas: lotes, ríos, canales, pozos, límite municipal Cajeme (`cajeme_limits.geojson`)
+- Capas: lotes, ríos, canales, pozos, límites
 - Rampa de color por NDVI/rendimiento
 - Fallback estático a `lotes.geojson`
 
 </td>
 <td width="50%">
 
-### Machine Learning
+### 📈 Machine Learning
 
 - **K-Means** para optimización de logística de almacenamiento
 - **K-Means** para zonas de manejo diferenciado en campo
-- **Dashboard BI** real con KPIs en tiempo real desde la API — consumo vs. baseline, ahorros, historial por cultivo (`bi_dashboard.js`)
-- **77 tests** automatizados (pytest)
+- **Ridge Regression** para forecast de ETo a 7 días (`eto_forecast.py`) con features estacionales + lags
+- **Dashboard BI** conectado a API real — cosine similarity hardcoded eliminado
+- **83 tests** automatizados (pytest)
 
 </td>
 </tr>
@@ -242,37 +265,38 @@ backend/
   schema.sql                 # DDL + 2 vistas KPI + seed  ⚠ desalineado con models.py
   init_db.py                 # seeders (--reset, --check)
   alembic.ini
+  .env                       # ⚠ contiene secretos — rotar y agregar a .gitignore
   requirements.txt
   migrations/
     env.py
     versions/
       0001_postgis_geom_jsonb_to_geometry.py   # JSONB → GEOMETRY(Polygon,4326)
   API/
-    analytics_api.py         # K-Means: /logistica_inteligente, /zonas_manejo
-    db_api.py                # 14 endpoints CRUD
-    riego_api.py             # FAO-56 + /parcelas/geojson
+    db_api.py                # 14 endpoints CRUD + GET /parcelas/{id}/forecast
+    riego_api.py             # FAO-56 + /parcelas/geojson + balance hídrico conectado a BD
     voice_endpoint.py        # ⚠ path traversal sin sanitizar
   core/
-    balance_hidrico.py       # FAO-56 Penman-Monteith + KC_TABLE + Hargreaves
-    kmeans_model.py          # Wrapper K-Means scikit-learn
+    balance_hidrico.py       # FAO-56 Penman-Monteith + KC_TABLE + Hargreaves + propagar_balance_hidrico()
+    eto_forecast.py          # Ridge Regression para forecast ETo 7 días (fallback: media 14 d)
     llm_orchestrator.py      # VALID_CULTIVOS + Ollama/Groq client
   tests/
     conftest.py              # fixtures SQLite async
-    test_fao56_unit.py       # 42 tests unitarios del motor agronómico
-    test_riego_e2e.py        # 35 tests e2e (endpoints + BD SQLite)
+    test_fao56_unit.py       # 51 tests unitarios (FAO-56 + TestPropagar 9 casos)
+    test_riego_e2e.py        # 32 tests e2e (endpoints + BD SQLite)
 
 frontend/
   index.html                 # SPA principal (4 tabs + FAB de voz)
   css/
-    styles.css               # paleta azul/verde rediseñada (#0F6CBD, #43B36B)
+    styles.css               # sistema de diseño tierra (#7BB395, #4A3B28)
   src/
-    map_engine.js            # Leaflet, carga GeoJSON desde /api/parcelas/geojson + cajeme_limits
-    bi_dashboard.js          # Dashboard BI real conectado a la API (KPIs en tiempo real)
-    ui_tabs.js               # Navegación de tabs, tab Riego y tab Costos
+    map_engine.js            # Leaflet, carga GeoJSON desde /api/parcelas/geojson
+    ui_tabs.js               # lógica de tabs (recomendador hardcoded eliminado)
+    bi_dashboard.js          # dashboard BI conectado a API real (reemplaza demo coseno)
     voice_client.js          # Web Speech API + fallback Whisper
+    admin_panel.js           # panel de administración (en desarrollo)
+    auth.js                  # lógica de autenticación (en desarrollo)
   data/
-    lotes.geojson            # fallback estático de geometrías parcelas
-    cajeme_limits.geojson    # límite municipal Cajeme (INEGI, EPSG:4326)
+    lotes.geojson            # fallback estático de geometrías
 
 tools/
   geo_pipeline.py            # geopandas + make_valid + Douglas-Peucker
@@ -325,6 +349,16 @@ GET /api/kc/{cultivo}
 ```
 
 Devuelve coeficientes Kc y duración de etapas fenológicas para un cultivo del catálogo.
+
+---
+
+### Forecast ETo 7 días (Ridge Regression)
+
+```http
+GET /api/parcelas/{id}/forecast?dias_siembra=<int>&horizon=7
+```
+
+Proyecta ETo para los próximos `horizon` días usando Ridge Regression entrenada sobre `clima_diario` (features: sin/cos del día del año, lags de ETo, T_max). Si la parcela tiene menos de 60 registros con ETo no nulo, el modelo cae automáticamente a la media de los últimos 14 días. Corre FAO-56 forward sobre la proyección y estima la **fecha del próximo riego** (±días). La sección "Proyección 7 días" del tab Riego consume este endpoint.
 
 ---
 
@@ -393,6 +427,7 @@ GET /api/zonas_manejo            # Zonas de manejo diferenciado
 | `/api/parcelas/{id}` | GET | Obtener parcela con historial reciente |
 | `/api/parcelas/{id}/kpi` | GET | KPI de consumo vs. baseline DR-041 |
 | `/api/parcelas/geojson` | GET | GeoJSON FeatureCollection para Leaflet |
+| `/api/parcelas/{id}/forecast` | GET | Forecast ETo 7 días + fecha estimada de próximo riego |
 | `/api/riego` | POST | Registrar evento de riego |
 | `/api/riego/parcela/{id}` | GET | Historial de riego de una parcela |
 | `/api/recomendaciones` | POST | Guardar recomendación del motor FAO-56 |
@@ -536,29 +571,40 @@ open frontend/index.html
 npx live-server frontend --port=5500
 ```
 
+### Variables de entorno (`backend/.env`)
+
+```env
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/milpin_mvp
+MILPIN_OLLAMA_URL=http://localhost:11434/api/chat
+MILPIN_OLLAMA_MODEL=llama3.2:latest
+GROQ_API_KEY=                     # opcional — LLM cloud alternativo
+```
+
+> **⚠ Seguridad:** rotar las credenciales y agregar `.env` al `.gitignore` antes de cualquier push a repositorio no privado.
+
+---
+
 ## Frontend (SPA)
 
 La interfaz es una **Single Page Application** con 4 pestañas y un botón flotante de voz.
 
 | Pestaña | Descripción | Estado |
 |---|---|---|
-| **BI** | Dashboard de KPIs en tiempo real: consumo vs. baseline DR-041, ahorros estimados, historial por cultivo y método de riego (`bi_dashboard.js`) | Funcional |
-| **Mapas** | Portal GIS con capas vectoriales desde PostGIS + límites municipales Cajeme | Funcional |
-| **Riego** | Recomendación FAO-56 por parcela, historial y feedback | Funcional |
-| **Ajustes** | Configuración de voz, notificaciones y preferencias | Funcional |
+| **BI/R** | Dashboard de inteligencia de negocio conectado a API real (`bi_dashboard.js`) | ✅ Funcional |
+| **Mapas** | Portal GIS con capas vectoriales desde PostGIS, ríos, canales y pozos | ✅ Funcional |
+| **Riego** | Recomendación FAO-56 por parcela, historial, feedback y proyección 7 días | ✅ Funcional |
+| **Ajustes** | Configuración de voz, notificaciones y preferencias | ✅ Funcional |
 
-El **FAB (Floating Action Button)** activa el asistente de voz MILPÍN en cualquier pestaña.
+El **FAB (Floating Action Button)** 🎤 activa el asistente de voz MILPÍN en cualquier pestaña.
 
-**Paleta de diseño (actualizada 2026-05-07):**
+**Paleta de diseño:**
 
 | Color | Hex | Uso |
 |---|---|---|
-| Azul primario | `#0F6CBD` | Botones, acentos, estado activo |
-| Azul profundo | `#0A3D62` | Navbar, encabezados |
-| Verde agrícola | `#43B36B` | Indicadores positivos, confirmaciones |
-| Texto principal | `#1F2D3D` | Cuerpo de texto |
-| Alerta | `#E65C5C` | Grabando, errores críticos |
-| Fondo | `#F5F9FC` | Superficie principal |
+| Verde primario | `#7BB395` | Botones, acentos, estado activo |
+| Tierra oscura | `#4A3B28` | Texto principal |
+| Alerta | `#E63946` | Grabando, errores críticos |
+| Fondo | `#F5F0E8` | Superficie principal |
 
 ---
 
@@ -608,40 +654,4 @@ flowchart LR
     WHISPER --> LLM
 
     TEXT_CMD --> LLM["Ollama llama3.2\n(local, sin internet)"]
-    LLM --> PARSER["Intent Parser (JSON)"]
-    PARSER --> UI["Acción en UI"]
-    PARSER --> PARAMS["Parámetros de análisis"]
-```
-
-**Memoria conversacional:** Los últimos 3 turnos (6 mensajes) se mantienen en contexto para comandos encadenados:
-
-> *"Ve a mapas"* → *"Ahora ejecuta el clustering"* → *"¿Cuántos clusters encontró?"*
-
----
-
-##  Roadmap de interfaz
-
-### Próxima evolución planificada — Alertas / Parcelas críticas
-
-**Concepto:** Un tab tipo *inbox* que muestra todas las parcelas del agricultor ordenadas por nivel de urgencia (`crítico → moderado → preventivo`), sin tener que seleccionar parcela por parcela.
-
-**Por qué tiene sentido después del tab de Riego:** El tab de Riego resuelve *"¿qué hago con esta parcela hoy?"*. Alertas resuelve *"¿cuál parcela necesita atención primero?"*. Son el mismo flujo operativo en dos niveles de zoom.
-
-**Dependencias técnicas necesarias:**
-- `GET /api/recomendaciones/urgentes` — agrupa la recomendación pendiente más reciente de cada parcela, ordenadas por urgencia y días sin riego.
-- Frontend: lista de cards colapsables por parcela, acceso directo al tab de Riego preseleccionando la parcela.
-- **Bloqueador:** requiere autenticación para filtrar por `id_usuario`.
-
-**Criterio para construirlo:** cuando el sistema tenga autenticación implementada y más de una parcela con datos climáticos reales.
-
----
-
-<div align="center">
-
----
-
-<sub>Desarrollado para el Distrito de Riego DR-041 · Valle del Yaqui, Sonora, México</sub>
-
-<sub>DSS Agrícola · 2026-05-07 — Bloqueador principal: autenticación. PostGIS ✅ · Migraciones ✅ · Tests 77 ✅ · Loop feedback ✅ · Dashboard BI ✅</sub>
-
-</div>
+    LLM --> PARSER["Intent Parser (JS

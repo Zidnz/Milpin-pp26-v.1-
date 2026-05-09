@@ -1,0 +1,56 @@
+relationship fca7c6c9-e1f7-4233-b85e-c6d85bde9193
+	joinOnDateBehavior: datePartOnly
+	fromColumn: usuarios.created_at
+	toColumn: LocalDateTable_3819ea90-a117-4137-b162-eeb9d1e78752.Date
+
+relationship 12f22851-640c-47d5-8b82-3da11ce53608
+	joinOnDateBehavior: datePartOnly
+	fromColumn: parcelas.created_at
+	toColumn: LocalDateTable_642966df-717b-457a-bdcd-8bd8d5588475.Date
+
+relationship AutoDetected_49201a55-b765-4482-850e-6e02feafb748
+	fromColumn: parcelas.id_usuario
+	toColumn: usuarios.id_usuario
+
+relationship 00889589-418a-4dca-98e9-384e3a9754a3
+	joinOnDateBehavior: datePartOnly
+	fromColumn: recomendaciones.fecha_generacion
+	toColumn: LocalDateTable_14c46fbf-e64f-4810-a21a-eaa890852f3a.Date
+
+relationship dfb9135b-689a-4ae5-a72d-1a4873d5d7f3
+	joinOnDateBehavior: datePartOnly
+	fromColumn: recomendaciones.fecha_riego_sugerida
+	toColumn: LocalDateTable_c95ae0a6-13a5-4407-a9b4-08601697a43e.Date
+
+relationship AutoDetected_75cb48e8-7b35-4bc1-896a-b8caf7d1e3ba
+	fromColumn: recomendaciones.id_parcela
+	toColumn: parcelas.id_parcela
+
+relationship AutoDetected_1c96880d-c472-43bd-a49a-b67f43776791
+	fromColumn: recomendaciones.id_cultivo
+	toColumn: cultivos_catalogo.id_cultivo
+
+relationship 5c338a65-82dc-4dd0-9e64-f682a1103fa8
+	joinOnDateBehavior: datePartOnly
+	fromColumn: historial_riego.fecha_riego
+	toColumn: LocalDateTable_8e1c73c7-5c1e-4734-b361-85a4d408912d.Date
+
+relationship 5acd86ed-bc06-43fe-8873-0c8a5562ddbf
+	joinOnDateBehavior: datePartOnly
+	fromColumn: historial_riego.created_at
+	toColumn: LocalDateTable_6fced38c-fc8d-46db-9102-a22e14f29372.Date
+
+relationship AutoDetected_826873cc-bddd-480f-b6f1-5db654ad25ab
+	fromColumn: historial_riego.id_parcela
+	toColumn: parcelas.id_parcela
+
+relationship AutoDetected_fb4474c5-1085-407c-98f5-cf95a2f0a418
+	fromColumn: costos_ciclo.id_parcela
+	toColumn: parcelas.id_parcela
+
+relationship 0140e28d-a414-606c-4273-91d9ae294955
+	crossFilteringBehavior: bothDirections
+	toCardinality: many
+	fromColumn: historial_riego.id_recomendacion
+	toColumn: recomendaciones.etc_calculada
+

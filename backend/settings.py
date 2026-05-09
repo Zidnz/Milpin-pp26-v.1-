@@ -12,6 +12,7 @@ Uso:
 Cada clase tiene su propio `env_prefix`, de modo que NASA_ANIO_INICIO no colisiona
 con, por ejemplo, OLLAMA_URL si se agrega en el futuro.
 """
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
@@ -47,9 +48,12 @@ class NasaPowerSettings(BaseSettings):
         extra="ignore",
     )
 
-    # Período histórico a descargar
+    # Período histórico a descargar.
+    # anio_fin usa el año actual como default para que el ETL siempre cubra
+    # hasta hoy sin necesidad de actualizar el .env cada año.
+    # Sobreescribible con NASA_ANIO_FIN en .env si se necesita limitar el rango.
     anio_inicio: int = 2000
-    anio_fin: int = 2024
+    anio_fin: int = Field(default_factory=lambda: datetime.now().year)
 
     # Endpoint NASA POWER (Daily point API, comunidad Agricultura)
     api_url: str = "https://power.larc.nasa.gov/api/temporal/daily/point"

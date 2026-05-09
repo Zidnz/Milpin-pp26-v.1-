@@ -1,0 +1,137 @@
+table costos_ciclo
+	lineageTag: f80ce2ef-7784-4d00-8d3f-407846010119
+
+	column id_costo
+		dataType: string
+		lineageTag: 918a6561-56e4-4bcd-9ced-ed850280ff39
+		summarizeBy: none
+		sourceColumn: id_costo
+
+		annotation SummarizationSetBy = Automatic
+
+	column id_parcela
+		dataType: string
+		lineageTag: 8aac0ada-60ba-4a10-8e6e-b545e931f882
+		summarizeBy: none
+		sourceColumn: id_parcela
+
+		annotation SummarizationSetBy = Automatic
+
+	column ciclo_agricola
+		dataType: string
+		lineageTag: dc5b8545-60fa-4619-964d-40e7288312e3
+		summarizeBy: none
+		sourceColumn: ciclo_agricola
+
+		annotation SummarizationSetBy = Automatic
+
+	column cultivo
+		dataType: string
+		lineageTag: ba8369e6-ac0c-41f0-bf6a-ae52959aeeb9
+		summarizeBy: none
+		sourceColumn: cultivo
+
+		annotation SummarizationSetBy = Automatic
+
+	column volumen_agua_total_m3
+		dataType: double
+		lineageTag: ca57618c-6356-4ed2-a8ec-ed3e44ac760b
+		summarizeBy: sum
+		sourceColumn: volumen_agua_total_m3
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column costo_agua_mxn
+		dataType: double
+		lineageTag: 2df53c48-9a51-44f9-ab57-d4e4ed63e4b4
+		summarizeBy: sum
+		sourceColumn: costo_agua_mxn
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column costo_fertilizantes_mxn
+		dataType: double
+		lineageTag: 47fa5b0b-8ff6-4c2c-abca-419fdd2fd27d
+		summarizeBy: sum
+		sourceColumn: costo_fertilizantes_mxn
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column costo_agroquimicos_mxn
+		dataType: double
+		lineageTag: 03a25607-1e32-41d0-8553-bd1b8fdc3594
+		summarizeBy: sum
+		sourceColumn: costo_agroquimicos_mxn
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column costo_semilla_mxn
+		dataType: double
+		lineageTag: 6db271d8-951f-405c-acc3-77d98ab7e073
+		summarizeBy: sum
+		sourceColumn: costo_semilla_mxn
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column costo_maquinaria_mxn
+		dataType: double
+		lineageTag: c38e1a78-bfdb-48b5-90f0-6329c02b4fd4
+		summarizeBy: sum
+		sourceColumn: costo_maquinaria_mxn
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column costo_mano_obra_mxn
+		dataType: double
+		lineageTag: b9163ed8-cdf4-4de6-8eef-cb4e5a3e0184
+		summarizeBy: sum
+		sourceColumn: costo_mano_obra_mxn
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ingreso_estimado_mxn
+		dataType: double
+		lineageTag: ec73a59a-ec51-451e-ad96-e4a892f29ea7
+		summarizeBy: sum
+		sourceColumn: ingreso_estimado_mxn
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column margen_contribucion_mxn
+		dataType: double
+		lineageTag: 76689d22-87f0-4a85-a9b7-53778e4f494f
+		summarizeBy: sum
+		sourceColumn: margen_contribucion_mxn
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition costos_ciclo = m
+		mode: import
+		source =
+				let
+				    Origen = Csv.Document(File.Contents("C:\Users\madri\Downloads\pp26(Omar)\data\synthetic\costos_ciclo.csv"),[Delimiter=",", Columns=13, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+				    #"Encabezados promovidos" = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+				    #"Tipo cambiado" = Table.TransformColumnTypes(#"Encabezados promovidos",{{"id_costo", type text}, {"id_parcela", type text}, {"ciclo_agricola", type text}, {"cultivo", type text}, {"volumen_agua_total_m3", type number}, {"costo_agua_mxn", type number}, {"costo_fertilizantes_mxn", type number}, {"costo_agroquimicos_mxn", type number}, {"costo_semilla_mxn", type number}, {"costo_maquinaria_mxn", type number}, {"costo_mano_obra_mxn", type number}, {"ingreso_estimado_mxn", type number}, {"margen_contribucion_mxn", type number}})
+				in
+				    #"Tipo cambiado"
+
+	annotation PBI_ResultType = Table
+

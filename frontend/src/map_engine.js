@@ -174,7 +174,8 @@ async function cargarGeoJSON(ruta) {
  * Fallback: archivo estático data/lotes.geojson (datos demo).
  */
 async function cargarParcelasAPI() {
-    const API_URL = 'http://127.0.0.1:8000/api/parcelas/geojson';
+    const query = window.MILPIN_AUTH?.getParcelasQuery?.() || '';
+    const API_URL = `http://127.0.0.1:8000/api/parcelas/geojson${query}`;
     try {
         const res = await fetch(API_URL);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -190,6 +191,19 @@ async function cargarParcelasAPI() {
     }
     return cargarGeoJSON('data/lotes.geojson');
 }
+
+window._milpinResetMapSession = function() {
+    if (map) {
+        map.remove();
+        map = null;
+    }
+    mapaIniciado = false;
+    capaLotes = null;
+    capaRios = null;
+    capaCanales = null;
+    capaPozos = null;
+    capaAnalisis = null;
+};
 
 // ── Leyenda NDVI como control Leaflet ─────────────────────────────────
 function crearLeyendaNDVI(parcelas) {

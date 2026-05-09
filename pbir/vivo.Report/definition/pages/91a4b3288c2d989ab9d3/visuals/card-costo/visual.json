@@ -1,0 +1,61 @@
+{
+  "name": "card-costo",
+  "position": {
+    "x": 630,
+    "y": 100,
+    "z": 1000,
+    "height": 130,
+    "width": 285,
+    "tabOrder": 2
+  },
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "historial_riego"
+                    }
+                  },
+                  "Property": "Ahorro Costo MXN_ha"
+                }
+              },
+              "queryRef": "historial_riego.Ahorro Costo MXN_ha",
+              "active": false
+            }
+          ]
+        }
+      }
+    },
+    "prototypeQuery": {
+      "Version": 2,
+      "From": [
+        {
+          "Name": "h",
+          "Entity": "historial_riego",
+          "Type": 0
+        }
+      ],
+      "Select": [
+        {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Source": "h"
+              }
+            },
+            "Property": "Ahorro Costo MXN_ha"
+          },
+          "Name": "historial_riego.Ahorro Costo MXN_ha"
+        }
+      ]
+    },
+    "columnProperties": {},
+    "vcObjects": {}
+  }
+}

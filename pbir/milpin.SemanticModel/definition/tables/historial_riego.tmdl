@@ -1,0 +1,151 @@
+table historial_riego
+	lineageTag: 4bce82f0-d0e5-4522-8df1-ff549cf201f0
+
+	column id_riego
+		dataType: string
+		lineageTag: 48341437-fd05-4939-983d-5bb88d116c41
+		summarizeBy: none
+		sourceColumn: id_riego
+
+		annotation SummarizationSetBy = Automatic
+
+	column id_parcela
+		dataType: string
+		lineageTag: 068b4622-6362-4fec-a843-fc2506ab2921
+		summarizeBy: none
+		sourceColumn: id_parcela
+
+		annotation SummarizationSetBy = Automatic
+
+	column ciclo_agricola
+		dataType: string
+		lineageTag: 19afc498-0b54-4a0c-b5b6-7e63c919bdd8
+		summarizeBy: none
+		sourceColumn: ciclo_agricola
+
+		annotation SummarizationSetBy = Automatic
+
+	column id_recomendacion
+		dataType: string
+		lineageTag: 0e88ade2-d543-4bbf-8c54-c8accd6b33b5
+		summarizeBy: none
+		sourceColumn: id_recomendacion
+
+		annotation SummarizationSetBy = Automatic
+
+	column fecha_riego
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 08b1b87d-ce69-41ce-8074-bc3e9d096dfa
+		summarizeBy: none
+		sourceColumn: fecha_riego
+
+		variation Variación
+			isDefault
+			relationship: 5c338a65-82dc-4dd0-9e64-f682a1103fa8
+			defaultHierarchy: LocalDateTable_8e1c73c7-5c1e-4734-b361-85a4d408912d.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column volumen_m3_ha
+		dataType: double
+		lineageTag: 866e44cf-f356-470c-a524-8c39407ff9f9
+		summarizeBy: sum
+		sourceColumn: volumen_m3_ha
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column lamina_mm
+		dataType: double
+		lineageTag: 0209c08b-e72a-49eb-bc54-f92739700519
+		summarizeBy: sum
+		sourceColumn: lamina_mm
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column duracion_horas
+		dataType: double
+		lineageTag: 3b2214a7-3df8-4777-939d-81bade2f1aa5
+		summarizeBy: sum
+		sourceColumn: duracion_horas
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column metodo_riego
+		dataType: string
+		lineageTag: 383b460d-025e-492f-8064-9c0941479e7a
+		summarizeBy: none
+		sourceColumn: metodo_riego
+
+		annotation SummarizationSetBy = Automatic
+
+	column origen_decision
+		dataType: string
+		lineageTag: 494198ce-a722-4c0b-a6eb-e81d7d12e24f
+		summarizeBy: none
+		sourceColumn: origen_decision
+
+		annotation SummarizationSetBy = Automatic
+
+	column costo_energia_mxn
+		dataType: double
+		lineageTag: e6c79be4-ee90-4076-adba-855b92c03c16
+		summarizeBy: sum
+		sourceColumn: costo_energia_mxn
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column ciclo_vol_target_m3_ha
+		dataType: double
+		lineageTag: d02680d9-5ec1-44c1-a8b0-e251dbd3c8d5
+		summarizeBy: sum
+		sourceColumn: ciclo_vol_target_m3_ha
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column observaciones
+		dataType: string
+		lineageTag: efaa2ccc-1159-4a38-9fa6-157e89e1e190
+		summarizeBy: none
+		sourceColumn: observaciones
+
+		annotation SummarizationSetBy = Automatic
+
+	column created_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 6fffa2ec-ae99-4ffd-a734-11b4e43e873d
+		summarizeBy: none
+		sourceColumn: created_at
+
+		variation Variación
+			isDefault
+			relationship: 5acd86ed-bc06-43fe-8873-0c8a5562ddbf
+			defaultHierarchy: LocalDateTable_6fced38c-fc8d-46db-9102-a22e14f29372.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+	partition historial_riego = m
+		mode: import
+		source =
+				let
+				    Origen = Csv.Document(File.Contents("C:\Users\madri\Downloads\pp26(Omar)\data\synthetic\historial_riego.csv"),[Delimiter=",", Columns=14, Encoding=1252, QuoteStyle=QuoteStyle.None]),
+				    #"Encabezados promovidos" = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+				    #"Tipo cambiado" = Table.TransformColumnTypes(#"Encabezados promovidos",{{"id_riego", type text}, {"id_parcela", type text}, {"ciclo_agricola", type text}, {"id_recomendacion", type text}, {"fecha_riego", type date}, {"volumen_m3_ha", type number}, {"lamina_mm", type number}, {"duracion_horas", type number}, {"metodo_riego", type text}, {"origen_decision", type text}, {"costo_energia_mxn", type number}, {"ciclo_vol_target_m3_ha", type number}, {"observaciones", type text}, {"created_at", type datetime}})
+				in
+				    #"Tipo cambiado"
+
+	annotation PBI_ResultType = Table
+
