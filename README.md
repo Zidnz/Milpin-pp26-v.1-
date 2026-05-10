@@ -638,20 +638,3 @@ Si los datos de radiación o humedad son insuficientes, el motor cae a **Hargrea
 > **Deuda estructural:** `KC_TABLE` y `VALID_CULTIVOS` están duplicados en 6 archivos. La fuente de verdad debería ser la tabla `cultivos_catalogo` leída en runtime.
 
 ---
-
-## Asistente de voz MILPÍN AI
-
-```mermaid
-flowchart LR
-    USER["Usuario habla"]
-
-    USER --> WSA["Web Speech API\n(STT nativo, sin latencia)"]
-    WSA --> TEXT_CMD["POST /api/text-command\n(PATH PRINCIPAL)"]
-
-    USER --> |"fallback"| AUDIO["Web Audio API\n(captura mic)"]
-    AUDIO --> VOICE_CMD["POST /api/voice-command"]
-    VOICE_CMD --> WHISPER["Whisper STT\n(carga lazy ~2 s)"]
-    WHISPER --> LLM
-
-    TEXT_CMD --> LLM["Ollama llama3.2\n(local, sin internet)"]
-    LLM --> PARSER["Intent Parser (JS
