@@ -4,14 +4,15 @@ models.py — Modelos ORM de SQLAlchemy para el MVP de MILPÍN AgTech v2.0
 6 tablas del MVP:
     usuarios          → Agricultores / operadores del ERP
     cultivos_catalogo → Parámetros FAO-56 por especie (tabla de referencia)
-    parcelas          → Lotes de cultivo con atributos edáficos y geometría GeoJSON
+    parcelas          → Lotes de cultivo con atributos edáficos y geometría PostGIS
     recomendaciones   → Recomendaciones de riego generadas por el motor FAO-56
     historial_riego   → Registro permanente de eventos de riego ejecutados
     clima_diario      → Series climáticas diarias por parcela (fuente: NASA POWER)
 
 Nota sobre geometría (parcelas.geom):
-    En el MVP, la geometría se almacena como JSONB (GeoJSON).
-    En la Fase 2, se migrará a GEOMETRY(Polygon, 4326) via PostGIS + GeoAlchemy2.
+    Fase 2 completada (2026-04-29): geom es GEOMETRY(Polygon, 4326) via PostGIS +
+    GeoAlchemy2. Migración: 0001_postgis_geom_jsonb_to_geometry.
+    El área (area_ha) se calcula con ST_Area(geom::geography) / 10000.
 """
 
 import uuid
@@ -32,6 +33,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+from geoalchemy2 import Geometry
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -69,6 +71,12 @@ class Usuario(Base):
         comment="Módulo de riego dentro del DR-041 (ej. 'Módulo 3')"
     )
     activo: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    rol: Mapped[str] = mapped_column(
+        String(20),
+        default="agricultor",
+        server_default="agricultor",
+        comment="Rol del usuario: 'agricultor' (solo sus parcelas) o 'admin' (todas las parcelas)"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -133,8 +141,8 @@ class Parcela(Base):
     """
     Lote de cultivo con características físicas del suelo y geometría espacial.
 
-    Geometría: almacenada como JSONB (GeoJSON) en el MVP.
-    Migración a PostGIS GEOMETRY(Polygon,4326) planificada para Fase 2.
+    Geometría: GEOMETRY(Polygon, 4326) via PostGIS + GeoAlchemy2.
+    Para serializar a GeoJSON en endpoints: SELECT ST_AsGeoJSON(geom).
 
     Agua disponible total (mm):
         ADT = (capacidad_campo - punto_marchitez) * profundidad_raiz_cm * 10
@@ -159,14 +167,14 @@ class Parcela(Base):
     # Identificación
     nombre_parcela: Mapped[Optional[str]] = mapped_column(String(100))
 
-    # Geometría como GeoJSON (MVP) — se migra a PostGIS en Fase 2
-    geom: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
-        comment="GeoJSON Polygon del lote. Migrar a GEOMETRY(Polygon,4326) en Fase 2."
+    # Geometría PostGIS (migrada desde JSONB en 0001_postgis_geom_jsonb_to_geometry)
+    geom: Mapped[Optional[object]] = mapped_column(
+        Geometry(geometry_type="POLYGON", srid=4326, nullable=True),
+        comment="POLYGON SRID 4326. Usar ST_AsGeoJSON(geom) para serializar a GeoJSON."
     )
     area_ha: Mapped[Optional[float]] = mapped_column(
         Numeric(10, 4),
-        comment="Superficie en hectáreas. Calcular con ST_Area(geom) en Fase 2."
+        comment="Superficie en ha. Calculada con ST_Area(geom::geography)/10000."
     )
 
     # Características edáficas

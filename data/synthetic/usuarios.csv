@@ -1,21 +1,21 @@
 id_usuario,nombre_completo,email,telefono,modulo_dr041,activo,created_at
-e14c9114-01d4-48e3-b88c-409ba45cf6e9,Ramón Valenzuela,ramon.valenzuela000@dr041-dev.com,+526441803258,Módulo 4,True,2025-01-08T17:30:57+00:00
-0cf37f1c-8e53-43d0-b002-579050330cc0,María Fernández,maria.fernandez001@dr041-dev.com,+526448727380,Módulo 1,True,2024-12-08T23:50:57+00:00
-cfa44bd9-9b58-4560-b8b6-3bbfd04aec7f,Juan Carlos Ortiz,juan.carlos.ortiz002@dr041-dev.com,+526445738310,Módulo 5,True,2024-11-11T09:12:57+00:00
-1c7ae83f-9368-44fd-9a98-be5c35d043b7,Luis Miranda,luis.miranda003@dr041-dev.com,+526448074577,Módulo 3,True,2026-01-22T07:28:57+00:00
-f4efb4eb-bd46-478e-acd2-c9959501182f,Rosa Herrera,rosa.herrera004@dr041-dev.com,+526445503166,Módulo 2,True,2025-12-14T05:09:57+00:00
-374d10b2-737c-4768-8fc9-07358f2a5c43,Jesús Soto,jesus.soto005@dr041-dev.com,+526446794785,Módulo 3,True,2024-09-09T14:29:57+00:00
-52160a77-b5c1-4ef6-9e69-3034a5b364da,Guadalupe Ríos,guadalupe.rios006@dr041-dev.com,+526445054135,Módulo 2,True,2026-02-17T14:02:57+00:00
-2f07871c-2184-41b5-a60d-4b75cf6941b1,Alejandro Castillo,alejandro.castillo007@dr041-dev.com,+526441574355,Módulo 5,True,2024-09-06T21:18:57+00:00
-974ba2f3-991f-4795-b3d4-2214452be846,Norma Reyes,norma.reyes008@dr041-dev.com,+526442487061,Módulo 4,True,2024-12-06T19:51:57+00:00
-d4d48369-ffeb-4faf-a772-13fe4865e68d,Sergio Bojórquez,sergio.bojorquez009@dr041-dev.com,+526449736281,Módulo 3,True,2024-07-20T11:09:57+00:00
-8b55897f-aa77-40f1-9ca6-f9beb8238c25,Patricia Durán,patricia.duran010@dr041-dev.com,+526447839094,Módulo 1,True,2025-08-05T16:26:57+00:00
-f75795d4-12e6-4f02-98d2-7780961d3b70,Humberto Lugo,humberto.lugo011@dr041-dev.com,+526441394233,Módulo 3,True,2026-01-03T10:15:57+00:00
-f4c1f490-e2ca-42ea-8e56-19e5c08ff1d9,Claudia Navarro,claudia.navarro012@dr041-dev.com,+526449302749,Módulo 4,True,2025-08-04T04:31:57+00:00
-3edfaa0c-801e-4e23-b5b1-39476cb3f4ae,Ernesto Zamora,ernesto.zamora013@dr041-dev.com,+526443932427,Módulo 5,True,2025-08-02T02:27:57+00:00
-0b2da848-6ce4-44b9-8639-e1900ff35548,Beatriz Gaxiola,beatriz.gaxiola014@dr041-dev.com,+526448161118,Módulo 1,True,2025-05-27T00:14:57+00:00
-783d0da2-f608-497d-9df5-9211e984ba08,Francisco Acosta,francisco.acosta015@dr041-dev.com,+526445281343,Módulo 2,True,2025-11-12T14:15:57+00:00
-593064bf-47d8-4e56-9a58-f2b1e15082af,Silvia Ibarra,silvia.ibarra016@dr041-dev.com,+526449462753,Módulo 3,True,2025-12-30T08:18:57+00:00
-54a3d670-c531-4723-a885-7fe6129b67ef,Raúl Monge,raul.monge017@dr041-dev.com,+526447302385,Módulo 1,True,2025-09-12T09:06:57+00:00
-3ffd0540-0ebd-42a5-b14f-565098f0e55e,Leticia Romo,leticia.romo018@dr041-dev.com,+526444916949,Módulo 5,True,2024-08-26T18:02:57+00:00
-0b4eb152-97b0-4754-9c86-4e9101ca859a,Miguel Parra,miguel.parra019@dr041-dev.com,+526443594952,Módulo 2,True,2024-12-19T12:47:57+00:00
+66dc7715-a8ed-48c7-908b-83f76b01312e,Ramón Valenzuela,ramon.valenzuela000@dr041-dev.com,+526441803258,Módulo 4,True,2025-01-22T16:57:03+00:00
+641616f1-6d0a-4fa6-9a0a-29c1bb2d84a6,María Fernández,maria.fernandez001@dr041-dev.com,+526448727380,Módulo 1,True,2024-12-22T23:17:03+00:00
+d04b7eb5-cb55-46ff-94f2-cf982296b5b2,Juan Carlos Ortiz,juan.carlos.ortiz002@dr041-dev.com,+526445738310,Módulo 5,True,2024-11-25T08:39:03+00:00
+4dfb1bcc-997a-41a2-825d-78c9fc95044d,Luis Miranda,luis.miranda003@dr041-dev.com,+526448074577,Módulo 3,True,2026-02-05T06:55:03+00:00
+eef355b8-2cc5-4979-8c38-150728a4e340,Rosa Herrera,rosa.herrera004@dr041-dev.com,+526445503166,Módulo 2,True,2025-12-28T04:36:03+00:00
+bec519f0-27d3-40aa-8702-3f9daf62b70e,Jesús Soto,jesus.soto005@dr041-dev.com,+526446794785,Módulo 3,True,2024-09-23T13:56:03+00:00
+dbb7ddd7-c750-4d47-90f6-6106783ab3db,Guadalupe Ríos,guadalupe.rios006@dr041-dev.com,+526445054135,Módulo 2,True,2026-03-03T13:29:03+00:00
+d19da600-9b60-4031-9214-2a167ddb3898,Alejandro Castillo,alejandro.castillo007@dr041-dev.com,+526441574355,Módulo 5,True,2024-09-20T20:45:03+00:00
+774d6b2a-61bc-4796-81e5-b039bdfbd52c,Norma Reyes,norma.reyes008@dr041-dev.com,+526442487061,Módulo 4,True,2024-12-20T19:18:03+00:00
+4b54daf2-987b-4059-a1b6-5e2a1983d28c,Sergio Bojórquez,sergio.bojorquez009@dr041-dev.com,+526449736281,Módulo 3,True,2024-08-03T10:36:03+00:00
+97a9f5b0-041d-4739-b285-4c44ef5237dd,Patricia Durán,patricia.duran010@dr041-dev.com,+526447839094,Módulo 1,True,2025-08-19T15:53:03+00:00
+509ee27a-8116-4eaa-98a3-9d998dd8278d,Humberto Lugo,humberto.lugo011@dr041-dev.com,+526441394233,Módulo 3,True,2026-01-17T09:42:03+00:00
+86da88b3-dbc3-4bdf-89ec-0d84cbf360fe,Claudia Navarro,claudia.navarro012@dr041-dev.com,+526449302749,Módulo 4,True,2025-08-18T03:58:03+00:00
+77890133-fd37-4e83-b67d-0a80b3e059ca,Ernesto Zamora,ernesto.zamora013@dr041-dev.com,+526443932427,Módulo 5,True,2025-08-16T01:54:03+00:00
+3df7dd0d-8656-4a87-9657-e5b6465bf9fd,Beatriz Gaxiola,beatriz.gaxiola014@dr041-dev.com,+526448161118,Módulo 1,True,2025-06-09T23:41:03+00:00
+4825ddd9-00a0-4e92-8e03-a51ab3f4bf90,Francisco Acosta,francisco.acosta015@dr041-dev.com,+526445281343,Módulo 2,True,2025-11-26T13:42:03+00:00
+a1774f72-bc2b-4778-a19e-ffa60bb66546,Silvia Ibarra,silvia.ibarra016@dr041-dev.com,+526449462753,Módulo 3,True,2026-01-13T07:45:03+00:00
+e73fae46-c970-49ed-87a3-9e2011e419e4,Raúl Monge,raul.monge017@dr041-dev.com,+526447302385,Módulo 1,True,2025-09-26T08:33:03+00:00
+c715a03e-8a15-48da-a4a6-54a73357d2fe,Leticia Romo,leticia.romo018@dr041-dev.com,+526444916949,Módulo 5,True,2024-09-09T17:29:03+00:00
+2a1c9933-05eb-47d2-9471-3889598f0772,Miguel Parra,miguel.parra019@dr041-dev.com,+526443594952,Módulo 2,True,2025-01-02T12:14:03+00:00

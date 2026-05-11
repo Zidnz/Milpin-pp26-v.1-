@@ -85,6 +85,20 @@ ESTADOS_ACEPTADA = ["aceptada", "modificada", "ignorada", "pendiente"]
 ORIGENES_DECISION = ["sistema", "manual", "voz"]
 
 # ---------------------------------------------------------------------------
+# Tipos de anomalía inyectable
+# ---------------------------------------------------------------------------
+# IMPORTANTE: estas son anomalías *sintéticas* — artefactos del generador.
+# El valor del ejercicio es:
+#   1. Tener ground truth etiquetado para evaluar el detector con precisión real.
+#   2. Construir el pipeline de features que se reutilizará con datos reales.
+# Lo que NO se puede afirmar: que el modelo detecta problemas reales en DR-041.
+
+class TipoAnomalia:
+    SOBRE_RIEGO      = "SOBRE_RIEGO"           # evento aislado ×2.5-3.5x
+    INEFICIENTE      = "AGRICULTOR_INEFICIENTE" # parcela sistemáticamente +40-70%
+    GAP_FALLA        = "GAP_FALLA_EQUIPO"       # hueco 20-25 días mid-season
+
+# ---------------------------------------------------------------------------
 # Catálogo de cultivos
 # Unión de los cultivos sembrados en init_db.py con los del xlsx.
 # Los parámetros Kc / Ky / días / rendimiento vienen de:
@@ -288,7 +302,12 @@ def generar_parcelas(rng: np.random.Generator, n: int,
             "profundidad_raiz_cm": int(round(raiz[idx])),
             "capacidad_campo": round(float(cc[idx]), 4),
             "punto_marchitez": round(float(pmp[idx]), 4),
-            "sistema_riego": rng.choice(SISTEMAS_RIEGO),
+            # Distribución realista DR-041: gravedad domina (~65-70% sup.)
+            # Fuente: CONAGUA padrón DR-041 y CIMMYT Valle del Yaqui 2018-2023.
+            "sistema_riego": rng.choice(
+                SISTEMAS_RIEGO,
+                p=[0.65, 0.08, 0.15, 0.12],  # gravedad, goteo, aspersion, microaspersion
+            ),
             "activo": True,
             "created_at": _timestamp_hace(rng, max_dias=540),
         })
@@ -366,6 +385,8 @@ CICLOS_AGRICOLAS: list[tuple[str, date, date]] = [
     ("PV-2024", date(2024,  4,  1), date(2024,  9, 15)),
     ("OI-2025", date(2024, 10, 15), date(2025,  3, 15)),
     ("PV-2025", date(2025,  4,  1), date(2025,  9, 15)),
+    ("OI-2026", date(2025, 10, 15), date(2026,  3, 15)),
+    ("PV-2026", date(2026,  4,  1), date(2026,  9, 15)),
 ]
 
 # Eficiencia de aplicación por sistema de riego (fracción útil del agua aplicada)
@@ -384,13 +405,13 @@ def generar_historial_riego(rng: np.random.Generator,
     """
     Genera historial de riego estructurado POR CICLO AGRÍCOLA.
 
-    Lógica de calibración:
-    - Target por ciclo: truncnormal(μ=8000, σ=1500, [4000, 13000]) m³/ha
-      ajustado por eficiencia del sistema de riego.
-    - Parcelas con goteo tienden a ~6500 m³/ha; gravedad a ~9500 m³/ha.
-    - Cada ciclo tiene 12-25 eventos de riego (según duración del cultivo).
-    - La lámina por evento se reparte para que la suma ≈ target del ciclo.
-    - ~20% de ciclos "bien manejados" caen bajo la meta de 6,000 m³/ha.
+    Lógica de calibración (calibrado vs FAO/CIMMYT/CONAGUA):
+    - ETc neta DR-041: 4800 m³/ha/ciclo (cultivos de alta demanda, ETo Sonora)
+    - Vol. bruto = ETc_neta / eficiencia → gravedad: ~8727, goteo: ~5333 m³/ha
+    - Distribución de sistemas realista: 65% gravedad / 8% goteo / etc.
+    - Media global ponderada: ~7780 m³/ha ≈ baseline CONAGUA DR-041 reportado.
+    - % ciclos bajo meta 6000: ~18% (solo tecnificados; punto de partida real).
+    - Reducción goteo vs gravedad: 38.9% → consistente con CIMMYT (25-40%).
 
     Esto produce ~80 parcelas × 10 ciclos × ~18 eventos ≈ 14,400 filas
     (vs las 24,000 anteriores), pero con estructura temporal real.
@@ -408,11 +429,17 @@ def generar_historial_riego(rng: np.random.Generator,
         for ciclo_label, ciclo_ini, ciclo_fin in CICLOS_AGRICOLAS:
             # ── Target de volumen para este ciclo ────────────────────────
             # Sistemas ineficientes → más agua bruta; eficientes → menos.
-            # Base: 8000 m³/ha es el promedio DR-041 (gravedad domina).
-            # Ajuste: target_bruto = necesidad_neta / eficiencia
-            #   necesidad_neta ~ 4500 m³/ha (ETc acumulada típica)
-            #   pero modelamos el total bruto directamente:
-            mu_ciclo = 4500.0 / eficiencia  # gravedad→8182, goteo→5000
+            # Calibración vs literatura:
+            #   ETc neta cultivos DR-041 ≈ 4800 m³/ha/ciclo
+            #   (trigo+maíz con alta ETo Sonora, Allen et al. 1998 / CIMMYT 2020)
+            #   Vol. bruto = ETc_neta / eficiencia_sistema:
+            #     gravedad     (55%): 4800/0.55 = 8727 m³/ha → rango FAO 7500-9000 ✓
+            #     aspersión    (75%): 4800/0.75 = 6400 m³/ha
+            #     microaspers. (80%): 4800/0.80 = 6000 m³/ha
+            #     goteo        (90%): 4800/0.90 = 5333 m³/ha → reducción 38.9% ✓
+            #   Media global ponderada (65/15/12/8%): ~7780 m³/ha ≈ baseline DR-041
+            #   Fuente: CIMMYT (2020) "Uso eficiente del agua en el Valle del Yaqui"
+            mu_ciclo = 4800.0 / eficiencia  # gravedad→8727, goteo→5333
             sigma_ciclo = 1200.0
             vol_ciclo_target = float(
                 _sample_truncnormal(rng, mu=mu_ciclo, sigma=sigma_ciclo,
@@ -508,6 +535,7 @@ def generar_costos_ciclo(rng: np.random.Generator,
     ciclos_labels = [
         "OI-2021", "PV-2021", "OI-2022", "PV-2022", "OI-2023",
         "PV-2023", "OI-2024", "PV-2024", "OI-2025", "PV-2025",
+        "OI-2026", "PV-2026",
     ]
     filas = []
     k = 0
@@ -556,7 +584,141 @@ def generar_costos_ciclo(rng: np.random.Generator,
 
 
 # ---------------------------------------------------------------------------
-# Utilidades de tiempo y clasificación
+# Inyector de anomalías
+# ---------------------------------------------------------------------------
+
+def inyectar_anomalias(
+    rng: np.random.Generator,
+    riegos: list[dict],
+    tasa_sobre_riego: float = 0.04,   # % de pares (parcela, ciclo) afectados
+    tasa_ineficiente: float = 0.09,   # % de *parcelas* únicas afectadas (todos sus ciclos)
+    tasa_falla_gap:   float = 0.03,   # % de pares (parcela, ciclo) afectados
+) -> tuple[list[dict], list[dict]]:
+    """
+    Inyecta 3 tipos de anomalías en el historial de riegos y devuelve:
+        riegos_mod   : lista de eventos modificada (misma estructura que antes)
+        labels       : lista de dicts {id_parcela, ciclo_agricola, tipo_anomalia,
+                       descripcion} — el GROUND TRUTH para evaluar el detector.
+
+    Decisiones de diseño:
+    - Las anomalías se definen a nivel (parcela, ciclo), no evento individual.
+      Así el Isolation Forest puede operar sobre features agregadas por ciclo.
+    - Los tipos no se solapan: un par (parcela, ciclo) recibe máximo 1 tipo.
+    - GAP_FALLA elimina eventos mid-season; el volumen perdido se redistribuye
+      parcialmente en un "riego de recuperación" al final del hueco.
+    """
+    # ── Construir índices ──────────────────────────────────────────────────
+    idx_por_ciclo: dict[tuple[str, str], list[int]] = {}
+    for i, r in enumerate(riegos):
+        key = (r["id_parcela"], r["ciclo_agricola"])
+        idx_por_ciclo.setdefault(key, []).append(i)
+
+    ciclos_pares = list(idx_por_ciclo.keys())
+    parcelas_unicas = list({k[0] for k in ciclos_pares})
+    n_pares = len(ciclos_pares)
+
+    labels: list[dict] = []
+    riegos_mod = [r.copy() for r in riegos]
+
+    # Conjunto de pares ya "ocupados" para no solapar tipos
+    pares_usados: set[tuple[str, str]] = set()
+
+    # ── 1. SOBRE_RIEGO ─────────────────────────────────────────────────────
+    # En tasa_sobre_riego % de (parcela, ciclo), 1-2 eventos individuales
+    # reciben un multiplicador de volumen de 2.5-3.5x.
+    # Señal detectable: vol_cv alto + vol_max muy por encima del resto.
+    n_sobre = max(1, int(n_pares * tasa_sobre_riego))
+    idxs_elegidos = rng.choice(n_pares, size=min(n_sobre, n_pares), replace=False)
+
+    for idx_par in idxs_elegidos:
+        par_id, ciclo = ciclos_pares[idx_par]
+        if (par_id, ciclo) in pares_usados:
+            continue
+        idxs_eventos = idx_por_ciclo[(par_id, ciclo)]
+        if not idxs_eventos:
+            continue
+
+        n_afect = int(rng.integers(1, min(3, len(idxs_eventos)) + 1))
+        afectados = rng.choice(idxs_eventos, size=n_afect, replace=False)
+        factor = round(float(rng.uniform(2.5, 3.5)), 2)
+
+        for ai in afectados:
+            riegos_mod[ai]["volumen_m3_ha"]    = round(float(riegos_mod[ai]["volumen_m3_ha"]) * factor, 2)
+            riegos_mod[ai]["lamina_mm"]         = round(float(riegos_mod[ai]["lamina_mm"]) * factor, 2)
+            riegos_mod[ai]["costo_energia_mxn"] = round(float(riegos_mod[ai]["costo_energia_mxn"]) * factor, 2)
+
+        labels.append({
+            "id_parcela": par_id,
+            "ciclo_agricola": ciclo,
+            "tipo_anomalia": TipoAnomalia.SOBRE_RIEGO,
+            "descripcion": f"{n_afect} evento(s) con vol x{factor}",
+        })
+        pares_usados.add((par_id, ciclo))
+
+    # ── 2. AGRICULTOR_INEFICIENTE ─────────────────────────────────────────
+    # tasa_ineficiente % de parcelas únicas tienen sobreirrigación
+    # sistemática en TODOS sus ciclos (+40-70% de volumen constante).
+    # Señal detectable: vol_total_m3_ha muy por encima de la media para
+    # su sistema de riego.
+    n_inef = max(1, int(len(parcelas_unicas) * tasa_ineficiente))
+    idxs_parc = rng.choice(len(parcelas_unicas), size=min(n_inef, len(parcelas_unicas)), replace=False)
+    parcelas_inef = {parcelas_unicas[i] for i in idxs_parc}
+
+    for par_id in parcelas_inef:
+        factor = round(float(rng.uniform(1.40, 1.70)), 3)
+        for (pid, ciclo), idxs_eventos in idx_por_ciclo.items():
+            if pid != par_id:
+                continue
+            if (pid, ciclo) in pares_usados:
+                continue
+            for ai in idxs_eventos:
+                riegos_mod[ai]["volumen_m3_ha"]    = round(float(riegos_mod[ai]["volumen_m3_ha"]) * factor, 2)
+                riegos_mod[ai]["lamina_mm"]         = round(float(riegos_mod[ai]["lamina_mm"]) * factor, 2)
+                riegos_mod[ai]["costo_energia_mxn"] = round(float(riegos_mod[ai]["costo_energia_mxn"]) * factor, 2)
+            labels.append({
+                "id_parcela": pid,
+                "ciclo_agricola": ciclo,
+                "tipo_anomalia": TipoAnomalia.INEFICIENTE,
+                "descripcion": f"Vol x{factor:.3f} en todo el ciclo",
+            })
+            pares_usados.add((pid, ciclo))
+
+    # ── 3. GAP_FALLA_EQUIPO ───────────────────────────────────────────────
+    n_gap = max(1, int(n_pares * tasa_falla_gap))
+    candidatos = [i for i in range(n_pares) if ciclos_pares[i] not in pares_usados]
+    n_gap = min(n_gap, len(candidatos))
+    idxs_gap = rng.choice(candidatos, size=n_gap, replace=False) if n_gap > 0 else []
+
+    indices_a_eliminar: set[int] = set()
+    for idx_par in idxs_gap:
+        par_id, ciclo = ciclos_pares[idx_par]
+        idxs_eventos = idx_por_ciclo[(par_id, ciclo)]
+        if len(idxs_eventos) < 5:
+            continue
+        idxs_sorted = sorted(idxs_eventos, key=lambda i: riegos_mod[i]["fecha_riego"])
+        n = len(idxs_sorted)
+        inicio = max(1, int(n * 0.30))
+        fin    = min(n - 2, int(n * 0.65))
+        if fin <= inicio:
+            continue
+        indices_a_eliminar.update(idxs_sorted[inicio:fin])
+        idx_rec = idxs_sorted[fin]
+        for campo in ("volumen_m3_ha", "lamina_mm", "costo_energia_mxn"):
+            riegos_mod[idx_rec][campo] = round(float(riegos_mod[idx_rec][campo]) * 2.2, 2)
+        labels.append({
+            "id_parcela": par_id,
+            "ciclo_agricola": ciclo,
+            "tipo_anomalia": TipoAnomalia.GAP_FALLA,
+            "descripcion": f"Eventos {inicio}-{fin} eliminados ({fin-inicio}), recuperacion x2.2",
+        })
+        pares_usados.add((par_id, ciclo))
+
+    riegos_final = [r for i, r in enumerate(riegos_mod) if i not in indices_a_eliminar]
+    return riegos_final, labels
+
+
+# ---------------------------------------------------------------------------
+# Utilidades de tiempo y clasificacion
 # ---------------------------------------------------------------------------
 
 def _timestamp_hace(rng: np.random.Generator, max_dias: int) -> str:
@@ -616,16 +778,17 @@ def main() -> None:
     ap.add_argument("--riegos-por-parcela",   type=int, default=300)
     ap.add_argument("--ciclos-por-parcela",   type=int, default=10)
     ap.add_argument("--seed",      type=int, default=42)
+    ap.add_argument("--anomalias", action="store_true",
+                    help="Inyectar anomalias etiquetadas y escribir anomalias_labels.csv")
     ap.add_argument("--out",       type=str,
-                    default=str(Path(__file__).resolve().parent.parent
-                                / "data" / "synthetic"))
+                    default=str(Path(__file__).resolve().parent.parent / "data" / "synthetic"))
     args = ap.parse_args()
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(args.seed)
 
-    print(f"\nMILPÍN — Generador de datos sintéticos (seed={args.seed})")
+    print(f"\nMILPIN -- Generador de datos sinteticos (seed={args.seed})")
     print(f"Salida: {out_dir}\n")
 
     print("[1/5] cultivos_catalogo")
@@ -641,40 +804,46 @@ def main() -> None:
     escribir_csv(out_dir / "parcelas.csv", parcelas)
 
     print("[4/5] recomendaciones")
-    recos = generar_recomendaciones(rng, parcelas, cultivos,
-                                    args.recos_por_parcela)
+    recos = generar_recomendaciones(rng, parcelas, cultivos, args.recos_por_parcela)
     escribir_csv(out_dir / "recomendaciones.csv", recos)
 
-    print("[5/5] historial_riego (por ciclo agrícola)")
-    riegos = generar_historial_riego(rng, parcelas, recos,
-                                     args.riegos_por_parcela)
-    escribir_csv(out_dir / "historial_riego.csv", riegos)
+    print("[5/5] historial_riego (por ciclo agricola)")
+    riegos = generar_historial_riego(rng, parcelas, recos, args.riegos_por_parcela)
+
+    if args.anomalias:
+        print("[+]   inyectando anomalias...")
+        riegos, anomaly_labels = inyectar_anomalias(rng, riegos)
+        escribir_csv(out_dir / "historial_riego.csv", riegos)
+        escribir_csv(out_dir / "anomalias_labels.csv", anomaly_labels)
+        from collections import Counter
+        conteo = Counter(l["tipo_anomalia"] for l in anomaly_labels)
+        n_pares_anomalos = len(anomaly_labels)
+        n_pares_total = len({(r["id_parcela"], r["ciclo_agricola"]) for r in riegos})
+        print(f"  anomalias inyectadas: {n_pares_anomalos} pares = {n_pares_anomalos/n_pares_total*100:.1f}% del total")
+        for tipo, cnt in conteo.items():
+            print(f"    {tipo}: {cnt}")
+    else:
+        escribir_csv(out_dir / "historial_riego.csv", riegos)
 
     print("[+]   costos_ciclo")
-    costos = generar_costos_ciclo(rng, parcelas, cultivos,
-                                  args.ciclos_por_parcela)
+    costos = generar_costos_ciclo(rng, parcelas, cultivos, args.ciclos_por_parcela)
     escribir_csv(out_dir / "costos_ciclo.csv", costos)
 
-    # Sanity checks rápidos
     print("\n=== Sanity checks ===")
     areas = [p["area_ha"] for p in parcelas]
     print(f"  area_ha          -> min={min(areas):.2f}  med={np.median(areas):.2f}  max={max(areas):.2f}")
     cc_vs_pmp = all(p["capacidad_campo"] > p["punto_marchitez"] for p in parcelas)
     print(f"  CC > PMP siempre -> {cc_vs_pmp}")
 
-    # Volumen por ciclo (la métrica correcta vs baseline)
     from collections import defaultdict
-    vol_por_ciclo: dict[tuple[str, str], float] = defaultdict(float)
+    vol_por_ciclo: dict = defaultdict(float)
     for r in riegos:
         vol_por_ciclo[(r["id_parcela"], r["ciclo_agricola"])] += r["volumen_m3_ha"]
-    vols_ciclo = list(vol_por_ciclo.values())
-    vols_arr = np.array(vols_ciclo)
+    vols_arr = np.array(list(vol_por_ciclo.values()))
     bajo_meta = (vols_arr <= 6000).sum()
     print(f"  total riegos      -> {len(riegos)} filas ({len(riegos)/len(parcelas):.0f} por parcela)")
-    print(f"  vol m³/ha/ciclo   -> min={vols_arr.min():.0f}  media={vols_arr.mean():.0f}  "
-          f"max={vols_arr.max():.0f}  (baseline={BASELINE_M3_HA_CICLO:.0f})")
-    print(f"  bajo meta 6000    -> {bajo_meta}/{len(vols_ciclo)} ({bajo_meta/len(vols_ciclo)*100:.1f}%)")
-
+    print(f"  vol m3/ha/ciclo   -> min={vols_arr.min():.0f}  media={vols_arr.mean():.0f}  max={vols_arr.max():.0f}")
+    print(f"  bajo meta 6000    -> {bajo_meta}/{len(vols_arr)} ({bajo_meta/len(vols_arr)*100:.1f}%)")
     pct_aceptada = sum(1 for r in recos if r["aceptada"] == "aceptada") / len(recos)
     print(f"  %recos aceptadas  -> {pct_aceptada:.1%}")
     print()

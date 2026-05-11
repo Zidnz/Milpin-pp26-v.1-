@@ -14,6 +14,7 @@ Contexto geográfico por defecto: Valle del Yaqui, Sonora, México
     - Latitud: 27.37°N
 """
 
+import unicodedata
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -349,6 +350,19 @@ def calcular_eto_hargreaves(
     return float(max(eto, 0.0))
 
 
+def _normalizar_cultivo(nombre: str) -> str:
+    """Lower + quita tildes/diacríticos para matchear las claves de KC_TABLE.
+
+    Ejemplos:
+        'Algodón' → 'algodon'
+        'Maíz'   → 'maiz'
+        'CHILE'  → 'chile'
+    """
+    sin_tildes = unicodedata.normalize("NFD", nombre)
+    sin_tildes = "".join(c for c in sin_tildes if unicodedata.category(c) != "Mn")
+    return sin_tildes.lower().strip()
+
+
 def obtener_kc(cultivo: str, dias_desde_siembra: int) -> float:
     """Coeficiente de cultivo Kc según FAO-56 Tabla 12, con interpolación
     lineal en la etapa de desarrollo y la etapa final.
@@ -366,7 +380,7 @@ def obtener_kc(cultivo: str, dias_desde_siembra: int) -> float:
     Retorna:
         Kc (float). Si el cultivo no existe, lanza ValueError.
     """
-    cultivo = cultivo.lower().strip()
+    cultivo = _normalizar_cultivo(cultivo)
     if cultivo not in KC_TABLE:
         cultivos_validos = ", ".join(KC_TABLE.keys())
         raise ValueError(
@@ -418,7 +432,7 @@ def obtener_curva_kc(cultivo: str) -> dict:
     Retorna:
         dict con las etapas, sus rangos de días y valores de Kc
     """
-    cultivo = cultivo.lower().strip()
+    cultivo = _normalizar_cultivo(cultivo)
     if cultivo not in KC_TABLE:
         cultivos_validos = ", ".join(KC_TABLE.keys())
         raise ValueError(
@@ -576,4 +590,186 @@ def calcular_costo_riego(
         "energia_kwh": round(energia_kwh, 2),
         "costo_pesos": round(costo_pesos, 2),
         "costo_por_m3": round(costo_por_m3, 4),
+    }
+
+
+def propagar_balance_hidrico(
+    fecha_ultimo_riego,
+    fecha_ref,
+    cc_pct: float,
+    pmp_pct: float,
+    prof_raiz_m: float,
+    cultivo_nombre: str,
+    dias_siembra_ref: int,
+    clima_records: list,
+    humedad_post_riego_pct: float = None,
+) -> dict:
+    """Propaga el balance hidrico diario desde el ultimo riego hasta fecha_ref.
+
+    Reemplaza la simplificacion (CC+PMP)/2 con una estimacion fisica del
+    contenido hidrico actual del suelo, propagando dia a dia la ecuacion:
+
+        theta[t] = theta[t-1] + (lluvia[t] - ETc[t]) / (prof_raiz * 10)
+        theta[t] = clamp(theta[t], PMP, CC)
+
+    Punto de partida: se asume que el ultimo riego llevo el suelo a capacidad
+    de campo (CC). Esta es la suposicion estandar de FAO-56 para sistemas de
+    riego gestionados donde el agricultor aplica la lamina recomendada. Si se
+    conoce la lamina exacta, se puede pasar humedad_post_riego_pct para una
+    estimacion mas precisa.
+
+    Parameters
+    ----------
+    fecha_ultimo_riego  : date — fecha del ultimo evento de riego registrado.
+    fecha_ref           : date — fecha hasta la cual propagar (normalmente hoy).
+    cc_pct              : float — capacidad de campo del suelo (%).
+    pmp_pct             : float — punto de marchitez permanente (%).
+    prof_raiz_m         : float — profundidad efectiva de raices (m).
+    cultivo_nombre      : str  — nombre del cultivo para obtener Kc diario.
+    dias_siembra_ref    : int  — dias desde la siembra hasta fecha_ref.
+    clima_records       : list — registros de clima_diario como dicts o ORM objects
+                          con atributos: fecha, et0, lluvia. Deben cubrir el
+                          periodo [fecha_ultimo_riego+1, fecha_ref]. Los dias sin
+                          dato usan el registro disponible mas cercano (no nulo).
+    humedad_post_riego_pct : float opcional — humedad del suelo justo despues del
+                          riego (%). Si None, se asume CC (riego hasta capacidad
+                          de campo).
+
+    Returns
+    -------
+    dict con:
+        humedad_actual_pct  : float — humedad estimada al final de fecha_ref (%).
+        dias_propagados     : int   — dias efectivamente propagados.
+        etc_acumulada_mm    : float — ETc total acumulada en el periodo.
+        lluvia_acumulada_mm : float — precipitacion total en el periodo.
+        deficit_acumulado_mm: float — deficit al final del periodo.
+        metodo              : str   — 'propagacion_balance' o 'fallback_midpoint'.
+        advertencias        : list  — lista de strings con advertencias.
+
+    Notes
+    -----
+    - Si fecha_ultimo_riego >= fecha_ref, no hay dias que propagar: se devuelve
+      humedad = CC (riego muy reciente, suelo lleno).
+    - Si clima_records esta vacio, devuelve fallback al punto medio CC+PMP.
+    - Kc se calcula para cada dia del periodo usando obtener_kc(). Dias con
+      dias_cultivo < 0 (riego antes de la siembra) usan Kc_inicial.
+    """
+    from datetime import timedelta
+
+    advertencias = []
+
+    # Punto de partida de humedad
+    humedad_inicio = humedad_post_riego_pct if humedad_post_riego_pct is not None else cc_pct
+
+    # Sin dias que propagar (riego hoy o en el futuro)
+    if fecha_ultimo_riego >= fecha_ref:
+        deficit = max(0.0, (cc_pct - humedad_inicio) * prof_raiz_m * 10.0)
+        return {
+            "humedad_actual_pct": round(min(humedad_inicio, cc_pct), 4),
+            "dias_propagados": 0,
+            "etc_acumulada_mm": 0.0,
+            "lluvia_acumulada_mm": 0.0,
+            "deficit_acumulado_mm": round(deficit, 2),
+            "metodo": "propagacion_balance",
+            "advertencias": [],
+        }
+
+    # Fallback si no hay datos climaticos
+    if not clima_records:
+        humedad_mid = (cc_pct + pmp_pct) / 2.0
+        advertencias.append(
+            "Sin datos de clima_diario para el periodo de propagacion. "
+            "Se uso el punto medio CC+PMP como humedad actual."
+        )
+        deficit = max(0.0, (cc_pct - humedad_mid) * prof_raiz_m * 10.0)
+        return {
+            "humedad_actual_pct": round(humedad_mid, 4),
+            "dias_propagados": 0,
+            "etc_acumulada_mm": 0.0,
+            "lluvia_acumulada_mm": 0.0,
+            "deficit_acumulado_mm": round(deficit, 2),
+            "metodo": "fallback_midpoint",
+            "advertencias": advertencias,
+        }
+
+    # Indexar clima_records por fecha para lookup O(1)
+    clima_idx = {}
+    for r in clima_records:
+        if hasattr(r, "fecha"):
+            fecha_r = r.fecha
+            et0_r = float(r.et0) if r.et0 is not None else None
+            lluvia_r = float(r.lluvia) if r.lluvia is not None else 0.0
+        else:
+            fecha_r = r["fecha"]
+            et0_r = float(r["et0"]) if r.get("et0") is not None else None
+            lluvia_r = float(r.get("lluvia") or 0.0)
+        clima_idx[fecha_r] = {"et0": et0_r, "lluvia": lluvia_r}
+
+    # Propagar dia a dia
+    humedad = humedad_inicio
+    etc_total = 0.0
+    lluvia_total = 0.0
+    dias_propagados = 0
+    dias_sin_clima = 0
+    last_et0 = None
+
+    fecha_actual = fecha_ultimo_riego + timedelta(days=1)
+    while fecha_actual <= fecha_ref:
+        dias_desde_ref = (fecha_ref - fecha_actual).days
+        dias_cultivo = dias_siembra_ref - dias_desde_ref
+
+        # Kc para este dia
+        try:
+            kc = obtener_kc(cultivo_nombre, max(0, dias_cultivo))
+        except ValueError:
+            kc = 1.0  # cultivo desconocido: Kc neutro
+
+        # Dato climatico del dia (o el mas reciente disponible)
+        clima_dia = clima_idx.get(fecha_actual)
+        if clima_dia is None or clima_dia["et0"] is None:
+            # Buscar el registro mas cercano hacia atras
+            for delta in range(1, 8):
+                fallback_fecha = fecha_actual - timedelta(days=delta)
+                clima_fb = clima_idx.get(fallback_fecha)
+                if clima_fb and clima_fb["et0"] is not None:
+                    clima_dia = {"et0": clima_fb["et0"], "lluvia": 0.0}
+                    break
+            if clima_dia is None or clima_dia.get("et0") is None:
+                # Usar el ultimo et0 conocido o un valor conservador
+                et0 = last_et0 if last_et0 is not None else 5.0
+                clima_dia = {"et0": et0, "lluvia": 0.0}
+                dias_sin_clima += 1
+
+        et0 = clima_dia["et0"]
+        lluvia = clima_dia.get("lluvia") or 0.0
+        last_et0 = et0
+
+        etc = et0 * kc
+        delta_lamina = lluvia - etc
+        delta_humedad = delta_lamina / (prof_raiz_m * 10.0)
+
+        humedad = humedad + delta_humedad
+        humedad = max(pmp_pct, min(cc_pct, humedad))
+
+        etc_total += etc
+        lluvia_total += lluvia
+        dias_propagados += 1
+        fecha_actual += timedelta(days=1)
+
+    if dias_sin_clima > 0:
+        advertencias.append(
+            f"{dias_sin_clima} dia(s) sin datos climaticos en el periodo. "
+            "Se uso el registro mas cercano disponible o ETo=5 mm/dia como estimacion."
+        )
+
+    deficit = max(0.0, (cc_pct - humedad) * prof_raiz_m * 10.0)
+
+    return {
+        "humedad_actual_pct": round(humedad, 4),
+        "dias_propagados": dias_propagados,
+        "etc_acumulada_mm": round(etc_total, 2),
+        "lluvia_acumulada_mm": round(lluvia_total, 2),
+        "deficit_acumulado_mm": round(deficit, 2),
+        "metodo": "propagacion_balance",
+        "advertencias": advertencias,
     }

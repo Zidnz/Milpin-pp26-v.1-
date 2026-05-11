@@ -1,17 +1,18 @@
 -- =============================================================================
--- MILPÍN AgTech v2.0 — Esquema DDL para PostgreSQL 14+ / 16
+-- MILPÍN AgTech v2.0 — Esquema DDL para PostgreSQL 15 + PostGIS 3.6
 -- Base de datos: milpin_mvp
 --
--- Cómo ejecutar en pgAdmin 4:
---   1. Abre pgAdmin 4 → conecta a tu servidor PostgreSQL 16
---   2. Clic derecho en "Databases" → Create → Database → nombre: milpin_mvp
---   3. Clic derecho en milpin_mvp → Query Tool
---   4. Pega TODO este script → F5 (Run)
+-- Cómo ejecutar en pgAdmin 4 (instalación limpia):
+--   1. Instalar PostGIS via Stack Builder sobre PostgreSQL 15
+--   2. Crear la base de datos: milpin_mvp
+--   3. Query Tool → pegar este script → F5 (Run)
 --
 -- Notas:
 --   - gen_random_uuid() es nativa desde PostgreSQL 13. No requiere pgcrypto.
---   - parcelas.geom se almacena como JSONB (GeoJSON) en el MVP.
---     Se migra a GEOMETRY(Polygon,4326) con PostGIS en la Fase 2.
+--   - parcelas.geom es GEOMETRY(Polygon,4326) con PostGIS 3.6.
+--     Migrada desde JSONB en 2026-04-29 via Alembic (0001_postgis_geom_jsonb_to_geometry).
+--   - Para gestionar el esquema usar Alembic, NO este archivo directamente.
+--     Este archivo es referencia de arquitectura, no el canal de despliegue.
 -- =============================================================================
 
 
@@ -95,10 +96,9 @@ CREATE TABLE IF NOT EXISTS parcelas (
     -- Identificación
     nombre_parcela           VARCHAR(100),
 
-    -- Geometría MVP: GeoJSON como JSONB
-    -- Fase 2: cambiar a GEOMETRY(Polygon, 4326) con PostGIS
-    geom                     JSONB,
-    area_ha                  NUMERIC(10,4),
+    -- Geometría PostGIS — migrada desde JSONB en 0001_postgis_geom_jsonb_to_geometry
+    geom                     GEOMETRY(Polygon, 4326),
+    area_ha                  NUMERIC(10,4),  -- calculada con ST_Area(geom::geography)/10000
 
     -- Parámetros edáficos (determinan el agua disponible del suelo)
     tipo_suelo               VARCHAR(50),
@@ -114,8 +114,8 @@ CREATE TABLE IF NOT EXISTS parcelas (
     created_at               TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-COMMENT ON TABLE  parcelas                           IS 'Lotes de cultivo con atributos edáficos. Geometría como GeoJSON en el MVP.';
-COMMENT ON COLUMN parcelas.geom                      IS 'GeoJSON Polygon. Migrar a GEOMETRY(Polygon,4326) con PostGIS en Fase 2.';
+COMMENT ON TABLE  parcelas                           IS 'Lotes de cultivo con atributos edáficos. Geometría POLYGON SRID 4326 con PostGIS 3.6.';
+COMMENT ON COLUMN parcelas.geom                      IS 'GEOMETRY(Polygon,4326). Migrada desde JSONB en 0001_postgis_geom_jsonb_to_geometry (2026-04-29).';
 COMMENT ON COLUMN parcelas.capacidad_campo           IS 'Humedad volumétrica a capacidad de campo (m3/m3). Ej: 0.34';
 COMMENT ON COLUMN parcelas.punto_marchitez           IS 'Humedad volumétrica en punto de marchitez permanente (m3/m3). Ej: 0.18';
 COMMENT ON COLUMN parcelas.conductividad_electrica   IS 'CE en dS/m. Valor > 4 dS/m indica estres salino activo.';
@@ -123,6 +123,10 @@ COMMENT ON COLUMN parcelas.conductividad_electrica   IS 'CE en dS/m. Valor > 4 d
 -- Índice de búsqueda por usuario
 CREATE INDEX IF NOT EXISTS idx_parcelas_usuario
     ON parcelas (id_usuario);
+
+-- Índice espacial GIST (esencial para ST_Intersects, ST_Within, ST_DWithin)
+CREATE INDEX IF NOT EXISTS idx_parcelas_geom
+    ON parcelas USING GIST (geom);
 
 -- Vista: agua disponible total por parcela (mm)
 -- ADT = (Capacidad de Campo - Punto Marchitez) x profundidad_raiz_cm x 10

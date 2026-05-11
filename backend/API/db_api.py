@@ -12,6 +12,7 @@ Endpoints disponibles:
     GET    /api/parcelas                        → Listar todas las parcelas activas
     GET    /api/parcelas/{id}                   → Obtener parcela con historial reciente
     GET    /api/parcelas/{id}/kpi               → KPI de consumo vs baseline DR-041
+    GET    /api/parcelas/{id}/forecast          → Proyección FAO-56 a N días con Ridge ETo
 
     POST   /api/riego                           → Registrar evento de riego
     GET    /api/riego/parcela/{id}              → Historial de riego de una parcela
@@ -24,19 +25,102 @@ Endpoints disponibles:
     GET    /api/costos/parcela/{id}             → Costos por ciclo de una parcela
 """
 
+import asyncio
+import json
+import sys
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, select
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.balance_hidrico import obtener_curva_kc
 from database import get_db
 from models import CostoCiclo, CultivoCatalogo, HistorialRiego, Parcela, Recomendacion, Usuario
 
+# GeoAlchemy2: conversión WKBElement ↔ dict GeoJSON
+try:
+    from geoalchemy2.shape import from_shape, to_shape
+    from shapely.geometry import shape as shapely_shape
+    _POSTGIS_OK = True
+except ImportError:
+    _POSTGIS_OK = False
+
+
+def _geom_from_geojson(geom_dict: Optional[dict]):
+    """Convierte un dict GeoJSON a WKBElement de GeoAlchemy2 (SRID 4326).
+    Devuelve None si el dict es None o GeoAlchemy2 no está disponible."""
+    if geom_dict is None or not _POSTGIS_OK:
+        return None
+    try:
+        return from_shape(shapely_shape(geom_dict), srid=4326)
+    except Exception:
+        return None
+
+
+def _geom_to_geojson(geom) -> Optional[dict]:
+    """Convierte WKBElement de GeoAlchemy2 a dict GeoJSON.
+    Devuelve None si la geometría es None o hay error."""
+    if geom is None or not _POSTGIS_OK:
+        return None
+    try:
+        return json.loads(to_shape(geom).geojson)
+    except Exception:
+        return None
+
 router = APIRouter(tags=["Base de Datos MVP"])
+
+# ── ETL background helper ─────────────────────────────────────────────────────
+
+# Ruta al raíz del repositorio: backend/API/db_api.py → ../../
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+async def _etl_parcela_background(parcela_id: uuid.UUID) -> None:
+    """
+    Dispara el ETL de NASA POWER para una parcela recién creada.
+
+    Corre como BackgroundTask de FastAPI: la respuesta HTTP ya fue enviada
+    antes de que esta función arranque, así que el usuario no espera.
+
+    Descarga solo los últimos 5 años para que la primera carga sea rápida
+    (una sola request HTTP a NASA POWER, ~5-30 s según su latencia).
+    Para datos históricos completos, corre manualmente desde la raíz del repo:
+        .\backend\venv\Scripts\python.exe tools\nasa_power_etl.py --parcela <uuid>
+    """
+    anio_desde = datetime.now().year - 4  # últimos 5 años
+    anio_hasta = datetime.now().year
+
+    # Usamos ruta directa al script porque tools/ no tiene __init__.py
+    # y `python -m tools.nasa_power_etl` fallaría sin él.
+    etl_script = _REPO_ROOT / "tools" / "nasa_power_etl.py"
+    cmd = [
+        sys.executable, str(etl_script),
+        "--parcela", str(parcela_id),
+        "--desde", str(anio_desde),
+        "--hasta", str(anio_hasta),
+    ]
+    print(f"[ETL] Iniciando descarga NASA POWER para parcela {parcela_id} "
+          f"({anio_desde}–{anio_hasta})...")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=str(_REPO_ROOT),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        stdout, _ = await proc.communicate()
+        if proc.returncode == 0:
+            print(f"[ETL] ✓ Parcela {parcela_id} — clima descargado.")
+        else:
+            print(f"[ETL] ✗ Parcela {parcela_id} — error (rc={proc.returncode}):\n"
+                  f"{stdout.decode(errors='replace')[:600]}")
+    except Exception as exc:
+        print(f"[ETL] ✗ Parcela {parcela_id} — excepción: {exc}")
 
 
 # ── Schemas Pydantic (request / response) ─────────────────────────────────────
@@ -46,6 +130,7 @@ class UsuarioCreate(BaseModel):
     email: str
     telefono: Optional[str] = None
     modulo_dr041: Optional[str] = None
+    rol: str = "agricultor"
 
 class UsuarioOut(BaseModel):
     id_usuario: uuid.UUID
@@ -53,7 +138,12 @@ class UsuarioOut(BaseModel):
     email: str
     modulo_dr041: Optional[str]
     activo: bool
+    rol: str = "agricultor"
     model_config = {"from_attributes": True}
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=120)
 
 
 class CultivoOut(BaseModel):
@@ -89,6 +179,7 @@ class ParcelaOut(BaseModel):
     id_parcela: uuid.UUID
     id_usuario: uuid.UUID
     nombre_parcela: Optional[str]
+    geom_geojson: Optional[dict] = None   # GeoJSON Polygon serializado desde PostGIS
     area_ha: Optional[float]
     tipo_suelo: Optional[str]
     conductividad_electrica: Optional[float]
@@ -99,6 +190,13 @@ class ParcelaOut(BaseModel):
     sistema_riego: Optional[str]
     activo: bool
     model_config = {"from_attributes": True}
+
+
+def _to_parcela_out(p: Parcela) -> ParcelaOut:
+    """Serializa un ORM Parcela a ParcelaOut, convirtiendo geom WKB → GeoJSON dict."""
+    out = ParcelaOut.model_validate(p)
+    out.geom_geojson = _geom_to_geojson(p.geom)
+    return out
 
 
 class RiegoCreate(BaseModel):
@@ -162,6 +260,7 @@ class RecomendacionOut(BaseModel):
 class FeedbackRecomendacion(BaseModel):
     aceptada: str = Field(..., pattern="^(aceptada|modificada|ignorada)$")
     lamina_ejecutada_mm: Optional[float] = None
+    notas: Optional[str] = None
 
 
 # ── Endpoints: usuarios ───────────────────────────────────────────────────────
@@ -179,12 +278,46 @@ async def crear_usuario(data: UsuarioCreate, db: AsyncSession = Depends(get_db))
     return usuario
 
 
+@router.get("/usuarios", response_model=list[UsuarioOut])
+async def listar_usuarios(db: AsyncSession = Depends(get_db)):
+    """Lista los usuarios activos disponibles para el login del frontend."""
+    resultado = await db.execute(
+        select(Usuario)
+        .where(Usuario.activo == True)
+        .order_by(Usuario.nombre_completo)
+    )
+    return resultado.scalars().all()
+
+
 @router.get("/usuarios/{id_usuario}", response_model=UsuarioOut)
 async def obtener_usuario(id_usuario: uuid.UUID, db: AsyncSession = Depends(get_db)):
     resultado = await db.execute(select(Usuario).where(Usuario.id_usuario == id_usuario))
     usuario = resultado.scalar_one_or_none()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    return usuario
+
+
+@router.post("/auth/login", response_model=UsuarioOut)
+async def login_dataset(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Login minimo basado en el dataset existente.
+
+    No hay password persistido en `usuarios`, asi que para esta demo el acceso
+    valida que el email exista y que el usuario siga activo.
+    """
+    email = data.email.strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email requerido.")
+
+    resultado = await db.execute(
+        select(Usuario).where(func.lower(Usuario.email) == email)
+    )
+    usuario = resultado.scalar_one_or_none()
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado en el dataset.")
+    if not usuario.activo:
+        raise HTTPException(status_code=403, detail="Usuario inactivo.")
     return usuario
 
 
@@ -211,26 +344,140 @@ async def obtener_cultivo(id_cultivo: uuid.UUID, db: AsyncSession = Depends(get_
 # ── Endpoints: parcelas ───────────────────────────────────────────────────────
 
 @router.get("/parcelas", response_model=list[ParcelaOut])
-async def listar_parcelas(db: AsyncSession = Depends(get_db)):
-    """Lista todas las parcelas activas. Usado por el tab de Costos para el selector."""
-    resultado = await db.execute(
-        select(Parcela).where(Parcela.activo == True).order_by(Parcela.nombre_parcela)
+async def listar_parcelas(
+    id_usuario: Optional[uuid.UUID] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista parcelas activas; puede filtrarse por el usuario autenticado."""
+    stmt = (
+        select(Parcela)
+        .where(Parcela.activo == True)
+        .order_by(Parcela.nombre_parcela)
     )
-    return resultado.scalars().all()
+    if id_usuario is not None:
+        stmt = stmt.where(Parcela.id_usuario == id_usuario)
+    resultado = await db.execute(stmt)
+    return [_to_parcela_out(p) for p in resultado.scalars().all()]
+
+
+@router.get("/parcelas/geojson", response_model=None)
+async def parcelas_geojson(
+    id_usuario: Optional[uuid.UUID] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retorna todas las parcelas activas como GeoJSON FeatureCollection.
+
+    Diseñado para consumo directo por Leaflet en map_engine.js:
+        L.geoJSON(await fetch('/api/parcelas/geojson').then(r => r.json()))
+
+    Incluye ndvi estimado derivado del déficit acumulado (recomendaciones más
+    reciente por parcela) y la conductividad eléctrica edáfica:
+        ndvi = 0.80 - deficit_acumulado_mm / 250 - MAX(0, CE - 4) * 0.06
+    Rango forzado a [0.10, 0.90]. Parcelas sin recomendación asumen déficit=40 mm.
+    """
+    sql = text("""
+        SELECT json_build_object(
+            'type', 'FeatureCollection',
+            'features', COALESCE(json_agg(
+                json_build_object(
+                    'type',     'Feature',
+                    'geometry', ST_AsGeoJSON(p.geom)::json,
+                    'properties', json_build_object(
+                        'id_parcela',         p.id_parcela::text,
+                        'nombre',             COALESCE(p.nombre_parcela, 'Sin nombre'),
+                        'cultivo',            c.nombre_comun,
+                        'area_ha',            p.area_ha,
+                        'tipo_suelo',         p.tipo_suelo,
+                        'sistema_riego',      p.sistema_riego,
+
+                        -- NDVI proxy: déficit hídrico + salinidad edáfica
+                        -- Parcelas sin recomendación previa → déficit asumido 40 mm
+                        'ndvi', GREATEST(0.10, LEAST(0.90,
+                            0.80
+                            - COALESCE(r.deficit_acumulado_mm, 40.0) / 250.0
+                            - GREATEST(0.0,
+                                COALESCE(p.conductividad_electrica, 2.0) - 4.0
+                              ) * 0.06
+                        )),
+
+                        'deficit_hidrico',    ROUND(COALESCE(r.deficit_acumulado_mm, 0)::numeric, 1),
+                        'dias_sin_riego',     r.dias_sin_riego,
+                        'nivel_urgencia',     r.nivel_urgencia,
+                        'consumo_ciclo_m3ha', CASE
+                            WHEN r.etc_calculada IS NOT NULL
+                            THEN ROUND((r.etc_calculada * 10)::numeric, 0)::int
+                            ELSE NULL
+                        END
+                    )
+                )
+            ) FILTER (WHERE p.geom IS NOT NULL), '[]'::json)
+        ) AS fc
+        FROM parcelas p
+        LEFT JOIN cultivos_catalogo c
+               ON c.id_cultivo = p.id_cultivo_actual
+        -- Última recomendación por parcela (LATERAL evita subquery correlacionada)
+        LEFT JOIN LATERAL (
+            SELECT deficit_acumulado_mm,
+                   dias_sin_riego,
+                   nivel_urgencia,
+                   etc_calculada
+            FROM   recomendaciones
+            WHERE  id_parcela = p.id_parcela
+            ORDER  BY fecha_generacion DESC
+            LIMIT  1
+        ) r ON true
+        WHERE p.activo = true
+          AND (CAST(:id_usuario AS uuid) IS NULL OR p.id_usuario = CAST(:id_usuario AS uuid));
+    """)
+    result = await db.execute(sql, {"id_usuario": str(id_usuario) if id_usuario else None})
+    return result.scalar_one()
 
 
 @router.post("/parcelas", response_model=ParcelaOut, status_code=status.HTTP_201_CREATED)
-async def crear_parcela(data: ParcelaCreate, db: AsyncSession = Depends(get_db)):
-    """Registra un nuevo lote de cultivo asociado a un usuario."""
+async def crear_parcela(
+    data: ParcelaCreate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """Registra un nuevo lote de cultivo asociado a un usuario.
+
+    Tras crear la parcela, dispara automáticamente el ETL de NASA POWER como
+    tarea en background para descargar los datos climáticos de los últimos 5
+    años. La respuesta se devuelve inmediatamente; el ETL corre en paralelo.
+    """
     # Verificar que el usuario existe
     usuario = await db.execute(select(Usuario).where(Usuario.id_usuario == data.id_usuario))
     if not usuario.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
-    parcela = Parcela(id_parcela=uuid.uuid4(), **data.model_dump())
+    payload = data.model_dump()
+    # Separar geom: el dict GeoJSON no se puede pasar directamente al ORM,
+    # hay que convertirlo a WKBElement de GeoAlchemy2.
+    geom_dict = payload.pop("geom", None)
+    geom_wkb = _geom_from_geojson(geom_dict)
+
+    parcela = Parcela(id_parcela=uuid.uuid4(), geom=geom_wkb, **payload)
     db.add(parcela)
     await db.flush()
-    return parcela
+
+    # Si vino con geom, recalcular area_ha desde la geometría real
+    if geom_wkb is not None:
+        await db.execute(
+            text(
+                "UPDATE parcelas SET area_ha = ROUND((ST_Area(geom::geography)/10000.0)::numeric, 4) "
+                "WHERE id_parcela = :pid"
+            ),
+            {"pid": str(parcela.id_parcela)},
+        )
+        await db.refresh(parcela)
+
+    # Disparar ETL en background — solo si la parcela tiene geometría válida
+    # (sin coordenadas no hay centroide para llamar a NASA POWER)
+    if geom_wkb is not None:
+        background_tasks.add_task(_etl_parcela_background, parcela.id_parcela)
+
+    return _to_parcela_out(parcela)
 
 
 @router.get("/parcelas/{id_parcela}", response_model=ParcelaOut)
@@ -241,52 +488,163 @@ async def obtener_parcela(id_parcela: uuid.UUID, db: AsyncSession = Depends(get_
     parcela = resultado.scalar_one_or_none()
     if not parcela:
         raise HTTPException(status_code=404, detail="Parcela no encontrada.")
-    return parcela
+    return _to_parcela_out(parcela)
 
 
 @router.get("/parcelas/{id_parcela}/kpi")
-async def kpi_parcela(id_parcela: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def kpi_parcela(
+    id_parcela: uuid.UUID,
+    dias_siembra: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    db: AsyncSession = Depends(get_db),
+):
     """
-    KPI hídrico de la parcela: consumo actual vs. baseline DR-041 (8,000 m³/ha/ciclo).
+    KPI hidrico de la parcela: consumo actual vs. baseline DR-041 (8,000 m3/ha/ciclo).
 
-    Calcula el ahorro estimado en m³/ha y en pesos MXN (tarifa $1.68/m³).
+    Prioridad de ventana temporal:
+      1. fecha_desde / fecha_hasta (rango explícito del usuario) — máxima prioridad.
+         El baseline se escala proporcionalmente: 8000 * días_rango / 365.
+      2. dias_siembra (ciclo agronómico inferido o recibido).
+      3. Fallback: últimos 365 días (evita el corte artificial por año calendario).
     """
-    # Verificar que la parcela existe
+    BASELINE_DR041 = 8000.0   # m3/ha/ciclo — DR-041 baseline
+    TARIFA_M3 = 1.68           # MXN/m3 — CFE 9-CU (bombeo desde 80m)
+
+    # -- 1. Parcela -------------------------------------------------------
     p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == id_parcela))
     parcela = p_res.scalar_one_or_none()
     if not parcela:
         raise HTTPException(status_code=404, detail="Parcela no encontrada.")
 
-    # Suma de volumen del año en curso
-    anno_actual = date.today().year
-    vol_res = await db.execute(
-        select(func.sum(HistorialRiego.volumen_m3_ha))
-        .where(
-            HistorialRiego.id_parcela == id_parcela,
-            func.extract("year", HistorialRiego.fecha_riego) == anno_actual,
+    # -- 2. Nombre del cultivo (informativo, no bloquea si no existe) -------
+    nombre_cultivo = None
+    ciclo_total_dias = None
+    if parcela.id_cultivo_actual is not None:
+        cult_res = await db.execute(
+            select(CultivoCatalogo).where(
+                CultivoCatalogo.id_cultivo == parcela.id_cultivo_actual
+            )
         )
+        cultivo = cult_res.scalar_one_or_none()
+        if cultivo:
+            nombre_cultivo = cultivo.nombre_comun
+            try:
+                curva = obtener_curva_kc(cultivo.nombre_comun)
+                ciclo_total_dias = curva["ciclo_total_dias"]
+            except ValueError:
+                pass
+
+    # -- 3. Determinar ventana temporal ------------------------------------
+    # Duración estándar de un ciclo agrícola DR-041 (promedio OI/PV).
+    # Se usa como denominador para prorratear el baseline cuando el ciclo
+    # está en curso. No usar 365 — el baseline es POR CICLO, no por año.
+    CICLO_DIAS_STD = 167   # (sep15 - abr1 = 167 días, aprox igual para OI)
+
+    modo = "rango_fechas"
+    fraccion_ciclo = None
+    baseline_proporcional = BASELINE_DR041
+    ciclo_en_curso = False
+
+    if fecha_desde is not None or fecha_hasta is not None:
+        # Prioridad 1: rango explícito del usuario
+        fd = fecha_desde or (date.today() - timedelta(days=365))
+        fh_solicitado = fecha_hasta or date.today()
+
+        # Si el ciclo aún no terminó, limitar los datos hasta hoy y
+        # prorratear el baseline por fracción del ciclo transcurrida.
+        if fh_solicitado > date.today():
+            ciclo_en_curso = True
+            fh = date.today()
+            dias_ciclo_total = max(1, (fh_solicitado - fd).days)
+            dias_transcurridos = max(1, (fh - fd).days)
+            fraccion_ciclo = min(1.0, dias_transcurridos / dias_ciclo_total)
+            baseline_proporcional = round(BASELINE_DR041 * fraccion_ciclo, 1)
+        else:
+            # Ciclo histórico completo: comparar contra baseline completo
+            fh = fh_solicitado
+            baseline_proporcional = BASELINE_DR041
+
+        filtro_fecha = [
+            HistorialRiego.fecha_riego >= fd,
+            HistorialRiego.fecha_riego <= fh,
+        ]
+        modo = "rango_fechas"
+    else:
+        # Prioridad 2: dias_siembra (agronómico)
+        if dias_siembra is None and parcela.id_cultivo_actual is not None:
+            rec_res = await db.execute(
+                select(Recomendacion)
+                .where(Recomendacion.id_parcela == id_parcela)
+                .order_by(Recomendacion.fecha_riego_sugerida.desc())
+                .limit(1)
+            )
+            rec = rec_res.scalar_one_or_none()
+            if rec and rec.parametros_json and "dias_siembra" in rec.parametros_json:
+                dias_siembra = int(rec.parametros_json["dias_siembra"])
+
+        if dias_siembra is not None and ciclo_total_dias is not None and dias_siembra >= 0:
+            fraccion_ciclo = min(1.0, dias_siembra / ciclo_total_dias)
+            baseline_proporcional = round(BASELINE_DR041 * fraccion_ciclo, 1)
+            fecha_inicio_ciclo = date.today() - timedelta(days=dias_siembra)
+            filtro_fecha = [HistorialRiego.fecha_riego >= fecha_inicio_ciclo]
+            modo = "ciclo_agronomico"
+            fd = fecha_inicio_ciclo
+            fh = date.today()
+        else:
+            # Prioridad 3: fallback últimos 365 días
+            fd = date.today() - timedelta(days=365)
+            fh = date.today()
+            dias_rango = 365
+            baseline_proporcional = BASELINE_DR041
+            filtro_fecha = [
+                HistorialRiego.fecha_riego >= fd,
+                HistorialRiego.fecha_riego <= fh,
+            ]
+            modo = "ultimos_365_dias"
+
+    # -- 4. Suma de volumen (solo riegos reales: volumen > 0) ---------------
+    filtro_base = [
+        HistorialRiego.id_parcela == id_parcela,
+        HistorialRiego.volumen_m3_ha > 0,
+        *filtro_fecha,
+    ]
+    vol_res = await db.execute(
+        select(func.sum(HistorialRiego.volumen_m3_ha)).where(*filtro_base)
     )
     volumen_total = float(vol_res.scalar() or 0.0)
 
-    BASELINE_DR041 = 8000.0   # m³/ha/ciclo
-    TARIFA_M3 = 1.68           # MXN/m³ — CFE 9-CU (bombeo desde 80m)
-
-    ahorro_m3 = max(0.0, BASELINE_DR041 - volumen_total)
-    ahorro_pct = (ahorro_m3 / BASELINE_DR041) * 100 if BASELINE_DR041 > 0 else 0
+    # -- 5. KPIs -----------------------------------------------------------
+    ahorro_m3 = max(0.0, baseline_proporcional - volumen_total)
+    ahorro_pct = (ahorro_m3 / baseline_proporcional) * 100 if baseline_proporcional > 0 else 0
     ahorro_mxn = ahorro_m3 * TARIFA_M3
 
-    return {
+    respuesta = {
         "id_parcela": str(id_parcela),
         "nombre_parcela": parcela.nombre_parcela,
-        "anno": anno_actual,
+        "cultivo": nombre_cultivo,
         "volumen_aplicado_m3_ha": round(volumen_total, 2),
         "baseline_dr041_m3_ha": BASELINE_DR041,
+        "baseline_proporcional": round(baseline_proporcional, 1),
         "ahorro_m3_ha": round(ahorro_m3, 2),
         "ahorro_pct": round(ahorro_pct, 2),
         "ahorro_estimado_mxn": round(ahorro_mxn, 2),
         "tarifa_m3_mxn": TARIFA_M3,
-        "meta_cumplida": ahorro_pct >= 25.0,  # KPI objetivo: 25% de ahorro
+        "meta_cumplida": ahorro_pct >= 25.0,
+        "normalizado": ciclo_en_curso,   # True solo si ciclo en curso (baseline prorrateado)
+        "ciclo_en_curso": ciclo_en_curso,
+        "modo": modo,
+        "fecha_desde": fd.isoformat(),
+        "fecha_hasta": fh.isoformat(),
     }
+
+    if fraccion_ciclo is not None:
+        respuesta["fraccion_ciclo"] = round(fraccion_ciclo, 3)
+        respuesta["dias_siembra_efectivo"] = dias_siembra
+        respuesta["ciclo_total_dias"] = ciclo_total_dias
+        respuesta["fraccion_ciclo"] = round(fraccion_ciclo, 3)
+
+    return respuesta
 
 
 # ── Endpoints: historial_riego ────────────────────────────────────────────────
@@ -333,12 +691,25 @@ async def registrar_riego(data: RiegoCreate, db: AsyncSession = Depends(get_db))
 async def historial_riego_parcela(
     id_parcela: uuid.UUID,
     limite: int = 20,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Retorna el historial de riego de una parcela (más reciente primero)."""
+    """Retorna el historial de riego de una parcela (más reciente primero).
+
+    Parámetros opcionales:
+      fecha_desde — filtra eventos >= esta fecha (ISO 8601, ej: 2025-10-15)
+      fecha_hasta — filtra eventos <= esta fecha
+    """
+    filtros = [HistorialRiego.id_parcela == id_parcela]
+    if fecha_desde is not None:
+        filtros.append(HistorialRiego.fecha_riego >= fecha_desde)
+    if fecha_hasta is not None:
+        filtros.append(HistorialRiego.fecha_riego <= fecha_hasta)
+
     resultado = await db.execute(
         select(HistorialRiego)
-        .where(HistorialRiego.id_parcela == id_parcela)
+        .where(*filtros)
         .order_by(HistorialRiego.fecha_riego.desc())
         .limit(limite)
     )
@@ -409,6 +780,7 @@ async def recomendaciones_por_parcela(
     historial = res_hist.scalars().all()
 
     def _fmt(r: Recomendacion) -> dict:
+        pj = r.parametros_json or {}
         return {
             "id_recomendacion": str(r.id_recomendacion),
             "fecha_generacion": r.fecha_generacion.isoformat(),
@@ -421,7 +793,15 @@ async def recomendaciones_por_parcela(
             "nivel_urgencia": r.nivel_urgencia,
             "aceptada": r.aceptada,
             "lamina_ejecutada_mm": float(r.lamina_ejecutada_mm) if r.lamina_ejecutada_mm else None,
-            "cultivo": r.parametros_json.get("cultivo") if r.parametros_json else None,
+            # ── Campos extraídos de parametros_json para el frontend ──
+            "cultivo": pj.get("cultivo"),
+            "parcela_nombre": pj.get("parcela"),
+            "kc": pj.get("kc"),
+            "precipitacion_mm": pj.get("precipitacion_mm"),
+            "humedad_actual_pct": pj.get("humedad_actual_pct"),
+            "cc_pct": pj.get("cc_pct"),
+            "dias_siembra": pj.get("dias_siembra"),
+            "parametros_json": pj,
         }
 
     return {
@@ -450,7 +830,20 @@ async def feedback_recomendacion(
     feedback: FeedbackRecomendacion,
     db: AsyncSession = Depends(get_db),
 ):
-    """Registra la respuesta del agricultor a una recomendacion (aceptada/modificada/ignorada)."""
+    """
+    Registra la respuesta del agricultor a una recomendacion.
+
+    - aceptada / modificada: actualiza el estado Y auto-inserta en historial_riego
+      con el volumen real aplicado. Alimenta v_kpi_consumo.
+    - ignorada: actualiza el estado Y auto-inserta en historial_riego con
+      volumen_m3_ha = 0. Necesario para:
+        1. Calcular tasa de adopcion real en el dashboard BI.
+        2. Registrar el evento de no-riego para analisis de comportamiento.
+        3. No afecta propagar_balance_hidrico (esa funcion solo usa riegos
+           con volumen > 0 via la consulta de ultimo riego real).
+
+    Idempotente: rechaza con 409 si la recomendacion ya fue cerrada.
+    """
     resultado = await db.execute(
         select(Recomendacion).where(Recomendacion.id_recomendacion == id_recomendacion)
     )
@@ -458,9 +851,66 @@ async def feedback_recomendacion(
     if not rec:
         raise HTTPException(status_code=404, detail="Recomendacion no encontrada.")
 
+    if rec.aceptada != "pendiente":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Recomendacion ya cerrada con estado '{rec.aceptada}'.",
+        )
+
     rec.aceptada = feedback.aceptada
     if feedback.lamina_ejecutada_mm is not None:
         rec.lamina_ejecutada_mm = feedback.lamina_ejecutada_mm
+
+    # Insertar en historial_riego para los tres casos de feedback.
+    # "ignorada" registra volumen = 0 para que el dashboard lo cuente
+    # correctamente al calcular tasa de adopcion y KPIs de ciclo.
+    fecha_riego = rec.fecha_riego_sugerida or date.today()
+    p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == rec.id_parcela))
+    parcela = p_res.scalar_one_or_none()
+
+    if feedback.aceptada in ("aceptada", "modificada"):
+        lamina_mm = (
+            feedback.lamina_ejecutada_mm
+            if feedback.lamina_ejecutada_mm is not None
+            else (float(rec.lamina_recomendada_mm) if rec.lamina_recomendada_mm else None)
+        )
+        volumen_m3_ha = round(lamina_mm * 10.0, 2) if lamina_mm is not None else None
+        costo_energia_mxn = None
+        if volumen_m3_ha is not None and parcela and parcela.area_ha:
+            costo_energia_mxn = round(volumen_m3_ha * float(parcela.area_ha) * 1.68, 2)
+
+        riego = HistorialRiego(
+            id_riego=uuid.uuid4(),
+            id_parcela=rec.id_parcela,
+            id_recomendacion=rec.id_recomendacion,
+            fecha_riego=fecha_riego,
+            lamina_mm=lamina_mm,
+            volumen_m3_ha=volumen_m3_ha,
+            metodo_riego=parcela.sistema_riego if parcela else None,
+            origen_decision="sistema",
+            costo_energia_mxn=costo_energia_mxn,
+            observaciones=feedback.notas or None,
+        )
+        db.add(riego)
+
+    elif feedback.aceptada == "ignorada":
+        # Registro de no-riego: volumen = 0, sin costo.
+        # La consulta _estimar_humedad_actual filtra por ultimo riego con
+        # volumen > 0, por lo que este registro no altera el balance hidrico.
+        obs = feedback.notas or "Recomendacion ignorada por el agricultor."
+        riego = HistorialRiego(
+            id_riego=uuid.uuid4(),
+            id_parcela=rec.id_parcela,
+            id_recomendacion=rec.id_recomendacion,
+            fecha_riego=fecha_riego,
+            lamina_mm=0.0,
+            volumen_m3_ha=0.0,
+            metodo_riego=None,
+            origen_decision="sistema",
+            costo_energia_mxn=0.0,
+            observaciones=obs,
+        )
+        db.add(riego)
 
     await db.flush()
     return rec
@@ -539,3 +989,131 @@ async def costos_por_parcela(id_parcela: uuid.UUID, db: AsyncSession = Depends(g
         .order_by(CostoCiclo.ciclo_agricola.desc())
     )
     return resultado.scalars().all()
+
+
+# Endpoint: proyeccion FAO-56 a N dias con Ridge Regression sobre ETo
+
+@router.get("/parcelas/{id_parcela}/forecast", tags=["Forecast"])
+async def forecast_parcela(
+    id_parcela: uuid.UUID,
+    dias_siembra: int,
+    horizon: int = 7,
+    umbral_deficit_mm: float = 10.0,
+    db: AsyncSession = Depends(get_db),
+):
+    """Proyeccion FAO-56 a horizon dias usando Ridge Regression para predecir ETo.
+
+    Flujo:
+        1. Lee parcela y cultivo actual.
+        2. Lee toda la serie de clima_diario disponible.
+        3. Entrena EToForecaster (Ridge). Fallback a media(14d) si <60 registros.
+        4. Predice ETo para los proximos horizon dias.
+        5. Corre FAO-56 forward: ETc, balance hidrico y deficit dia a dia.
+        6. Detecta el primer dia en que deficit supera umbral_deficit_mm.
+        7. Retorna JSON con detalle diario + estimacion de fecha de riego.
+
+    Parameters
+    ----------
+    dias_siembra      : dias desde la siembra (para interpolar Kc en FAO-56).
+    horizon           : dias a proyectar (1-14). Default: 7.
+    umbral_deficit_mm : deficit acumulado que dispara alerta de riego (mm). Default 10.
+    """
+    from core.eto_forecast import EToForecaster, run_fao56_forward
+
+    # Clamp horizon a rango seguro
+    horizon = max(1, min(horizon, 14))
+
+    # -- 1. Parcela y cultivo -----------------------------------------------
+    p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == id_parcela))
+    parcela = p_res.scalar_one_or_none()
+    if not parcela:
+        raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+
+    if parcela.id_cultivo_actual is None:
+        raise HTTPException(
+            status_code=400,
+            detail="La parcela no tiene cultivo asignado (barbecho). "
+                   "Asigna un cultivo antes de proyectar.",
+        )
+
+    cult_res = await db.execute(
+        select(CultivoCatalogo).where(
+            CultivoCatalogo.id_cultivo == parcela.id_cultivo_actual
+        )
+    )
+    cultivo = cult_res.scalar_one_or_none()
+    if cultivo is None:
+        raise HTTPException(status_code=404, detail="Cultivo referenciado no existe.")
+
+    nombre_cultivo = cultivo.nombre_comun
+
+    # -- 2. Serie historica de clima_diario ---------------------------------
+    from models import ClimaDiario
+    clima_res = await db.execute(
+        select(ClimaDiario)
+        .where(ClimaDiario.id_parcela == id_parcela)
+        .order_by(ClimaDiario.fecha.asc())
+    )
+    serie_clima = clima_res.scalars().all()
+
+    if not serie_clima:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sin datos climaticos para parcela {id_parcela}. "
+                   "Corre el ETL antes de proyectar: "
+                   f"python -m tools.nasa_power_etl --parcela {id_parcela}",
+        )
+
+    # -- 3. Entrenar EToForecaster ------------------------------------------
+    forecaster = EToForecaster()
+    forecaster.fit(serie_clima)
+
+    # -- 4. Humedad inicial: ultimo riego real o punto medio ----------------
+    cc_pct = float(parcela.capacidad_campo) * 100.0 if parcela.capacidad_campo else 34.0
+    pmp_pct = float(parcela.punto_marchitez) * 100.0 if parcela.punto_marchitez else 18.0
+
+    ultimo_riego_res = await db.execute(
+        select(HistorialRiego.fecha_riego, HistorialRiego.lamina_mm)
+        .where(
+            HistorialRiego.id_parcela == id_parcela,
+            HistorialRiego.volumen_m3_ha > 0,
+        )
+        .order_by(HistorialRiego.fecha_riego.desc())
+        .limit(1)
+    )
+    ultimo_riego = ultimo_riego_res.first()
+
+    if ultimo_riego is not None:
+        # Tomar CC como punto de partida post-riego (suelo recien irrigado)
+        humedad_inicial_pct = cc_pct
+    else:
+        humedad_inicial_pct = (cc_pct + pmp_pct) / 2.0  # fallback: punto medio
+
+    # -- 5. Predecir ETo y correr FAO-56 forward ----------------------------
+    eto_proyectado = forecaster.predict(horizon=horizon, start_date=date.today())
+
+    resultado = run_fao56_forward(
+        parcela=parcela,
+        cultivo_nombre=nombre_cultivo,
+        dias_siembra=dias_siembra,
+        eto_forecast=eto_proyectado,
+        umbral_deficit_mm=umbral_deficit_mm,
+        humedad_inicial_pct=humedad_inicial_pct,
+    )
+
+    # -- 6. Respuesta -------------------------------------------------------
+    respuesta = {
+        "id_parcela": str(id_parcela),
+        "cultivo": nombre_cultivo,
+        "dias_siembra": dias_siembra,
+        **resultado,
+    }
+
+    if forecaster.using_fallback:
+        respuesta["advertencia"] = (
+            "Menos de 60 registros climaticos disponibles. "
+            "Se uso la media de los ultimos 14 dias como proxy de ETo. "
+            "La proyeccion es orientativa — corre el ETL para mayor precision."
+        )
+
+    return respuesta
