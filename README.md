@@ -590,10 +590,10 @@ La interfaz es una **Single Page Application** con 4 pestañas y un botón flota
 
 | Pestaña | Descripción | Estado |
 |---|---|---|
-| **BI/R** | Dashboard de inteligencia de negocio conectado a API real (`bi_dashboard.js`) | ✅ Funcional |
-| **Mapas** | Portal GIS con capas vectoriales desde PostGIS, ríos, canales y pozos | ✅ Funcional |
-| **Riego** | Recomendación FAO-56 por parcela, historial, feedback y proyección 7 días | ✅ Funcional |
-| **Ajustes** | Configuración de voz, notificaciones y preferencias | ✅ Funcional |
+| **BI/R** | Dashboard de inteligencia de negocio conectado a API real (`bi_dashboard.js`) | Funcional |
+| **Mapas** | Portal GIS con capas vectoriales desde PostGIS, ríos, canales y pozos | Funcional |
+| **Riego** | Recomendación FAO-56 por parcela, historial, feedback y proyección 7 días | Funcional |
+| **Ajustes** | Configuración de voz, notificaciones y preferencias |  Funcional |
 
 El **FAB (Floating Action Button)** 🎤 activa el asistente de voz MILPÍN en cualquier pestaña.
 
