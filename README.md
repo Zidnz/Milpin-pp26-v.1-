@@ -81,18 +81,6 @@
 
 ---
 
-## Deuda técnica vigente
-
-1. **Sin autenticación — bloqueador MVP.** `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. Es el único bloqueador real para pasar a MVP.
-2. **Credenciales expuestas.** `backend/.env` tiene la password de postgres en texto plano. Rotar antes de abrir el repo públicamente (aunque `.env` ya está en `.gitignore`).
-3. **Path traversal en voz.** `voice_endpoint.py` usa `temp_path = f"temp_{audio_file.filename}"` sin sanitizar. Sin límite de tamaño ni validación de content-type.
-4. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist con los dominios reales del frontend.
-5. **`schema.sql` desalineado.** El DDL todavía documenta la fase JSONB; el runtime ya usa GeoAlchemy2. `backend/models.py` es la fuente de verdad real del schema.
-6. **Catálogo de cultivos duplicado.** Los cultivos válidos viven en constantes en 6 archivos (`KC_TABLE`, `VALID_CULTIVOS`, `CULTIVOS_SEMILLA`, `schema.sql`, `index.html`, `generar_datos_sinteticos.py`). Debería leerse desde la tabla `cultivos_catalogo` en runtime.
-7. **Forecast sin validación cruzada.** `eto_forecast.py` entrena Ridge Regression sin split de validación; el RMSE reportado es in-sample. Baja prioridad mientras no haya datos históricos reales suficientes.
-
----
-
 ##  Características principales
 
 <table>
