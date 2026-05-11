@@ -1,0 +1,226 @@
+======================================================
+  MILPÍN — SCRIPTS POWER QUERY M
+  Pegar en: Inicio > Transformar datos > Editor avanzado
+  Ajusta la ruta base en RUTA_BASE antes de usar
+======================================================
+
+RUTA BASE DE LOS CSVs:
+  C:\Users\madri\Downloads\pp26(Omar)\data\synthetic\
+
+======================================================
+  TABLA 1: Historial_Riego
+  Origen: historial_riego.csv
+======================================================
+
+let
+    Origen = Csv.Document(
+        File.Contents("C:\Users\madri\Downloads\pp26(Omar)\data\synthetic\historial_riego.csv"),
+        [Delimiter=",", Columns=14, Encoding=65001, QuoteStyle=QuoteStyle.None]
+    ),
+    EncabezadosPromovidos = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+    TiposAsignados = Table.TransformColumnTypes(EncabezadosPromovidos, {
+        {"volumen_m3_ha",     type number},
+        {"lamina_mm",         type number},
+        {"duracion_horas",    type number},
+        {"costo_energia_mxn", type number},
+        {"ciclo_vol_target_m3_ha", type number},
+        {"fecha_riego",       type date}
+    }),
+    // Semana del año y año para el gráfico de consumo semanal
+    AgregarSemana = Table.AddColumn(TiposAsignados, "Numero_Semana",
+        each Date.WeekOfYear([fecha_riego]), type number),
+    AgregarAnio = Table.AddColumn(AgregarSemana, "Anio",
+        each Date.Year([fecha_riego]), type number),
+    AgregarEtiquetaSemana = Table.AddColumn(AgregarAnio, "Etiqueta_Semana",
+        each "S" & Text.From([Numero_Semana]), type text),
+    // Flag: ¿el riego superó la meta de 6,500 m³/ha?
+    AgregarSobreMeta = Table.AddColumn(AgregarEtiquetaSemana, "Sobre_Meta",
+        each if [volumen_m3_ha] > 6500 then "Sí" else "No", type text),
+    // Clasificar origen para el badge de la tabla
+    AgregarOrigenLabel = Table.AddColumn(AgregarSobreMeta, "Origen_Label",
+        each if [origen_decision] = "sistema" then "Sistema"
+             else if [origen_decision] = "voz"    then "Voz IA"
+             else "Manual", type text),
+    // Eliminar columna de observaciones vacía si existe
+    ColumnasFinales = Table.SelectColumns(AgregarOrigenLabel, {
+        "id_riego", "id_parcela", "ciclo_agricola", "id_recomendacion",
+        "fecha_riego", "volumen_m3_ha", "lamina_mm", "duracion_horas",
+        "metodo_riego", "origen_decision", "Origen_Label",
+        "costo_energia_mxn", "ciclo_vol_target_m3_ha",
+        "Numero_Semana", "Anio", "Etiqueta_Semana", "Sobre_Meta"
+    })
+in
+    ColumnasFinales
+
+
+======================================================
+  TABLA 2: Recomendaciones
+  Origen: recomendaciones.csv
+======================================================
+
+let
+    Origen = Csv.Document(
+        File.Contents("C:\Users\madri\Downloads\pp26(Omar)\data\synthetic\recomendaciones.csv"),
+        [Delimiter=",", Columns=15, Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+    ),
+    EncabezadosPromovidos = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+    TiposAsignados = Table.TransformColumnTypes(EncabezadosPromovidos, {
+        {"lamina_recomendada_mm",  type number},
+        {"eto_referencia",         type number},
+        {"etc_calculada",          type number},
+        {"deficit_acumulado_mm",   type number},
+        {"dias_sin_riego",         type number},
+        {"lamina_ejecutada_mm",    type number},
+        {"fecha_generacion",       type datetime},
+        {"fecha_riego_sugerida",   type date}
+    }),
+    // Eliminar columna JSON (no parseable directo en PBI sin Premium)
+    SinJSON = Table.RemoveColumns(TiposAsignados, {"parametros_json"}),
+    // Normalizar estado para colores en tabla
+    AgregarEstadoLabel = Table.AddColumn(SinJSON, "Estado_Label",
+        each if [aceptada] = "aceptada"   then "Aceptada"
+             else if [aceptada] = "pendiente"  then "Pendiente"
+             else if [aceptada] = "ignorada"   then "Ignorada"
+             else "Modificada", type text),
+    // Urgencia en español con capitalización
+    AgregarUrgenciaLabel = Table.AddColumn(AgregarEstadoLabel, "Urgencia_Label",
+        each if [nivel_urgencia] = "critico"    then "Crítico"
+             else if [nivel_urgencia] = "moderado"  then "Moderado"
+             else "Preventivo", type text)
+in
+    AgregarUrgenciaLabel
+
+
+======================================================
+  TABLA 3: Parcelas
+  Origen: parcelas.csv
+======================================================
+
+let
+    Origen = Csv.Document(
+        File.Contents("C:\Users\madri\Downloads\pp26(Omar)\data\synthetic\parcelas.csv"),
+        [Delimiter=",", Columns=14, Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+    ),
+    EncabezadosPromovidos = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+    TiposAsignados = Table.TransformColumnTypes(EncabezadosPromovidos, {
+        {"area_ha",                 type number},
+        {"conductividad_electrica", type number},
+        {"profundidad_raiz_cm",     type number},
+        {"capacidad_campo",         type number},
+        {"punto_marchitez",         type number},
+        {"activo",                  type logical},
+        {"created_at",              type datetime}
+    }),
+    // Quitar geometría GeoJSON (columna geom) — no útil en PBI estándar
+    SinGeom = Table.RemoveColumns(TiposAsignados, {"geom"}),
+    // Capitalizar sistema_riego para las etiquetas del donut
+    AgregarSistemaLabel = Table.AddColumn(SinGeom, "Sistema_Riego_Label",
+        each if [sistema_riego] = "goteo"          then "Goteo"
+             else if [sistema_riego] = "aspersion"      then "Aspersión"
+             else if [sistema_riego] = "gravedad"        then "Gravedad"
+             else if [sistema_riego] = "microaspersion"  then "Microaspersión"
+             else [sistema_riego], type text)
+in
+    AgregarSistemaLabel
+
+
+======================================================
+  TABLA 4: Cultivos_Catalogo
+  Origen: cultivos_catalogo.csv
+======================================================
+
+let
+    Origen = Csv.Document(
+        File.Contents("C:\Users\madri\Downloads\pp26(Omar)\data\synthetic\cultivos_catalogo.csv"),
+        [Delimiter=",", Columns=12, Encoding=65001, QuoteStyle=QuoteStyle.None]
+    ),
+    EncabezadosPromovidos = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+    TiposAsignados = Table.TransformColumnTypes(EncabezadosPromovidos, {
+        {"kc_inicial",  type number}, {"kc_medio",  type number},
+        {"kc_final",    type number}, {"ky_total",  type number},
+        {"dias_etapa_inicial",     type number},
+        {"dias_etapa_desarrollo",  type number},
+        {"dias_etapa_media",       type number},
+        {"dias_etapa_final",       type number},
+        {"rendimiento_potencial_ton", type number}
+    })
+in
+    TiposAsignados
+
+
+======================================================
+  TABLA 5: Costos_Ciclo
+  Origen: costos_ciclo.csv
+======================================================
+
+let
+    Origen = Csv.Document(
+        File.Contents("C:\Users\madri\Downloads\pp26(Omar)\data\synthetic\costos_ciclo.csv"),
+        [Delimiter=",", Columns=13, Encoding=65001, QuoteStyle=QuoteStyle.None]
+    ),
+    EncabezadosPromovidos = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+    TiposAsignados = Table.TransformColumnTypes(EncabezadosPromovidos, {
+        {"volumen_agua_total_m3",      type number},
+        {"costo_agua_mxn",             type number},
+        {"costo_fertilizantes_mxn",    type number},
+        {"costo_agroquimicos_mxn",     type number},
+        {"costo_semilla_mxn",          type number},
+        {"costo_maquinaria_mxn",       type number},
+        {"costo_mano_obra_mxn",        type number},
+        {"ingreso_estimado_mxn",       type number},
+        {"margen_contribucion_mxn",    type number}
+    })
+in
+    TiposAsignados
+
+
+======================================================
+  TABLA 6: Consumo_Semanal  (tabla calculada para la línea)
+  Crear como: Modelado > Nueva tabla
+======================================================
+
+// Pegar esto en "Nueva tabla" (no en Power Query)
+Consumo_Semanal =
+SUMMARIZE(
+    Historial_Riego,
+    Historial_Riego[Anio],
+    Historial_Riego[Numero_Semana],
+    Historial_Riego[Etiqueta_Semana],
+    "Consumo_m3_ha",  AVERAGE(Historial_Riego[volumen_m3_ha]),
+    "Objetivo",       6000,
+    "Linea_Base",     8000
+)
+
+
+======================================================
+  RELACIONES A CONFIGURAR (Modelo > Vista de diagrama)
+======================================================
+
+Historial_Riego[id_parcela]       → Parcelas[id_parcela]          (Muchos→Uno)
+Historial_Riego[id_recomendacion] → Recomendaciones[id_recomendacion] (Muchos→Uno)
+Recomendaciones[id_parcela]       → Parcelas[id_parcela]          (Muchos→Uno)
+Recomendaciones[id_cultivo]       → Cultivos_Catalogo[id_cultivo] (Muchos→Uno)
+Parcelas[id_cultivo_actual]       → Cultivos_Catalogo[id_cultivo] (Muchos→Uno)
+Costos_Ciclo[id_parcela]          → Parcelas[id_parcela]          (Muchos→Uno)
+
+======================================================
+  OPCIÓN ALTERNATIVA: CONEXIÓN POSTGRESQL DIRECTA
+  (Inicio > Obtener datos > Base de datos PostgreSQL)
+======================================================
+
+Servidor  : localhost
+Base datos: milpin_mvp
+Usuario   : postgres
+Contraseña: (ver backend/.env — NO compartir)
+
+Tablas a importar:
+  - public.historial_riego
+  - public.recomendaciones
+  - public.parcelas
+  - public.cultivos_catalogo
+  - public.costos_ciclo
+
+Nota: Requiere instalar el driver ODBC de PostgreSQL para Power BI:
+https://www.postgresql.org/ftp/odbc/versions/msi/
+
+======================================================

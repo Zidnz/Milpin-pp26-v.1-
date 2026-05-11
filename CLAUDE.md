@@ -11,15 +11,18 @@ de riego en el Valle del Yaqui, Sonora (DR-041, foco en Módulo 3).
 Es herramienta de apoyo a decisiones para agricultores, no sustituto del
 juicio agronómico.
 
-## 2. Estado real (2026-04-22)
+## 2. Estado real (2026-04-30)
 
 Pre-MVP con core técnico sólido pero deuda acumulada. **La descripción que
 circula en prompts antiguos ("PostgreSQL planeado") está desactualizada.**
 
 Ya funciona:
 - Backend FastAPI 2.0 con lifespan, 4 routers, SQLAlchemy async.
-- Base de datos PostgreSQL: 5 modelos ORM, 12 endpoints CRUD, schema.sql
-  con 2 vistas KPI, seeders (`init_db.py`).
+- Base de datos PostgreSQL 15 + **PostGIS 3.6** (instalado 2026-04-30).
+- 7 modelos ORM, 14 endpoints CRUD, schema.sql con 2 vistas KPI, seeders.
+- **`parcelas.geom` es `GEOMETRY(Polygon,4326)`** — migrado desde JSONB vía
+  Alembic `0001_postgis_geom_jsonb_to_geometry`. Índice GIST activo.
+- Nuevo endpoint `GET /api/parcelas/geojson` (GeoJSON FeatureCollection para Leaflet).
 - Motor agronómico FAO-56 Penman-Monteith implementado a mano en
   `backend/core/balance_hidrico.py` (fiel a Allen et al. 1998), con
   Hargreaves como fallback.
@@ -27,14 +30,16 @@ Ya funciona:
   Web Speech API para TTS.
 - Clustering K-Means de parcelas (scikit-learn 1.5).
 - Frontend vanilla JS + Leaflet 1.9.4, capas Esri World Imagery + OpenTopoMap.
+  `map_engine.js` carga parcelas desde API PostGIS (fallback: lotes.geojson estático).
 - Pipeline GIS con geopandas + shapely `make_valid` + Douglas-Peucker.
 
 Falta para MVP:
-- PostGIS real (hoy la geometría es JSONB).
+- ~~PostGIS real (hoy la geometría es JSONB).~~ **RESUELTO 2026-04-30.**
+- ~~Migraciones Alembic~~ **RESUELTO 2026-04-30** — `backend/migrations/` activo.
+- ~~Tests automatizados.~~ **RESUELTO 2026-05-01** — 77 tests (42 unitarios FAO-56 + 35 e2e con SQLite). Ver `backend/tests/`.
+- ~~Persistencia del loop recomendación→feedback (tablas existen, no se escriben).~~ **RESUELTO 2026-05-01** — `PATCH /recomendaciones/{id}/feedback` auto-inserta en `historial_riego` cuando `aceptada` es `"aceptada"` o `"modificada"`. Verificado con test `TestFeedbackLoop` (7 casos).
 - Autenticación (cualquiera puede postear `id_usuario` en el body).
-- Migraciones Alembic (hoy se cambia `models.py` con `drop_all_tables()`).
-- Tests automatizados.
-- Persistencia del loop recomendación→feedback (tablas existen, no se escriben).
+- ~~**Humedad inicial inventada.**~~ **RESUELTO 2026-05-06.** `propagar_balance_hidrico()` en `core/balance_hidrico.py` reemplaza `(CC+PMP)/2` con balance acumulado dia a dia desde el ultimo riego real. Conectado en `riego_api.py::get_balance_hidrico()` y `db_api.py::forecast_parcela()`. 9 tests unitarios nuevos en `TestPropagar` (51 total).
 
 ## 3. Stack — no cambiar sin justificación fuerte
 
@@ -86,21 +91,27 @@ Fase A — higiene y consolidación (hacer antes de features nuevas):
 2. **Path traversal en voz.** `backend/API/voice_endpoint.py` hace
    `temp_path = f"temp_{audio_file.filename}"` sin sanitizar. Además no
    hay límite de tamaño ni validación de content-type.
-3. **Backend duplicado (resuelto 2026-04-25).** `frontend/main.py` neutralizado
-   con RuntimeError. Pendiente: `git rm frontend/main.py`.
+3. ~~**Backend duplicado.**~~ **RESUELTO.** `frontend/main.py` eliminado del repo.
 4. **FAO-56 conectado a BD (resuelto 2026-04-25).** `riego_api.py` ahora lee
    parcela + cultivo + clima_diario por id, calcula balance hídrico, y
    persiste en `recomendaciones`. El endpoint legacy se movió a
    `/api/balance_hidrico_manual`. El loop recomendación→feedback está
    cableado (pendiente: probar end-to-end con datos reales).
-5. **Whisper carga al import.** `whisper.load_model("base")` a nivel módulo
-   bloquea startup ~30-60s y consume ~150MB aunque no se use voz. Lazy load.
+5. ~~**Whisper carga al import.**~~ **RESUELTO 2026-04-30.** `import whisper`
+   movido dentro de `_get_whisper()`. Startup bajó de ~45s a ~2s. Whisper
+   y torch solo se cargan en el primer request de audio.
 6. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist.
 7. **Sin auth.** `id_usuario` entra como UUID en body; cualquiera crea
    parcelas a nombre de cualquiera.
-8. **Sin migraciones.** Introducir Alembic.
-9. **Recomendador BI falso.** `frontend/src/ui_tabs.js` hace cosine
-   similarity sobre matriz 4×3×3 hardcoded. Es demo, no ML.
+8. ~~**Sin migraciones.** Introducir Alembic.~~ **RESUELTO 2026-04-30.** `backend/migrations/` + `alembic.ini` activos. Próximas migraciones: usar `alembic revision -m "descripcion"` + `alembic upgrade head`.
+9. ~~**Recomendador BI falso.**~~ **RESUELTO 2026-05-06.**
+   - El cosine similarity sobre matriz hardcoded fue eliminado de `ui_tabs.js`.
+   - `frontend/src/bi_dashboard.js` reemplaza el tab BI con dashboard conectado a API real.
+   - Nuevo módulo `backend/core/eto_forecast.py`: Ridge Regression sobre `clima_diario`
+     (features: sin/cos doy, lags et0, t_max). Fallback a media(14d) si <60 registros.
+   - Nuevo endpoint `GET /api/parcelas/{id}/forecast?dias_siembra=N&horizon=7`: proyecta
+     ETo 7 días y corre FAO-56 forward para estimar fecha de próximo riego (±días).
+   - Tab Riego muestra sección "Proyección 7 días" con timeline de déficit diario.
 
 Usuario de prueba seeded: Ramón Valenzuela Torres (rvalenzuela@dr041-dev.com,
 Módulo 3).

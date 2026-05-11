@@ -1,15 +1,48 @@
+# Entornos virtuales
 venv/
+.venv/
+env/
+
+# Python cache
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.pdb
+
+# Variables de entorno — NUNCA subir
 .env
+.env.*
+!.env.example
+
+# Bases de datos locales
 *.db
 *.sqlite3
+
+# macOS
 .DS_Store
+
+# Python packaging
 *.egg-info/
 dist/
 build/
+
+# Claude / Cowork internos
 .claude/
+
+# Outputs generados
 backend/eda_output/
+
+# Node
 node_modules/
+
+# Word / Office lock files
+~$*
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# pytest cache
+.pytest_cache/
+.cache/

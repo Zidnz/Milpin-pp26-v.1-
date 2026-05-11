@@ -1,0 +1,159 @@
+table parcelas
+	lineageTag: 15649e7b-bd20-45a7-b3b2-a941aee709a5
+
+	measure 'Total Hectareas' = CALCULATE(SUM('parcelas'[area_ha]), 'parcelas'[activo] = TRUE())
+		formatString: #,##0.0
+
+	measure 'Total Parcelas Activas' = CALCULATE(COUNTROWS('parcelas'), 'parcelas'[activo] = TRUE())
+		formatString: #,##0
+
+	measure 'Pct Area por Sistema' =
+			DIVIDE(
+			    SUM('parcelas'[area_ha]),
+			    CALCULATE(SUM('parcelas'[area_ha]), ALL('parcelas'[sistema_riego])),
+			    0
+			)
+		formatString: 0%
+
+	column id_parcela
+		dataType: string
+		lineageTag: cee555c7-9974-42a7-9d47-eae278959433
+		summarizeBy: none
+		sourceColumn: id_parcela
+
+		annotation SummarizationSetBy = Automatic
+
+	column id_usuario
+		dataType: string
+		lineageTag: 723b9847-900c-434b-a561-2ea66b7f2d70
+		summarizeBy: none
+		sourceColumn: id_usuario
+
+		annotation SummarizationSetBy = Automatic
+
+	column id_cultivo_actual
+		dataType: string
+		lineageTag: 1c223c0b-0581-4e5b-a942-7dc58be9c392
+		summarizeBy: none
+		sourceColumn: id_cultivo_actual
+
+		annotation SummarizationSetBy = Automatic
+
+	column nombre_parcela
+		dataType: string
+		lineageTag: 8847613e-f2d9-4bd1-8093-d71d5222404a
+		summarizeBy: none
+		sourceColumn: nombre_parcela
+
+		annotation SummarizationSetBy = Automatic
+
+	column geom
+		dataType: string
+		lineageTag: 7f438950-4d91-4bf3-98d6-045e5f2f919d
+		summarizeBy: none
+		sourceColumn: geom
+
+		annotation SummarizationSetBy = Automatic
+
+	column area_ha
+		dataType: double
+		lineageTag: e0653340-7461-4186-95d9-40057bb83bbc
+		summarizeBy: sum
+		sourceColumn: area_ha
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column tipo_suelo
+		dataType: string
+		lineageTag: 542e0a9c-c87a-4789-8cc8-08f373f17552
+		summarizeBy: none
+		sourceColumn: tipo_suelo
+
+		annotation SummarizationSetBy = Automatic
+
+	column conductividad_electrica
+		dataType: double
+		lineageTag: be996f75-4e05-40a3-98bc-088bf9a6ea7b
+		summarizeBy: sum
+		sourceColumn: conductividad_electrica
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column profundidad_raiz_cm
+		dataType: int64
+		formatString: 0
+		lineageTag: f2bde967-3197-4932-b12b-55a1f72988a0
+		summarizeBy: sum
+		sourceColumn: profundidad_raiz_cm
+
+		annotation SummarizationSetBy = Automatic
+
+	column capacidad_campo
+		dataType: double
+		lineageTag: 3d67a379-12a1-440f-9e8a-3b9f551a5210
+		summarizeBy: sum
+		sourceColumn: capacidad_campo
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column punto_marchitez
+		dataType: double
+		lineageTag: 55f875b6-bd3a-46e3-a1fd-5c83de53c1f9
+		summarizeBy: sum
+		sourceColumn: punto_marchitez
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column sistema_riego
+		dataType: string
+		lineageTag: 634560f7-66e8-412f-b2c2-fecb06fcb410
+		summarizeBy: none
+		sourceColumn: sistema_riego
+
+		annotation SummarizationSetBy = Automatic
+
+	column activo
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: ff50f646-1bc1-4878-8ba7-2856581ff5ec
+		summarizeBy: none
+		sourceColumn: activo
+
+		annotation SummarizationSetBy = Automatic
+
+	column created_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 45cde426-b5d4-4cf5-a660-8580bebf74f1
+		summarizeBy: none
+		sourceColumn: created_at
+
+		variation Variación
+			isDefault
+			relationship: 5e665b24-0ac8-409e-b14f-9b50fde05422
+			defaultHierarchy: LocalDateTable_55fc56c1-fe26-492c-a92b-02616bab79be.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+	partition parcelas = m
+		mode: import
+		source =
+				let
+				    Origen = Csv.Document(File.Contents("C:\Users\madri\Downloads\pp26(Omar)\synthetic\parcelas.csv"),[Delimiter=",", Columns=14, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+				    #"Encabezados promovidos" = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+				    #"Tipo cambiado" = Table.TransformColumnTypes(#"Encabezados promovidos",{{"id_parcela", type text}, {"id_usuario", type text}, {"id_cultivo_actual", type text}, {"nombre_parcela", type text}, {"geom", type text}, {"area_ha", type number}, {"tipo_suelo", type text}, {"conductividad_electrica", type number}, {"profundidad_raiz_cm", Int64.Type}, {"capacidad_campo", type number}, {"punto_marchitez", type number}, {"sistema_riego", type text}, {"activo", type logical}, {"created_at", type datetime}})
+				in
+				    #"Tipo cambiado"
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

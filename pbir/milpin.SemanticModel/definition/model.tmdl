@@ -1,0 +1,30 @@
+model Model
+	culture: es-MX
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: es-MX
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 1
+
+annotation PBI_QueryOrder = ["usuarios","parcelas","cultivos_catalogo","recomendaciones","historial_riego","costos_ciclo"]
+
+annotation PBI_ProTooling = ["DevMode"]
+
+ref table usuarios
+ref table DateTableTemplate_c41b031a-fd6a-4657-8a9b-afb7d36984cc
+ref table LocalDateTable_3819ea90-a117-4137-b162-eeb9d1e78752
+ref table parcelas
+ref table LocalDateTable_642966df-717b-457a-bdcd-8bd8d5588475
+ref table cultivos_catalogo
+ref table recomendaciones
+ref table LocalDateTable_14c46fbf-e64f-4810-a21a-eaa890852f3a
+ref table LocalDateTable_c95ae0a6-13a5-4407-a9b4-08601697a43e
+ref table historial_riego
+ref table LocalDateTable_8e1c73c7-5c1e-4734-b361-85a4d408912d
+ref table LocalDateTable_6fced38c-fc8d-46db-9102-a22e14f29372
+ref table costos_ciclo
+
+ref cultureInfo es-MX
+
