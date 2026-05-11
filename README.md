@@ -79,15 +79,6 @@
 | Frontend GIS | Vanilla JS + Leaflet 1.9.4, capas Esri World Imagery + OpenTopoMap. `map_engine.js` carga parcelas desde API PostGIS (fallback: `lotes.geojson` estático). | — |
 | Pipeline GIS | geopandas + shapely `make_valid` + Douglas-Peucker | — |
 
-### ◻ Pendiente para MVP
-
-| Ítem | Descripción |
-|---|---|
-| **Autenticación** | `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. Bloqueador principal. |
-| CORS restringido | `allow_origins=["*"]` — reemplazar por allowlist. |
-| Seguridad en voz | Path traversal en `voice_endpoint.py`, sin límite de tamaño ni validación de content-type. |
-| Credenciales rotadas | `backend/.env` contiene password postgres en texto plano. Agregar al `.gitignore`. |
-
 ---
 
 ## Deuda técnica vigente
