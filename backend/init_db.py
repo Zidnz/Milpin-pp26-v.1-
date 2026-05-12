@@ -628,4 +628,3 @@ async def main(reset: bool = False, check_only: bool = False) -> None:
 if __name__ == "__main__":
     reset = "--reset" in sys.argv
     check_only = "--check" in sys.argv
-    asyncio.run(main(reset=reset, check_only=check_only))

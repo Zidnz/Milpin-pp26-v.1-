@@ -11,4 +11,12 @@ __pycache__/
 *.pyd
 *.pdb
 
-# Variables de entorno —
+# Variables de entorno — 
+# Claude worktrees 
+.claude/worktrees/ 
+ 
+# Backups temporales 
+*.conflict_backup 
+ 
+# Secretos 
+backend/.env 

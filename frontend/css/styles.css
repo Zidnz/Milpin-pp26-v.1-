@@ -1687,6 +1687,8 @@ select, input {
     font-size: 0.95rem;
     background: var(--white);
     color: var(--primary-text);
+    width: 100%;
+    box-sizing: border-box;
 }
 .riego-btn-calcular {
     padding: 12px;

@@ -334,4 +334,3 @@ def limpiar_historial() -> None:
     Vacía el buffer de historial de conversación.
     Llamar antes de cada suite de pruebas para garantizar aislamiento entre casos.
     """
-    _history.clear()
