@@ -38,6 +38,8 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 45,
         "dias_etapa_final": 30,
         "rendimiento_potencial_ton": 10.0,
+        "rendimiento_min_ton": 5.0,   # CIMMYT/INIFAP DR-041, ciclo PV sin estrés hídrico
+        "rendimiento_max_ton": 12.0,  # techo tecnificado con riego deficitario controlado
     },
     {
         "nombre_comun": "Frijol",
@@ -51,6 +53,8 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 40,
         "dias_etapa_final": 20,
         "rendimiento_potencial_ton": 2.0,
+        "rendimiento_min_ton": 0.8,
+        "rendimiento_max_ton": 2.5,
     },
     {
         "nombre_comun": "Algodón",
@@ -64,6 +68,8 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 55,
         "dias_etapa_final": 45,
         "rendimiento_potencial_ton": 3.5,
+        "rendimiento_min_ton": 1.5,   # fibra limpia ton/ha
+        "rendimiento_max_ton": 4.5,
     },
     {
         "nombre_comun": "Uva",
@@ -77,6 +83,8 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 75,
         "dias_etapa_final": 50,
         "rendimiento_potencial_ton": 22.5,
+        "rendimiento_min_ton": 12.0,
+        "rendimiento_max_ton": 28.0,
     },
     {
         "nombre_comun": "Chile",
@@ -90,6 +98,8 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 40,
         "dias_etapa_final": 20,
         "rendimiento_potencial_ton": 30.0,
+        "rendimiento_min_ton": 15.0,
+        "rendimiento_max_ton": 40.0,
     },
 ]
 
@@ -628,3 +638,4 @@ async def main(reset: bool = False, check_only: bool = False) -> None:
 if __name__ == "__main__":
     reset = "--reset" in sys.argv
     check_only = "--check" in sys.argv
+    asyncio.run(main(reset=reset, check_only=check_only))

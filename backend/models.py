@@ -117,6 +117,17 @@ class CultivoCatalogo(Base):
     # Rendimiento potencial bajo condiciones óptimas de riego
     rendimiento_potencial_ton: Mapped[Optional[float]] = mapped_column(Numeric(8, 2))
 
+    # Rango de rendimiento esperado (ton/ha) bajo condiciones normales DR-041
+    # Fuente: CIMMYT/INIFAP para Valle del Yaqui; FAO para cultivos de alto valor
+    rendimiento_min_ton: Mapped[Optional[float]] = mapped_column(
+        Numeric(8, 2),
+        comment="Rendimiento mínimo esperado (ton/ha) en condiciones normales DR-041."
+    )
+    rendimiento_max_ton: Mapped[Optional[float]] = mapped_column(
+        Numeric(8, 2),
+        comment="Rendimiento máximo alcanzable (ton/ha) con manejo tecnificado."
+    )
+
     # Relaciones
     parcelas: Mapped[list["Parcela"]] = relationship(
         "Parcela", back_populates="cultivo_actual", lazy="noload"
