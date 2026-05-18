@@ -1,0 +1,17 @@
+# Feature View: parcela_daily
+# Entidad: parcela_id + fecha
+# Fuente: tabla clima_diario (NASA POWER via nasa_power_etl.py)
+# Frecuencia de materialización: diaria (Prefect flow)
+
+name: parcela_daily
+entity: [parcela_id, fecha]
+source: clima_diario
+features:
+  - t_max
+  - t_min
+  - t_media
+  - humedad_relativa
+  - viento_2m
+  - radiacion_solar
+  - et0           # Calculado con FAO-56 P-M
+  - precipitacion
