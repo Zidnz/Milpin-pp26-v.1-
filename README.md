@@ -74,6 +74,7 @@
 | **Humedad inicial real** | `propagar_balance_hidrico()` en `balance_hidrico.py` reemplaza la estimación `(CC+PMP)/2` con un balance acumulado día a día desde el último riego real. Conectado en `riego_api.py` y `db_api.py`. 9 tests en `TestPropagar`. | 2026-05-06 |
 | **Dashboard BI real** | `frontend/src/bi_dashboard.js` reemplaza el tab BI (que usaba cosine similarity hardcoded) por un dashboard conectado a la API real. Cosine similarity sobre matriz estática eliminado de `ui_tabs.js`. | 2026-05-06 |
 | **Forecast ETo 7 días** | `backend/core/eto_forecast.py`: Ridge Regression sobre `clima_diario` (features: sin/cos doy, lags ETo, T_max). Fallback a media(14 d) si < 60 registros. Endpoint `GET /api/parcelas/{id}/forecast?dias_siembra=N&horizon=7` proyecta déficit diario. Tab Riego muestra sección "Proyección 7 días". | 2026-05-06 |
+| **Vista de carga de trabajo técnica** | `GET /api/tecnico/carga-trabajo` agrega todas las parcelas activas con su última recomendación pendiente, ordenadas por urgencia (`critico → moderado → preventivo → sin_recomendacion`). Frontend: nuevo módulo `tecnico_workload.js` con KPI row, filtros por urgencia y tarjetas por parcela. Acceso: Admin Panel → Carga de trabajo · Riego. | 2026-05-18 |
 | Pipeline de voz | Whisper STT **carga lazy** (startup ~2 s vs. ~45 s anterior) → Ollama `llama3.2:latest` → Web Speech API TTS | 2026-04-30 |
 | Clustering K-Means | scikit-learn 1.5, zonas de manejo y logística | — |
 | Frontend GIS | Vanilla JS + Leaflet 1.9.4, capas Esri World Imagery + OpenTopoMap. `map_engine.js` carga parcelas desde API PostGIS (fallback: `lotes.geojson` estático). | — |
@@ -251,7 +252,7 @@ backend/
     versions/
       0001_postgis_geom_jsonb_to_geometry.py   # JSONB → GEOMETRY(Polygon,4326)
   API/
-    db_api.py                # 14 endpoints CRUD + GET /parcelas/{id}/forecast
+    db_api.py                # 15 endpoints CRUD + GET /parcelas/{id}/forecast + GET /tecnico/carga-trabajo
     riego_api.py             # FAO-56 + /parcelas/geojson + balance hídrico conectado a BD
     voice_endpoint.py        # ⚠ path traversal sin sanitizar
   core/
@@ -273,6 +274,7 @@ frontend/
     bi_dashboard.js          # dashboard BI conectado a API real (reemplaza demo coseno)
     voice_client.js          # Web Speech API + fallback Whisper
     admin_panel.js           # panel de administración (en desarrollo)
+    tecnico_workload.js      # vista de carga de trabajo para técnicos de riego
     auth.js                  # lógica de autenticación (en desarrollo)
   data/
     lotes.geojson            # fallback estático de geometrías
@@ -338,6 +340,45 @@ GET /api/parcelas/{id}/forecast?dias_siembra=<int>&horizon=7
 ```
 
 Proyecta ETo para los próximos `horizon` días usando Ridge Regression entrenada sobre `clima_diario` (features: sin/cos del día del año, lags de ETo, T_max). Si la parcela tiene menos de 60 registros con ETo no nulo, el modelo cae automáticamente a la media de los últimos 14 días. Corre FAO-56 forward sobre la proyección y estima la **fecha del próximo riego** (±días). La sección "Proyección 7 días" del tab Riego consume este endpoint.
+
+---
+
+### Carga de trabajo técnica
+
+```http
+GET /api/tecnico/carga-trabajo?id_usuario=<uuid>
+```
+
+Agrega todas las parcelas activas con su última recomendación pendiente, ordenadas por urgencia. Diseñado para la vista de operaciones de riego del técnico de campo.
+
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| `id_usuario` | UUID (opcional) | Filtra por propietario. Sin filtro devuelve todas las parcelas del sistema. |
+
+**Respuesta:**
+
+```json
+{
+  "fecha_consulta": "2026-05-18",
+  "resumen": { "total": 12, "critico": 2, "moderado": 5, "preventivo": 4, "sin_recomendacion": 1 },
+  "parcelas": [
+    {
+      "id_parcela": "...",
+      "nombre_parcela": "Lote Norte",
+      "propietario": "Ramón Valenzuela Torres",
+      "cultivo": "Maíz",
+      "area_ha": 5.2,
+      "sistema_riego": "gravedad",
+      "nivel_urgencia": "critico",
+      "dias_sin_riego": 12,
+      "deficit_acumulado_mm": 45.2,
+      "lamina_recomendada_mm": 80.0,
+      "fecha_riego_sugerida": "2026-05-18",
+      "id_recomendacion": "..."
+    }
+  ]
+}
+```
 
 ---
 
@@ -414,6 +455,7 @@ GET /api/zonas_manejo            # Zonas de manejo diferenciado
 | `/api/recomendaciones/{id}/feedback` | PATCH | Feedback del agricultor (aceptada/rechazada/modificada) |
 | `/api/costos` | POST | Registrar costos de un ciclo agrícola |
 | `/api/costos/parcela/{id}` | GET | Costos por ciclo de una parcela |
+| `/api/tecnico/carga-trabajo` | GET | Parcelas ordenadas por urgencia de riego para técnicos |
 | `/health` | GET | Estado del servicio |
 
 ---
@@ -565,14 +607,16 @@ GROQ_API_KEY=                     # opcional — LLM cloud alternativo
 
 ## Frontend (SPA)
 
-La interfaz es una **Single Page Application** con 4 pestañas y un botón flotante de voz.
+La interfaz es una **Single Page Application** con 4 pestañas principales, sub-vistas de administración y un botón flotante de voz.
 
 | Pestaña | Descripción | Estado |
 |---|---|---|
 | **BI/R** | Dashboard de inteligencia de negocio conectado a API real (`bi_dashboard.js`) | Funcional |
 | **Mapas** | Portal GIS con capas vectoriales desde PostGIS, ríos, canales y pozos | Funcional |
 | **Riego** | Recomendación FAO-56 por parcela, historial, feedback y proyección 7 días | Funcional |
-| **Ajustes** | Configuración de voz, notificaciones y preferencias |  Funcional |
+| **Ajustes** | Configuración de voz, notificaciones y preferencias | Funcional |
+| **Panel Admin** *(sub-vista)* | Vista global de todas las parcelas — solo para `rol=admin` | Funcional |
+| **Carga de Trabajo** *(sub-vista)* | Parcelas ordenadas por urgencia de riego con KPIs, filtros y acceso directo — accesible desde Panel Admin | Funcional |
 
 El **FAB (Floating Action Button)** 🎤 activa el asistente de voz MILPÍN en cualquier pestaña.
 
