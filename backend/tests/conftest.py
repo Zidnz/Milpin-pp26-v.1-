@@ -24,6 +24,29 @@ _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 
+# Agrega la raíz del repo para que `from ml.inference.x` resuelva en tests
+_REPO_ROOT = os.path.dirname(_BACKEND_DIR)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+# Alias de paquete para case-sensitivity Linux/macOS.
+# En Windows ML/ == ml/ (case-insensitive). En Linux hay que registrar
+# todos los submódulos explícitamente para que pytest no resuelva a paths cacheados.
+try:
+    import ML as _ml_pkg
+    import ML.inference as _ml_inf
+    import ML.inference.xgboost_riego as _ml_xgb
+    import ML.inference.anomaly_detector as _ml_ad
+    for _name, _mod in [
+        ("ml",                          _ml_pkg),
+        ("ml.inference",                _ml_inf),
+        ("ml.inference.xgboost_riego",  _ml_xgb),
+        ("ml.inference.anomaly_detector", _ml_ad),
+    ]:
+        sys.modules.setdefault(_name, _mod)
+except ImportError:
+    pass  # En Windows los nombres ml/ == ML/ resuelven solos
+
 import models  # noqa: E402
 from database import Base, get_db  # noqa: E402
 from main import app  # noqa: E402
