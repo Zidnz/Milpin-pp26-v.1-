@@ -50,9 +50,14 @@ function cambiarPestana(event, tabId) {
         }
         if (tabId === "tab-costos") {
             _cargarParcelasEnSelect("select-parcela-riego");
+            // Cargar resumen en background para actualizar el badge aunque el drawer esté cerrado
+            cargarResumenParcelas();
         }
         if (tabId === "tab-bi") {
             BI.init();
+        }
+        if (tabId === "tab-ml") {
+            _cargarParcelasEnSelect("select-parcela-ml");
         }
     }
 
@@ -62,6 +67,20 @@ function cambiarPestana(event, tabId) {
             i.classList.add("active");
         }
     });
+}
+
+// Abre el panel admin desde Config — mantiene Config como nav-item activo
+function abrirPanelAdmin() {
+    document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
+    const adminTab = document.getElementById("tab-admin");
+    if (adminTab) adminTab.style.display = "block";
+    // Mantener Config resaltado en el nav (admin es sub-vista de Config)
+    document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
+    document.querySelectorAll(".nav-item").forEach(i => {
+        const onclick = i.getAttribute("onclick") || "";
+        if (onclick.includes("tab-ajustes")) i.classList.add("active");
+    });
+    if (window.ADMIN?.cargar) window.ADMIN.cargar();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -75,14 +94,32 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Utilidad compartida: poblar un <select> con parcelas
+async function _fetchWithRetry(url, intentos = 3, delayMs = 800) {
+    for (let i = 0; i < intentos; i++) {
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res;
+        } catch (err) {
+            const esRed = err instanceof TypeError || (err.message || "").includes("ERR_NETWORK");
+            if (esRed && i < intentos - 1) {
+                await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+                continue;
+            }
+            throw err;
+        }
+    }
+}
+
 async function _cargarParcelasEnSelect(selectId) {
     const sel = document.getElementById(selectId);
     if (!sel) return;
-    sel.innerHTML = '<option value="">— Selecciona una parcela —</option>';
+    sel.innerHTML = '<option value="">Cargando parcelas…</option>';
+    sel.disabled = true;
     try {
-        const res = await fetch(`${API_BASE}/parcelas${_queryParcelasUsuario()}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await _fetchWithRetry(`${API_BASE}/parcelas${_queryParcelasUsuario()}`);
         const parcelas = await res.json();
+        sel.innerHTML = '<option value="">— Selecciona una parcela —</option>';
         parcelas.forEach(p => {
             const opt = document.createElement("option");
             opt.value = p.id_parcela;
@@ -91,6 +128,9 @@ async function _cargarParcelasEnSelect(selectId) {
         });
     } catch (err) {
         console.error("[MILPIN] Error cargando parcelas:", err);
+        sel.innerHTML = '<option value="">⚠ Sin conexión — reintenta</option>';
+    } finally {
+        sel.disabled = false;
     }
 }
 
@@ -121,8 +161,10 @@ async function cargarRecomendacion(idParcela) {
     if (!idParcela) {
         _riegoEstado("Selecciona una parcela para ver la recomendacion activa.");
         _riegoOcultarPaneles();
+        _mostrarSubtabNav(false);
         return;
     }
+    _mostrarSubtabNav(true);
 
     _riegoEstado("Consultando recomendacion...");
     _riegoOcultarPaneles();
@@ -286,6 +328,7 @@ function _renderizarCardActiva(rec) {
     }
 
     // ── 8. Mostrar card + forecast ────────────────────────────────────────────
+    // XGBoost se muestra en el tab ML (módulo propio), no aquí.
     document.getElementById("riego-card-activa").style.display = "block";
 
     const diasSiembra = rec.dias_siembra ?? rec.parametros_json?.dias_siembra;
@@ -597,6 +640,160 @@ function _renderForecast(data, timeline, alertaEl, advertEl, badgeEl) {
 function _iconSi() { return '✓'; }
 function _iconNo() { return '✗'; }
 
+// ── Resumen multi-parcela (panel de entrada del tab Riego) ────────────────
+// Muestra el estado hídrico de TODAS las parcelas de un vistazo antes de
+// que el usuario seleccione una específica. Semáforo rojo/ámbar/verde,
+// ordenado por urgencia. Click en una fila → carga la recomendación.
+
+const _RRESUMEN_CFG = {
+    critico:    { color: '#E65C5C', bg: 'rgba(230,89,89,.07)',   dot: '#E65C5C', label: '🔴 Urgente'   },
+    moderado:   { color: '#F5A623', bg: 'rgba(245,166,35,.07)',  dot: '#F5A623', label: '🟡 Pronto'    },
+    preventivo: { color: '#2E9E5B', bg: 'rgba(46,158,91,.06)',   dot: '#2E9E5B', label: '🟢 OK'        },
+};
+const _RRESUMEN_ORDER = { critico: 0, moderado: 1, preventivo: 2 };
+
+async function cargarResumenParcelas() {
+    const wrap = document.getElementById('riego-resumen-wrap');
+    if (!wrap) return;
+
+    wrap.innerHTML = '<div class="rresumen-loading">Cargando estado de parcelas…</div>';
+
+    try {
+        const res = await fetch(`${API_BASE}/parcelas${_queryParcelasUsuario()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const parcelas = await res.json();
+
+        if (!parcelas.length) {
+            wrap.innerHTML = '';
+            return;
+        }
+
+        // Fetch rec activa de cada parcela en paralelo
+        const items = await Promise.all(parcelas.map(async p => {
+            try {
+                const r = await fetch(`${API_BASE}/recomendaciones/parcela/${p.id_parcela}`);
+                if (!r.ok) return { parcela: p, activa: null };
+                const d = await r.json();
+                return { parcela: p, activa: d.activa || null };
+            } catch (_) {
+                return { parcela: p, activa: null };
+            }
+        }));
+
+        _renderResumenParcelas(items, wrap);
+    } catch (err) {
+        console.error('[MILPÍN] Error cargando resumen parcelas:', err);
+        wrap.innerHTML = `<div class="rresumen-error">No se pudo cargar el resumen: ${err.message}</div>`;
+    }
+}
+
+function _renderResumenParcelas(items, wrap) {
+    // Ordenar por urgencia; sin rec activa va al final
+    const sorted = [...items].sort((a, b) =>
+        (_RRESUMEN_ORDER[a.activa?.nivel_urgencia] ?? 3) -
+        (_RRESUMEN_ORDER[b.activa?.nivel_urgencia] ?? 3)
+    );
+
+    // ── Conteo KPIs ────────────────────────────────────────────────────────────
+    const nCritico    = items.filter(i => i.activa?.nivel_urgencia === 'critico').length;
+    const nModerado   = items.filter(i => i.activa?.nivel_urgencia === 'moderado').length;
+    const nPreventivo = items.filter(i => i.activa?.nivel_urgencia === 'preventivo').length;
+
+    // Actualizar badge de la campana (urgencias + moderadas = requieren atención)
+    _actualizarBadgeAlertas(nCritico, nModerado);
+
+    const kpisHtml = `
+    <div class="rresumen-kpis">
+        <div class="rresumen-kpi-card rresumen-kpi-card--critico">
+            <span class="rresumen-kpi-num">${nCritico}</span>
+            <span class="rresumen-kpi-label">Crítico</span>
+        </div>
+        <div class="rresumen-kpi-card rresumen-kpi-card--moderado">
+            <span class="rresumen-kpi-num">${nModerado}</span>
+            <span class="rresumen-kpi-label">Moderado</span>
+        </div>
+        <div class="rresumen-kpi-card rresumen-kpi-card--preventivo">
+            <span class="rresumen-kpi-num">${nPreventivo}</span>
+            <span class="rresumen-kpi-label">Preventivo</span>
+        </div>
+    </div>`;
+
+    // ── Filas de parcelas ──────────────────────────────────────────────────────
+    const filas = sorted.map(({ parcela, activa }) => {
+        const urgencia = activa?.nivel_urgencia || null;
+        const cfg      = _RRESUMEN_CFG[urgencia];
+        const cultivo  = activa?.cultivo || activa?.parametros_json?.cultivo || '';
+        const deficit  = activa?.deficit_acumulado_mm != null
+            ? `${Math.round(activa.deficit_acumulado_mm)} mm` : '—';
+        const nombre   = parcela.nombre_parcela || `Parcela ${parcela.id_parcela.slice(0, 8)}`;
+
+        let fechaLabel = '—';
+        if (activa?.fecha_riego_sugerida) {
+            const d   = new Date(activa.fecha_riego_sugerida + 'T12:00:00');
+            const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+            const diff = Math.round((d - hoy) / 86400000);
+            if      (diff <= 0)  fechaLabel = 'HOY';
+            else if (diff === 1) fechaLabel = 'MAÑANA';
+            else                 fechaLabel = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+        }
+
+        // Sin rec activa — fila neutra, no interactiva
+        if (!cfg) {
+            return `
+            <div class="rresumen-fila rresumen-fila--vacia">
+                <div class="rresumen-dot" style="background:#C7BFAF"></div>
+                <div class="rresumen-info">
+                    <span class="rresumen-nombre">${nombre}</span>
+                    <span class="rresumen-cultivo"> · sin recomendación</span>
+                </div>
+                <div class="rresumen-met"><span class="rresumen-met-label">Déficit</span><strong>—</strong></div>
+                <div class="rresumen-met"><span class="rresumen-met-label">Próximo riego</span><strong>—</strong></div>
+            </div>`;
+        }
+
+        return `
+        <div class="rresumen-fila"
+             style="border-left:4px solid ${cfg.color};background:${cfg.bg}"
+             onclick="seleccionarParcelaResumen('${parcela.id_parcela}')"
+             title="Ver recomendación de ${nombre}">
+            <div class="rresumen-dot" style="background:${cfg.dot}"></div>
+            <div class="rresumen-info">
+                <span class="rresumen-nombre">${nombre}</span>
+                ${cultivo ? `<span class="rresumen-cultivo"> · ${cultivo}</span>` : ''}
+            </div>
+            <div class="rresumen-badge" style="color:${cfg.color}">${cfg.label}</div>
+            <div class="rresumen-met">
+                <span class="rresumen-met-label">Déficit</span>
+                <strong style="color:${cfg.color}">${deficit}</strong>
+            </div>
+            <div class="rresumen-met">
+                <span class="rresumen-met-label">Próximo riego</span>
+                <strong>${fechaLabel}</strong>
+            </div>
+            <span class="rresumen-arrow">›</span>
+        </div>`;
+    }).join('');
+
+    wrap.innerHTML = `
+    <div class="rresumen-card">
+        ${kpisHtml}
+        <div class="rresumen-lista">${filas}</div>
+    </div>`;
+}
+
+function seleccionarParcelaResumen(idParcela) {
+    // Cerrar el drawer antes de navegar a la parcela
+    _cerrarAlertasPanel();
+    const sel = document.getElementById('select-parcela-riego');
+    if (sel) sel.value = idParcela;
+    cargarRecomendacion(idParcela);
+    // Scroll suave al detalle de la recomendación
+    setTimeout(() => {
+        const estado = document.getElementById('riego-estado');
+        if (estado) estado.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+}
+
 // ── Riego manual ──────────────────────────────────────────────────────────────
 
 function toggleRiegoManual() {
@@ -688,8 +885,11 @@ async function registrarRiegoManual() {
         metodoEl.value = "";
         if (notasEl) notasEl.value = "";
 
-        // Recargar historial — el nuevo riego actualiza propagar_balance_hidrico
+        // Recargar historial y actualizar resumen tras registrar riego
         await cargarRecomendacion(_parcelaRiegoActual);
+        cargarResumenParcelas();
+        // Si el tab de historial está activo, refrescarlo también
+        if (_riegoTabActivo === 'historial') cargarHistorialRiego(_parcelaRiegoActual);
 
     } catch (err) {
         console.error("[MILPÍN] Error registrando riego manual:", err);
@@ -707,3 +907,567 @@ function _mostrarFeedbackManual(msg, tipo) {
     el.className     = `riego-manual-feedback ${tipo}`;
     el.style.display = "block";
 }
+
+// ── ML · Helpers de visualización ────────────────────────────────────────────
+
+/**
+ * Devuelve el SVG del ícono según el nivel de urgencia.
+ *   critico    → triángulo de alerta rojo
+ *   moderado   → reloj ámbar
+ *   preventivo → escudo verde con check
+ */
+function _xgbUrgenciaIcon(nivel) {
+    const n = (nivel || "").toLowerCase();
+    if (n === "critico") {
+        return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M24 6L44 40H4L24 6Z" fill="rgba(230,57,70,0.15)"
+                  stroke="#e63946" stroke-width="2.5" stroke-linejoin="round"/>
+            <rect x="22.5" y="18" width="3" height="12" rx="1.5" fill="#e63946"/>
+            <circle cx="24" cy="34" r="2" fill="#e63946"/>
+        </svg>`;
+    }
+    if (n === "moderado") {
+        return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="18" fill="rgba(255,185,50,0.13)"
+                    stroke="#d4820a" stroke-width="2.5"/>
+            <path d="M24 14v10l6 4" stroke="#d4820a" stroke-width="2.8"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`;
+    }
+    // preventivo (default)
+    return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M24 4L8 11v13c0 9.5 6.8 18.4 16 21 9.2-2.6 16-11.5 16-21V11L24 4Z"
+              fill="rgba(82,183,136,0.13)" stroke="#52b788" stroke-width="2.5"
+              stroke-linejoin="round"/>
+        <path d="M16 24l6 6 10-10" stroke="#52b788" stroke-width="2.8"
+              stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+}
+
+/**
+ * Genera el SVG del gauge semicircular para el riesgo de estrés.
+ * riesgo: 0.0 – 1.0
+ * Arco de r=72, longitud total ≈ 226.2 px.
+ */
+function _xgbGaugeSVG(riesgo) {
+    const R   = 72;
+    const CX  = 95, CY = 97;
+    const ARC = Math.PI * R;
+    const v   = Math.min(Math.max(riesgo ?? 0, 0), 1);
+    const pct = Math.round(v * 100);
+    const fill = v * ARC;
+
+    const color = v < 0.40 ? "#52b788"
+                : v < 0.70 ? "#d4820a"
+                :             "#e63946";
+
+    return `<svg class="xgb-gauge-svg" viewBox="0 0 190 112"
+                 aria-label="Riesgo de estrés ${pct}%">
+        <!-- Pista de fondo -->
+        <path d="M ${CX - R} ${CY} A ${R} ${R} 0 0 1 ${CX + R} ${CY}"
+              class="xgb-gauge-track"/>
+        <!-- Relleno coloreado -->
+        <path d="M ${CX - R} ${CY} A ${R} ${R} 0 0 1 ${CX + R} ${CY}"
+              class="xgb-gauge-fill"
+              stroke="${color}"
+              stroke-dasharray="${fill.toFixed(1)} ${ARC.toFixed(1)}"/>
+        <!-- Porcentaje -->
+        <text x="${CX}" y="${CY - 14}" text-anchor="middle"
+              class="xgb-gauge-pct" fill="${color}">${pct}%</text>
+        <text x="${CX}" y="${CY + 5}" text-anchor="middle"
+              class="xgb-gauge-sub" fill="var(--secondary-text)">riesgo de estrés</text>
+        <!-- Marcas de escala -->
+        <text x="${CX - R - 6}" y="${CY + 15}" text-anchor="middle"
+              class="xgb-gauge-mark">0</text>
+        <text x="${CX}" y="${CY - R - 8}" text-anchor="middle"
+              class="xgb-gauge-mark">50%</text>
+        <text x="${CX + R + 6}" y="${CY + 15}" text-anchor="middle"
+              class="xgb-gauge-mark">100</text>
+    </svg>`;
+}
+
+/** Textos descriptivos por nivel de urgencia. */
+const _URGENCIA_DESC = {
+    critico:    "Riego urgente — déficit hídrico crítico detectado.",
+    moderado:   "Monitorear — déficit moderado, riego próximo recomendado.",
+    preventivo: "Sin urgencia — humedad dentro del rango óptimo.",
+};
+
+
+/**
+ * SVG gauge circular para "Confianza del modelo".
+ * prob: 0.0 – 1.0
+ */
+function _mlConfidenceGaugeSVG(prob) {
+    const r = 36, cx = 50, cy = 50;
+    const circumference = 2 * Math.PI * r;
+    const v   = Math.min(Math.max(prob ?? 0, 0), 1);
+    const pct = Math.round(v * 100);
+    const offset = circumference * (1 - v);
+    const color = v >= 0.75 ? '#52b788' : v >= 0.50 ? '#d4820a' : '#e63946';
+    return `<svg class="ml-conf-svg" viewBox="0 0 100 100" aria-label="Confianza ${pct}%">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+                stroke="var(--border-card,#e5e9f0)" stroke-width="11"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+                stroke="${color}" stroke-width="11"
+                stroke-dasharray="${circumference.toFixed(2)}"
+                stroke-dashoffset="${offset.toFixed(2)}"
+                stroke-linecap="round"
+                transform="rotate(-90 ${cx} ${cy})"
+                style="transition:stroke-dashoffset 0.45s ease"/>
+        <text x="${cx}" y="${cy + 6}" text-anchor="middle"
+              font-size="18" font-weight="800" font-family="Poppins,sans-serif"
+              fill="${color}">${pct}%</text>
+    </svg>`;
+}
+
+/**
+ * SVG donut completo para "Riesgo de estrés hídrico".
+ * riesgo: 0.0 – 1.0
+ */
+function _mlDonutSVG(riesgo) {
+    const r = 54, cx = 80, cy = 80;
+    const circumference = 2 * Math.PI * r;
+    const v   = Math.min(Math.max(riesgo ?? 0, 0), 1);
+    const pct = Math.round(v * 100);
+    const offset = circumference * (1 - v);
+    const color = v >= 0.75 ? '#e63946' : v >= 0.30 ? '#d4820a' : '#52b788';
+    const label = v >= 0.75 ? 'Riesgo alto' : v >= 0.30 ? 'Riesgo medio' : 'Riesgo bajo';
+    return `<svg class="ml-donut-svg" viewBox="0 0 160 160" aria-label="${label} ${pct}%">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+                stroke="var(--border-card,#e5e9f0)" stroke-width="17"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+                stroke="${color}" stroke-width="17"
+                stroke-dasharray="${circumference.toFixed(2)}"
+                stroke-dashoffset="${offset.toFixed(2)}"
+                stroke-linecap="round"
+                transform="rotate(-90 ${cx} ${cy})"
+                style="transition:stroke-dashoffset 0.45s ease"/>
+        <text x="${cx}" y="${cy - 4}" text-anchor="middle"
+              font-size="30" font-weight="800" font-family="Poppins,sans-serif"
+              fill="${color}">${pct}%</text>
+        <text x="${cx}" y="${cy + 18}" text-anchor="middle"
+              font-size="11" font-family="Poppins,sans-serif"
+              fill="var(--secondary-text,#6b7a8d)">${label}</text>
+    </svg>`;
+}
+
+// ── ML · Predicción XGBoost ───────────────────────────────────────────────────
+/**
+ * Carga la predicción XGBoost para la parcela activa y renderiza el panel.
+ * Llamada automáticamente junto con cargarForecast() al mostrar una recomendación.
+ */
+async function cargarPrediccionXGB(idParcela) {
+    const wrap = document.getElementById("riego-xgb-wrap");
+    if (!wrap) return;
+
+    wrap.style.display = "block";
+
+    const reqEl     = document.getElementById("xgb-requiere");
+    const probEl    = document.getElementById("xgb-prob");
+    const laminaEl  = document.getElementById("xgb-lamina");   // fix: faltaba declaración
+    const badgeEl   = document.getElementById("xgb-algoritmo-badge");
+    const urgCard   = document.getElementById("xgb-urgencia-card");
+    const urgIcon   = document.getElementById("xgb-urgencia-icon");
+    const urgNivel  = document.getElementById("xgb-urgencia-nivel");
+    const urgDesc   = document.getElementById("xgb-urgencia-desc");
+    const gaugeWrap = document.getElementById("xgb-gauge-wrap");
+
+    // Estado de carga inicial
+    if (reqEl)     { reqEl.textContent = "…"; reqEl.className = "riego-xgb-badge riego-xgb-badge--loading"; }
+    if (probEl)    probEl.textContent  = "…";
+    if (laminaEl)  laminaEl.textContent = "…";
+    if (gaugeWrap) gaugeWrap.innerHTML = _xgbGaugeSVG(0);
+    if (urgNivel)  urgNivel.textContent = "Calculando…";
+    if (urgDesc)   urgDesc.textContent  = "";
+
+    try {
+        const res  = await fetch(`${API_BASE}/ml/prediccion/${idParcela}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const nivel = (data.nivel_urgencia || "preventivo").toLowerCase();
+
+        // ── Badge de algoritmo ─────────────────────────────────────────────
+        if (badgeEl) {
+            const esXGB = data.algoritmo === "fao56+xgboost-v1";
+            badgeEl.textContent = esXGB ? "XGBoost v1" : "FAO-56 fallback";
+            badgeEl.className   = "riego-forecast-badge " +
+                (esXGB ? "riego-forecast-badge--ml" : "riego-forecast-badge--fallback");
+        }
+
+        // ── Tarjeta de urgencia con ícono SVG ─────────────────────────────
+        if (urgCard)  urgCard.className = `xgb-urgencia-card xgb-urgencia-card--${nivel}`;
+        if (urgIcon)  urgIcon.innerHTML = _xgbUrgenciaIcon(nivel);
+        if (urgNivel) {
+            urgNivel.textContent = nivel.charAt(0).toUpperCase() + nivel.slice(1);
+            urgNivel.className   = `xgb-urgencia-nivel xgb-urgencia-nivel--${nivel}`;
+        }
+        if (urgDesc) urgDesc.textContent = _URGENCIA_DESC[nivel] || "";
+
+        // ── ¿Requiere riego? ───────────────────────────────────────────────
+        if (reqEl) {
+            reqEl.textContent = data.requiere_riego ? "Sí — regar" : "No — esperar";
+            reqEl.className   = "riego-xgb-badge " +
+                (data.requiere_riego ? "riego-xgb-badge--si" : "riego-xgb-badge--no");
+        }
+
+        // ── Confianza del modelo ───────────────────────────────────────────
+        if (probEl) probEl.textContent = `${Math.round(data.probabilidad_riego * 100)}%`;
+
+        // ── Lámina ajustada por ML ─────────────────────────────────────────
+        if (laminaEl) laminaEl.textContent = `${(data.lamina_ajustada_mm ?? 0).toFixed(1)} mm`;
+
+        // ── Gauge semicircular de estrés ───────────────────────────────────
+        if (gaugeWrap) gaugeWrap.innerHTML = _xgbGaugeSVG(data.riesgo_estres);
+
+    } catch (err) {
+        console.warn("cargarPrediccionXGB:", err);
+        wrap.style.display = "none";
+    }
+}
+
+// ── Panel de Alertas (drawer desde topbar) ───────────────────────────────────
+// La campana abre/cierra el drawer con el resumen de estado hídrico.
+
+let _alertasPanelAbierto = false;
+
+function toggleAlertasPanel() {
+    const drawer  = document.getElementById('alertas-drawer');
+    const overlay = document.getElementById('alertas-overlay');
+    if (!drawer) return;
+
+    _alertasPanelAbierto = !_alertasPanelAbierto;
+
+    if (_alertasPanelAbierto) {
+        drawer.classList.add('is-open');
+        drawer.setAttribute('aria-hidden', 'false');
+        if (overlay) overlay.classList.add('is-visible');
+        // Cargar/refrescar el resumen al abrir
+        cargarResumenParcelas();
+    } else {
+        drawer.classList.remove('is-open');
+        drawer.setAttribute('aria-hidden', 'true');
+        if (overlay) overlay.classList.remove('is-visible');
+    }
+}
+
+function _cerrarAlertasPanel() {
+    if (!_alertasPanelAbierto) return;
+    _alertasPanelAbierto = false;
+    const drawer  = document.getElementById('alertas-drawer');
+    const overlay = document.getElementById('alertas-overlay');
+    if (drawer)  { drawer.classList.remove('is-open'); drawer.setAttribute('aria-hidden', 'true'); }
+    if (overlay) overlay.classList.remove('is-visible');
+}
+
+function _actualizarBadgeAlertas(nCritico, nModerado) {
+    // Sincroniza el badge en los 4 headers simultáneamente
+    const badges = document.querySelectorAll('.alertas-badge');
+    const total = nCritico + nModerado;
+    badges.forEach(badge => {
+        if (total > 0) {
+            badge.textContent = total > 99 ? '99+' : String(total);
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    });
+}
+
+// ── Sub-tab switcher del módulo de riego ─────────────────────────────────────
+// Alterna entre "Recomendaciones" (panel existente) y "Historial Riego" (nuevo).
+// El nav se muestra sólo cuando hay parcela activa (_parcelaRiegoActual != null).
+
+let _riegoTabActivo = 'recomendaciones';
+
+function switchRiegoTab(tabName) {
+    _riegoTabActivo = tabName;
+
+    const panelRec  = document.getElementById('riego-panel-rec');
+    const panelHist = document.getElementById('riego-panel-hist');
+    const btnRec    = document.getElementById('rtab-btn-rec');
+    const btnHist   = document.getElementById('rtab-btn-hist');
+
+    if (tabName === 'recomendaciones') {
+        if (panelRec)  panelRec.style.display  = 'block';
+        if (panelHist) panelHist.style.display = 'none';
+        btnRec?.classList.add('active');
+        btnHist?.classList.remove('active');
+    } else {
+        if (panelRec)  panelRec.style.display  = 'none';
+        if (panelHist) panelHist.style.display = 'block';
+        btnRec?.classList.remove('active');
+        btnHist?.classList.add('active');
+        // Cargar historial cuando se abre el tab (siempre fresco)
+        if (_parcelaRiegoActual) cargarHistorialRiego(_parcelaRiegoActual);
+    }
+}
+
+function _mostrarSubtabNav(visible) {
+    const nav = document.getElementById('riego-subtab-nav');
+    if (nav) nav.style.display = visible ? 'flex' : 'none';
+    // Al ocultar (sin parcela), resetear al tab de recomendaciones
+    if (!visible) {
+        _riegoTabActivo = 'recomendaciones';
+        const panelRec  = document.getElementById('riego-panel-rec');
+        const panelHist = document.getElementById('riego-panel-hist');
+        if (panelRec)  panelRec.style.display  = 'block';
+        if (panelHist) panelHist.style.display = 'none';
+        document.getElementById('rtab-btn-rec')?.classList.add('active');
+        document.getElementById('rtab-btn-hist')?.classList.remove('active');
+    }
+}
+
+// ── Historial de riego real ───────────────────────────────────────────────────
+// Carga GET /api/riego/parcela/{id} y renderiza KPIs + lista scrollable.
+
+const _METODO_LABEL = {
+    gravedad:        'Gravedad',
+    goteo:           'Goteo',
+    aspersion:       'Aspersión',
+    microaspersion:  'Microaspersión',
+};
+
+async function cargarHistorialRiego(idParcela) {
+    const listaEl  = document.getElementById('rhist-lista');
+    const kpisEl   = document.getElementById('rhist-kpis');
+    const estadoEl = document.getElementById('rhist-estado');
+    const msgEl    = document.getElementById('rhist-estado-msg');
+
+    if (!listaEl || !kpisEl) return;
+
+    // Estado de carga
+    kpisEl.innerHTML = '<div class="rhist-loading">Cargando historial…</div>';
+    listaEl.innerHTML = '';
+    if (estadoEl) estadoEl.style.display = 'none';
+
+    try {
+        const res = await fetch(`${API_BASE}/riego/parcela/${idParcela}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const eventos = await res.json();  // list[RiegoOut]
+
+        _renderHistorialRiegoKPIs(eventos, kpisEl);
+        _renderHistorialRiegoLista(eventos, listaEl, estadoEl, msgEl);
+
+    } catch (err) {
+        console.error('[MILPÍN] Error historial riego:', err);
+        kpisEl.innerHTML = '';
+        listaEl.innerHTML = '';
+        if (estadoEl) estadoEl.style.display = 'block';
+        if (msgEl)    msgEl.textContent = `No se pudo cargar: ${err.message}`;
+    }
+}
+
+function _renderHistorialRiegoKPIs(eventos, kpisEl) {
+    const n         = eventos.length;
+    const laminaTotal = eventos.reduce((s, e) => s + (e.lamina_mm || 0), 0);
+    const volTotal    = eventos.reduce((s, e) => s + (e.volumen_m3_ha || 0), 0);
+    const promLamina  = n > 0 ? laminaTotal / n : 0;
+
+    // Costo acumulado estimado (tarifa FAO 1.68 MXN/m³)
+    const costoTotal = volTotal * 1.68;
+
+    // Último riego
+    let ultimoLabel = '—';
+    if (n > 0 && eventos[0].fecha_riego) {
+        const d = new Date(eventos[0].fecha_riego + 'T12:00:00');
+        ultimoLabel = d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    kpisEl.innerHTML = `
+    <div class="rhist-kpis-grid">
+        <div class="rhist-kpi">
+            <span class="rhist-kpi-val">${n}</span>
+            <span class="rhist-kpi-lbl">Riegos</span>
+        </div>
+        <div class="rhist-kpi">
+            <span class="rhist-kpi-val">${laminaTotal.toFixed(0)}<span class="rhist-kpi-unit"> mm</span></span>
+            <span class="rhist-kpi-lbl">Lámina total</span>
+        </div>
+        <div class="rhist-kpi">
+            <span class="rhist-kpi-val">${(volTotal/1000).toFixed(1)}<span class="rhist-kpi-unit"> k m³/ha</span></span>
+            <span class="rhist-kpi-lbl">Volumen total</span>
+        </div>
+        <div class="rhist-kpi">
+            <span class="rhist-kpi-val">${promLamina.toFixed(1)}<span class="rhist-kpi-unit"> mm</span></span>
+            <span class="rhist-kpi-lbl">Promedio/riego</span>
+        </div>
+        <div class="rhist-kpi rhist-kpi--wide">
+            <span class="rhist-kpi-val">$${costoTotal.toLocaleString('es-MX', { maximumFractionDigits: 0 })}<span class="rhist-kpi-unit"> MXN</span></span>
+            <span class="rhist-kpi-lbl">Costo estimado · $1.68/m³</span>
+        </div>
+        <div class="rhist-kpi rhist-kpi--wide">
+            <span class="rhist-kpi-val rhist-kpi-val--fecha">${ultimoLabel}</span>
+            <span class="rhist-kpi-lbl">Último riego</span>
+        </div>
+    </div>`;
+}
+
+function _renderHistorialRiegoLista(eventos, listaEl, estadoEl, msgEl) {
+    if (!eventos.length) {
+        listaEl.innerHTML = '';
+        if (estadoEl) estadoEl.style.display = 'block';
+        if (msgEl)    msgEl.textContent = 'No hay riegos registrados para esta parcela.';
+        return;
+    }
+
+    if (estadoEl) estadoEl.style.display = 'none';
+
+    listaEl.innerHTML = eventos.map(e => {
+        const fecha = e.fecha_riego
+            ? new Date(e.fecha_riego + 'T12:00:00').toLocaleDateString('es-MX', {
+                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+            : '—';
+
+        const lamina  = e.lamina_mm     != null ? `${Number(e.lamina_mm).toFixed(1)} mm`   : '—';
+        const volumen = e.volumen_m3_ha != null ? `${Number(e.volumen_m3_ha).toFixed(0)} m³/ha` : '—';
+        const metodo  = _METODO_LABEL[e.metodo_riego] || e.metodo_riego || '—';
+        const costo   = e.volumen_m3_ha != null
+            ? `$${(e.volumen_m3_ha * 1.68).toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN`
+            : '—';
+
+        // Origen: manual vs recomendado
+        const origenTag = e.origen_decision === 'manual'
+            ? '<span class="rhist-evento-tag rhist-evento-tag--manual">Manual</span>'
+            : '<span class="rhist-evento-tag rhist-evento-tag--rec">Recomendado</span>';
+
+        const notas = e.observaciones
+            ? `<div class="rhist-evento-notas">${e.observaciones}</div>`
+            : '';
+
+        return `
+        <div class="rhist-evento">
+            <div class="rhist-evento-header">
+                <span class="rhist-evento-fecha">${fecha}</span>
+                ${origenTag}
+            </div>
+            <div class="rhist-evento-metricas">
+                <div class="rhist-evento-met">
+                    <span class="rhist-evento-met-lbl">Lámina</span>
+                    <strong>${lamina}</strong>
+                </div>
+                <div class="rhist-evento-met">
+                    <span class="rhist-evento-met-lbl">Volumen</span>
+                    <strong>${volumen}</strong>
+                </div>
+                <div class="rhist-evento-met">
+                    <span class="rhist-evento-met-lbl">Método</span>
+                    <strong>${metodo}</strong>
+                </div>
+                <div class="rhist-evento-met">
+                    <span class="rhist-evento-met-lbl">Costo est.</span>
+                    <strong>${costo}</strong>
+                </div>
+            </div>
+            ${notas}
+        </div>`;
+    }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB ML — Inteligencia ML · XGBoost
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Carga la predicción XGBoost para la parcela seleccionada en el tab ML
+ * y renderiza todos los elementos visuales del módulo (risk card, gauge, etc.)
+ */
+async function cargarMLTab(idParcela) {
+    const panel   = document.getElementById('ml-panel');
+    const estado  = document.getElementById('ml-estado');
+
+    if (!idParcela) {
+        if (panel)  panel.style.display  = 'none';
+        if (estado) estado.style.display = 'flex';
+        return;
+    }
+
+    if (estado) estado.style.display = 'none';
+    if (panel)  panel.style.display  = 'block';
+
+    const riskCard    = document.getElementById('ml-risk-card');
+    const riskIcon    = document.getElementById('ml-risk-icon');
+    const riskNivel   = document.getElementById('ml-risk-nivel');
+    const riskDesc    = document.getElementById('ml-risk-desc');
+    const algoBadge   = document.getElementById('ml-algoritmo-badge');
+    const requiereEl  = document.getElementById('ml-requiere');
+    const requiereSubEl = document.getElementById('ml-requiere-sub');
+    const confianzaWrap = document.getElementById('ml-confianza-wrap');
+    const laminaEl    = document.getElementById('ml-lamina');
+    const gaugeWrap   = document.getElementById('ml-gauge-wrap');
+
+    if (riskNivel)     { riskNivel.textContent = 'Calculando…'; riskNivel.className = 'ml-risk-nivel'; }
+    if (riskDesc)      riskDesc.textContent    = '';
+    if (algoBadge)     algoBadge.textContent   = '…';
+    if (requiereEl)    { requiereEl.textContent = '…'; requiereEl.className = 'ml-requiere-val'; }
+    if (requiereSubEl) requiereSubEl.textContent = '';
+    if (confianzaWrap) confianzaWrap.innerHTML  = _mlConfidenceGaugeSVG(0);
+    if (laminaEl)      laminaEl.textContent     = '…';
+    if (gaugeWrap)     gaugeWrap.innerHTML      = _mlDonutSVG(0);
+
+    try {
+        const res = await fetch(`${API_BASE}/ml/prediccion/${idParcela}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const nivel = (data.nivel_urgencia || 'preventivo').toLowerCase();
+
+        if (riskCard) riskCard.className = `ml-risk-card ml-risk-card--${nivel}`;
+        if (riskIcon) riskIcon.innerHTML = _xgbUrgenciaIcon(nivel);
+        if (riskNivel) {
+            const labels = { critico: 'Riesgo crítico', moderado: 'Riesgo moderado', preventivo: 'Sin riesgo' };
+            riskNivel.textContent = labels[nivel] || nivel;
+            riskNivel.className   = `ml-risk-nivel ml-risk-nivel--${nivel}`;
+        }
+        if (riskDesc) riskDesc.textContent = _URGENCIA_DESC[nivel] || '';
+
+        if (algoBadge) {
+            const esXGB = data.algoritmo === 'fao56+xgboost-v1';
+            algoBadge.textContent = esXGB ? 'XGBoost v1' : 'FAO-56 fallback';
+        }
+
+        if (requiereEl) {
+            const si = !!data.requiere_riego;
+            requiereEl.textContent = si ? 'Sí' : 'No';
+            requiereEl.className   = 'ml-requiere-val ' +
+                (si ? 'ml-requiere-val--si' : 'ml-requiere-val--no');
+            if (requiereSubEl) requiereSubEl.textContent = si ? 'Regar' : 'Esperar';
+        }
+
+        if (confianzaWrap) confianzaWrap.innerHTML = _mlConfidenceGaugeSVG(data.probabilidad_riego);
+        if (laminaEl)      laminaEl.textContent    = `${(data.lamina_ajustada_mm ?? 0).toFixed(1)}`;
+        if (gaugeWrap)     gaugeWrap.innerHTML     = _mlDonutSVG(data.riesgo_estres);
+
+    } catch (err) {
+        console.warn('[MILPÍN ML]', err);
+        if (riskNivel) riskNivel.textContent = 'Sin datos';
+        if (riskDesc)  riskDesc.textContent  = `No se pudo conectar con el backend. (${err.message})`;
+    }
+}
+
+// ── Configuración global (accesible desde engranaje de cualquier módulo) ─────
+function abrirConfiguracion() {
+    // Cierra el drawer de alertas si estuviera abierto
+    if (_alertasPanelAbierto) _cerrarAlertasPanel();
+    // Navega a Configuración sin marcar ningún nav-item como activo
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    const tab = document.getElementById('tab-ajustes');
+    if (tab) tab.style.display = 'block';
+    cargarParcelasAjustes();
+}
+
+// ── Exports globales explícitos ──────────────────────────────────────────────
+window.cambiarPestana             = cambiarPestana;
+window.abrirPanelAdmin            = abrirPanelAdmin;
+window.cargarParcelasAjustes      = cargarParcelasAjustes;
+window.confirmarRiego             = confirmarRiego;
+window.calcularNuevaRecomendacion = calcularNuevaRecomendacion;
+window.toggleRiegoManual          = toggleRiegoManual;
+window.registrarRiegoManual       = registrarRiegoManual;
+window.seleccionarParcelaResumen  = seleccionarParcelaResumen;
+window.switchRiegoTab             = switchRiegoTab;
+window.toggleAlertasPanel         = toggleAlertasPanel;
+window.cargarMLTab                = cargarMLTab;
+window.abrirConfiguracion         = abrirConfiguracion;

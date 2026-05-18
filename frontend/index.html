@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MILPÍN DSS</title>
+    <title>MILPÍN MVP</title>
     <link rel="icon" type="image/png" href="../imagenes/milpin-logo.png">
     <link rel="apple-touch-icon" href="../imagenes/milpin-logo.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,10 +39,22 @@
 <main id="main-container">
     <div id="tab-bi" class="tab-content">
         <div class="tab-topbar tab-topbar--bi">
+            <button class="tab-topbar-left tab-topbar-bell" onclick="toggleAlertasPanel()" aria-label="Ver alertas">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="alertas-badge" style="display:none;">0</span>
+            </button>
             <div class="tab-topbar-center">
                 <span class="tab-topbar-title">Dashboard</span>
                 <span class="tab-topbar-sub">DR-041 · Valle del Yaqui</span>
             </div>
+            <button class="tab-topbar-action tab-topbar-config" onclick="abrirConfiguracion()" aria-label="Configuración">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                </svg>
+            </button>
         </div>
 
         <div class="bi-filters-bar">
@@ -104,10 +116,22 @@
 
     <div id="tab-mapas" class="tab-content" style="display:none;">
         <div class="tab-topbar tab-topbar--mapas tab-topbar--simple">
+            <button class="tab-topbar-left tab-topbar-bell" onclick="toggleAlertasPanel()" aria-label="Ver alertas">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="alertas-badge" style="display:none;">0</span>
+            </button>
             <div class="tab-topbar-center">
-                <span class="tab-topbar-title">Mapa</span>
+                <span class="tab-topbar-title">Mapa GIS</span>
                 <span class="tab-topbar-sub">Módulo 3 · Cajeme, DR-041</span>
             </div>
+            <button class="tab-topbar-action tab-topbar-config" onclick="abrirConfiguracion()" aria-label="Configuración">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                </svg>
+            </button>
         </div>
 
         <!-- Barra de búsqueda de parcelas (oculta, toggle con lupa) -->
@@ -121,7 +145,7 @@
             <button class="map-search-clear" onclick="_toggleMapSearch()" aria-label="Cerrar">✕</button>
         </div>
 
-        <div id="map" style="height: calc(100vh - 250px); min-height: 500px; width: 100%; border-radius: 15px; border: 2px solid var(--agri-green);"></div>
+        <div id="map" style="width: 100%; border-radius: 15px; border: 2px solid var(--agri-green);"></div>
         <div id="parcela-detalle-card" style="display:none;"></div>
         <div class="data-card" style="margin-top: 12px; padding: 12px 16px;">
             <div style="font-size: 0.82em; font-weight: 700; margin-bottom: 6px; color: var(--primary-text);">
@@ -140,17 +164,26 @@
 
     <div id="tab-costos" class="tab-content" style="display:none;">
         <div class="tab-topbar tab-topbar--costos tab-topbar--simple">
+            <button class="tab-topbar-left tab-topbar-bell" onclick="toggleAlertasPanel()" aria-label="Ver alertas">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="alertas-badge" style="display:none;">0</span>
+            </button>
             <div class="tab-topbar-center">
-                <span class="tab-topbar-title">Recomendación de Riego</span>
+                <span class="tab-topbar-title">Riego</span>
                 <span class="tab-topbar-sub">FAO-56 Penman-Monteith</span>
             </div>
+            <button class="tab-topbar-action tab-topbar-config" onclick="abrirConfiguracion()" aria-label="Configuración">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                </svg>
+            </button>
         </div>
+
         <div class="riego-container">
             <div class="riego-header">
-                <div>
-                    <h2 class="riego-titulo">Mi Riego</h2>
-                    <p class="riego-subtitulo">Recomendaciones FAO-56 · Valle del Yaqui DR-041</p>
-                </div>
                 <div class="riego-selector-wrap">
                     <label class="riego-label" for="select-parcela-riego">Parcela</label>
                     <select id="select-parcela-riego" class="riego-select" onchange="cargarRecomendacion(this.value)">
@@ -163,6 +196,17 @@
                 <span class="riego-estado-icono">Dataset activo</span>
                 <p>Selecciona una parcela para ver la recomendación activa.</p>
             </div>
+
+            <!-- ── Pill-tab switcher (visible sólo con parcela seleccionada) ── -->
+            <div id="riego-subtab-nav" class="riego-subtab-nav" style="display:none;">
+                <button class="riego-subtab-btn active" id="rtab-btn-rec"
+                        onclick="switchRiegoTab('recomendaciones')">Recomendaciones</button>
+                <button class="riego-subtab-btn" id="rtab-btn-hist"
+                        onclick="switchRiegoTab('historial')">Historial Riego</button>
+            </div>
+
+            <!-- ── Panel Recomendaciones ──────────────────────────────────── -->
+            <div id="riego-panel-rec" class="riego-subtab-panel">
 
             <div id="riego-card-activa" style="display:none;">
 
@@ -324,6 +368,7 @@
                 <p id="riego-forecast-advertencia" class="riego-forecast-advertencia" style="display:none;"></p>
             </div>
 
+
             <div id="riego-historial-wrap" style="display:none;">
                 <h3 class="riego-historial-titulo">Últimas recomendaciones</h3>
                 <div id="riego-historial-lista" class="riego-historial-lista"></div>
@@ -353,7 +398,7 @@
                             <input type="number" id="manual-lamina" class="riego-input riego-manual-input"
                                    min="1" max="300" step="0.5" placeholder="Ej: 80">
                         </div>
-                        <div class="riego-manual-field">
+                        <div class="riego-manual-field riego-manual-field--full">
                             <label class="riego-label" for="manual-metodo">Método de riego</label>
                             <select id="manual-metodo" class="riego-select riego-manual-input">
                                 <option value="">— Selecciona —</option>
@@ -379,8 +424,182 @@
                     </div>
                 </div>
             </div>
+
+            </div><!-- /riego-panel-rec -->
+
+            <!-- ── Panel Historial Riego ──────────────────────────────────── -->
+            <div id="riego-panel-hist" class="riego-subtab-panel" style="display:none;">
+
+                <!-- KPIs -->
+                <div id="rhist-kpis" class="rhist-kpis"></div>
+
+                <!-- Estado vacío / carga -->
+                <div id="rhist-estado" class="rhist-estado" style="display:none;">
+                    <p id="rhist-estado-msg">Cargando historial…</p>
+                </div>
+
+                <!-- Lista scrollable de eventos de riego -->
+                <div id="rhist-lista" class="rhist-lista"></div>
+
+                <!-- Registro manual (acceso directo desde este panel) -->
+                <div class="rhist-manual-acceso">
+                    <button class="riego-subtab-manual-btn"
+                            onclick="switchRiegoTab('recomendaciones'); setTimeout(toggleRiegoManual, 120);">
+                        ＋ Registrar riego manual
+                    </button>
+                </div>
+
+            </div><!-- /riego-panel-hist -->
+
         </div>
     </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         TAB ML — Inteligencia ML · XGBoost · Riesgo Hídrico
+         ══════════════════════════════════════════════════════════════ -->
+    <div id="tab-ml" class="tab-content" style="display:none;">
+        <div class="tab-topbar tab-topbar--ml tab-topbar--simple">
+            <button class="tab-topbar-left tab-topbar-bell" onclick="toggleAlertasPanel()" aria-label="Ver alertas">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="alertas-badge" style="display:none;">0</span>
+            </button>
+            <div class="tab-topbar-center">
+                <span class="tab-topbar-title">Inteligencia ML</span>
+                <span class="tab-topbar-sub">XGBoost · Riesgo Hídrico</span>
+            </div>
+            <button class="tab-topbar-action tab-topbar-config" onclick="abrirConfiguracion()" aria-label="Configuración">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="ml-selector-wrap">
+            <label class="riego-label" for="select-parcela-ml">Parcela</label>
+            <select id="select-parcela-ml" class="riego-select ml-select"
+                    onchange="cargarMLTab(this.value)">
+                <option value="">— Selecciona una parcela —</option>
+            </select>
+        </div>
+
+        <div id="ml-estado" class="ml-estado">
+            <div class="ml-estado-ico">
+                <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="56" height="56">
+                    <circle cx="32" cy="32" r="28" fill="rgba(123,47,190,0.10)" stroke="rgba(123,47,190,0.25)" stroke-width="2"/>
+                    <path d="M20 44 C20 44 26 20 32 20 C38 20 44 44 44 44" stroke="#7B2FBE" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="32" cy="34" r="5" fill="rgba(123,47,190,0.15)" stroke="#7B2FBE" stroke-width="2"/>
+                </svg>
+            </div>
+            <p>Selecciona una parcela para ver el análisis de riesgo hídrico predictivo.</p>
+        </div>
+
+        <!-- Panel principal ML — visible al seleccionar parcela -->
+        <div id="ml-panel" style="display:none;">
+
+            <!-- 1. Card principal de riesgo -->
+            <div id="ml-risk-card" class="ml-risk-card">
+                <div id="ml-risk-icon" class="ml-risk-icon"></div>
+                <div class="ml-risk-body">
+                    <div class="ml-risk-label">Estado hídrico</div>
+                    <div id="ml-risk-nivel" class="ml-risk-nivel">—</div>
+                    <div id="ml-risk-desc" class="ml-risk-desc">—</div>
+                </div>
+                <span id="ml-algoritmo-badge" class="ml-algo-badge"></span>
+            </div>
+
+            <!-- 2. Grid: ¿Requiere riego? + Confianza -->
+            <div class="ml-grid-2">
+                <div class="ml-metric-card ml-metric-card--requiere">
+                    <span class="ml-metric-label">¿Requiere riego?</span>
+                    <span id="ml-requiere" class="ml-requiere-val">—</span>
+                    <span id="ml-requiere-sub" class="ml-requiere-sub"></span>
+                </div>
+                <div class="ml-metric-card ml-metric-card--confianza">
+                    <span class="ml-metric-label">Confianza del modelo</span>
+                    <div id="ml-confianza-wrap" class="ml-confianza-wrap"></div>
+                </div>
+            </div>
+
+            <!-- 3. Lámina ajustada ML -->
+            <div class="ml-lamina-card">
+                <div class="ml-lamina-inner">
+                    <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
+                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" fill="#7B2FBE" opacity=".8"/>
+                    </svg>
+                    <div>
+                        <div class="ml-lamina-label">Lámina ajustada ML</div>
+                        <div class="ml-lamina-row">
+                            <span id="ml-lamina" class="ml-lamina-val">—</span>
+                            <span class="ml-lamina-unit">mm</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Olas decorativas — solo visual, no afecta datos -->
+                <div class="ml-lamina-waves" aria-hidden="true">
+                    <!-- Capa trasera: más alta, más oscura -->
+                    <svg class="ml-wave ml-wave--1" viewBox="0 0 2400 52"
+                         preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 32 C150 18 450 44 600 32
+                                 C750 18 1050 44 1200 32
+                                 C1350 18 1650 44 1800 32
+                                 C1950 18 2250 44 2400 32
+                                 L2400 52 L0 52 Z"/>
+                    </svg>
+                    <!-- Capa media: ligeramente más baja -->
+                    <svg class="ml-wave ml-wave--2" viewBox="0 0 2400 52"
+                         preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 37 C180 25 420 46 600 37
+                                 C780 28 1020 46 1200 37
+                                 C1380 28 1620 46 1800 37
+                                 C1980 28 2220 46 2400 37
+                                 L2400 52 L0 52 Z"/>
+                    </svg>
+                    <!-- Capa frontal: más baja, más suave -->
+                    <svg class="ml-wave ml-wave--3" viewBox="0 0 2400 52"
+                         preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 42 C200 34 400 48 600 42
+                                 C800 36 1000 48 1200 42
+                                 C1400 36 1600 48 1800 42
+                                 C2000 36 2200 48 2400 42
+                                 L2400 52 L0 52 Z"/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- 4. Gauge de riesgo de estrés hídrico -->
+            <div class="ml-gauge-card">
+                <div class="ml-gauge-title">Riesgo de estrés hídrico</div>
+                <div class="ml-gauge-content">
+                    <div id="ml-gauge-wrap" class="ml-gauge-wrap"></div>
+                    <div class="ml-gauge-legend">
+                        <div class="ml-legend-item">
+                            <span class="ml-legend-dot ml-legend-dot--alto"></span>
+                            <span>Alto (75–100%)</span>
+                        </div>
+                        <div class="ml-legend-item">
+                            <span class="ml-legend-dot ml-legend-dot--medio"></span>
+                            <span>Medio (30–75%)</span>
+                        </div>
+                        <div class="ml-legend-item">
+                            <span class="ml-legend-dot ml-legend-dot--bajo"></span>
+                            <span>Bajo (0–30%)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Nota del modelo -->
+            <p class="ml-nota">
+                Modelo entrenado con datos sintéticos FAO-56.
+                No sustituye el criterio agronómico.
+            </p>
+
+        </div><!-- /ml-panel -->
+    </div><!-- /tab-ml -->
 
     <div id="tab-ajustes" class="tab-content" style="display:none;">
         <div class="tab-topbar tab-topbar--ajustes tab-topbar--simple tab-topbar--no-action">
@@ -497,6 +716,22 @@
             </div>
         </div>
 
+        <!-- Sección admin — sólo visible para rol=admin -->
+        <div id="ajustes-admin-section" style="display:none;">
+            <div class="ajustes-section-title">Sistema</div>
+            <div class="ajustes-list-card">
+                <div class="ajustes-list-item" id="ajustes-admin-entry"
+                     onclick="abrirPanelAdmin()"
+                     style="cursor:pointer;">
+                    <div class="ajustes-list-icon ajustes-list-icon--blue">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 8c-2 0-6 1.01-6 3v1h12v-1c0-1.99-4-3-6-3z"/></svg>
+                    </div>
+                    <span class="ajustes-list-label">Panel de administración</span>
+                    <span class="ajustes-list-chevron">›</span>
+                </div>
+            </div>
+        </div>
+
         <div class="ajustes-version">Versión 1.0.0 · MILPÍN AgTech · DR-041</div>
     </div>
 
@@ -505,6 +740,13 @@
          ══════════════════════════════════════════════════════════════ -->
     <div id="tab-admin" class="tab-content" style="display:none;">
         <div class="tab-topbar tab-topbar--ajustes tab-topbar--simple">
+            <button class="tab-topbar-action" title="Volver a Configuración"
+                    onclick="cambiarPestana(event,'tab-ajustes');cargarParcelasAjustes();"
+                    style="margin-left:4px;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+            </button>
             <div class="tab-topbar-center">
                 <span class="tab-topbar-title">Panel Admin</span>
                 <span class="tab-topbar-sub">DR-041 · Todas las parcelas</span>
@@ -551,27 +793,25 @@
 <div id="statusLabel" class="status-label">MILPIN listo</div>
 
 <nav class="nav-bar">
-    <a href="#" class="nav-item active" onclick="cambiarPestana(event,'tab-bi');">
+    <a href="#" class="nav-item active" data-tab="tab-bi" onclick="cambiarPestana(event,'tab-bi');">
         <svg viewBox="0 0 24 24"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/><path d="M4 19h16a1 1 0 0 1 0 2H4a1 1 0 0 1 0-2z"/></svg>
         <span>Dashboard</span>
     </a>
-    <a href="#" class="nav-item" onclick="cambiarPestana(event,'tab-mapas');">
+    <a href="#" class="nav-item" data-tab="tab-mapas" onclick="cambiarPestana(event,'tab-mapas');">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-        <span>Mapa</span>
+        <span>Mapa GIS</span>
     </a>
     <div style="width: 75px;"></div>
-    <a href="#" class="nav-item" onclick="cambiarPestana(event,'tab-costos');">
+    <a href="#" class="nav-item" data-tab="tab-costos" onclick="cambiarPestana(event,'tab-costos');">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
         <span>Riego</span>
     </a>
-    <a href="#" class="nav-item" id="nav-item-admin" style="display:none;"
-       onclick="cambiarPestana(event,'tab-admin');ADMIN.cargar();">
-        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 8c-2 0-6 1.01-6 3v1h12v-1c0-1.99-4-3-6-3z"/></svg>
-        <span>Admin</span>
-    </a>
-    <a href="#" class="nav-item" onclick="cambiarPestana(event,'tab-ajustes');cargarParcelasAjustes();">
-        <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
-        <span>Config</span>
+    <a href="#" class="nav-item" data-tab="tab-ml" onclick="cambiarPestana(event,'tab-ml');">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.44-3.16z"/>
+            <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.44-3.16z"/>
+        </svg>
+        <span>ML</span>
     </a>
 </nav>
 
@@ -603,6 +843,27 @@
                 onclick="document.getElementById('modal-fao56').style.display='none'">Cerrar</button>
     </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     DRAWER DE ALERTAS — global, accesible desde cualquier módulo
+     ══════════════════════════════════════════════════════════════ -->
+<div id="alertas-drawer" class="alertas-drawer" aria-hidden="true">
+    <div class="alertas-drawer-header">
+        <div class="alertas-drawer-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+            </svg>
+        </div>
+        <div class="alertas-drawer-titles">
+            <span class="alertas-drawer-title">Alertas</span>
+            <span class="alertas-drawer-sub">Monitoreo hídrico DR-041</span>
+        </div>
+        <button class="alertas-drawer-close" onclick="toggleAlertasPanel()"
+                aria-label="Cerrar">✕</button>
+    </div>
+    <div id="riego-resumen-wrap" class="alertas-drawer-body"></div>
+</div>
+<div id="alertas-overlay" class="alertas-overlay" onclick="toggleAlertasPanel()"></div>
 
 <script src="src/auth.js"></script>
 <script src="src/map_engine.js"></script>
