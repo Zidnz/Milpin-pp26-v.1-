@@ -561,9 +561,85 @@
             </select>
         </div>
 
+        <!-- Acceso rápido: carga de trabajo técnica -->
+        <div class="admin-workload-entry" onclick="abrirCargaTrabajo()">
+            <div class="admin-workload-entry-ico">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/>
+                </svg>
+            </div>
+            <div class="admin-workload-entry-info">
+                <span class="admin-workload-entry-title">Carga de trabajo · Riego</span>
+                <span class="admin-workload-entry-sub">Parcelas por urgencia, déficit y fechas de riego</span>
+            </div>
+            <span class="admin-workload-entry-chevron">›</span>
+        </div>
+
         <!-- Tabla de parcelas -->
         <div id="admin-tabla-container" style="padding: 0 0 80px;">
             <div class="admin-loading-spinner"></div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         TAB TÉCNICO — Vista de carga de trabajo de riego
+         Accesible desde Panel Admin
+         ══════════════════════════════════════════════════════════════ -->
+    <div id="tab-tecnico" class="tab-content" style="display:none;">
+        <div class="tab-topbar tab-topbar--ajustes tab-topbar--simple">
+            <button class="tab-topbar-action" title="Volver al Panel Admin"
+                    onclick="abrirPanelAdmin()"
+                    style="margin-left:4px;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+            </button>
+            <div class="tab-topbar-center">
+                <span class="tab-topbar-title">Carga de Trabajo</span>
+                <span class="tab-topbar-sub">Operaciones de Riego · DR-041</span>
+            </div>
+            <button class="tab-topbar-action" title="Recargar" onclick="WORKLOAD.cargar()">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="wkload-container">
+            <!-- KPI resumen -->
+            <div id="wkload-resumen" class="wkload-resumen"></div>
+
+            <!-- Filtros por urgencia -->
+            <div class="wkload-filtros">
+                <button class="wkload-filtro-chip wkload-filtro-chip--active"
+                        data-urgencia="todos"
+                        onclick="WORKLOAD.setFiltro('todos')">Todos</button>
+                <button class="wkload-filtro-chip"
+                        data-urgencia="critico"
+                        onclick="WORKLOAD.setFiltro('critico')">Crítico</button>
+                <button class="wkload-filtro-chip"
+                        data-urgencia="moderado"
+                        onclick="WORKLOAD.setFiltro('moderado')">Moderado</button>
+                <button class="wkload-filtro-chip"
+                        data-urgencia="preventivo"
+                        onclick="WORKLOAD.setFiltro('preventivo')">Preventivo</button>
+                <button class="wkload-filtro-chip"
+                        data-urgencia="sin_recomendacion"
+                        onclick="WORKLOAD.setFiltro('sin_recomendacion')">Sin rec.</button>
+            </div>
+
+            <!-- Loading -->
+            <div id="wkload-loading" class="wkload-loading" style="display:none;">
+                <span class="bi-spinner"></span>Cargando carga de trabajo...
+            </div>
+
+            <!-- Lista de parcelas -->
+            <div id="wkload-lista" class="wkload-lista"></div>
+
+            <!-- Pie de página -->
+            <div class="wkload-footer">
+                <span id="wkload-fecha-consulta" class="wkload-footer-txt"></span>
+            </div>
         </div>
     </div>
 </main>
@@ -626,6 +702,7 @@
 <script src="src/map_engine.js"></script>
 <script src="src/bi_dashboard.js"></script>
 <script src="src/admin_panel.js"></script>
+<script src="src/tecnico_workload.js"></script>
 <script src="src/ui_tabs.js"></script>
 <script src="src/voice_client.js"></script>
 <script>
@@ -695,6 +772,19 @@ async function descargarDataset() {
         btn.disabled = false;
         btn.textContent = 'CSV';
     }
+}
+
+// ── Navegación: carga de trabajo técnica (sub-vista de Admin) ───────────────
+function abrirCargaTrabajo() {
+    document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
+    const tab = document.getElementById("tab-tecnico");
+    if (tab) tab.style.display = "block";
+    document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
+    document.querySelectorAll(".nav-item").forEach(i => {
+        const onclick = i.getAttribute("onclick") || "";
+        if (onclick.includes("tab-ajustes")) i.classList.add("active");
+    });
+    if (window.WORKLOAD?.cargar) window.WORKLOAD.cargar();
 }
 
 // ── Toggle barra de búsqueda en Mapa ────────────────────────────────────────

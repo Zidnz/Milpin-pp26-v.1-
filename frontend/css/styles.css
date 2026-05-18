@@ -3054,3 +3054,272 @@ body #main-container {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Admin → Carga de trabajo (entry button inside tab-admin)
+   ══════════════════════════════════════════════════════════════════════ */
+
+.admin-workload-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 10px 16px 4px;
+    padding: 12px 14px;
+    background: var(--accent-bg);
+    border: 1px solid var(--border-card);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background .15s;
+}
+.admin-workload-entry:active { background: #D6E8F7; }
+
+.admin-workload-entry-ico {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--primary-blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+}
+
+.admin-workload-entry-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.admin-workload-entry-title {
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: var(--primary-text);
+}
+.admin-workload-entry-sub {
+    font-size: 0.72rem;
+    color: var(--secondary-text);
+}
+.admin-workload-entry-chevron {
+    font-size: 1.2rem;
+    color: var(--secondary-text);
+    font-weight: 300;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Tab Técnico — Vista de carga de trabajo de riego
+   ══════════════════════════════════════════════════════════════════════ */
+
+.wkload-container {
+    padding: 10px 0 80px;
+}
+
+/* ── KPI resumen ────────────────────────────────────────────────────── */
+.wkload-resumen {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    padding: 10px 16px 6px;
+}
+
+.wkload-kpi-card {
+    background: var(--accent-bg);
+    border-radius: 12px;
+    padding: 10px 6px;
+    text-align: center;
+}
+.wkload-kpi-card--critico    { background: var(--red-bg-badge);   }
+.wkload-kpi-card--moderado   { background: var(--amber-bg-badge); }
+.wkload-kpi-card--preventivo { background: var(--green-bg);       }
+.wkload-kpi-card--sinrec     { background: #F0F4F8;               }
+
+.wkload-kpi-val {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    line-height: 1.1;
+}
+.wkload-kpi-card--critico    .wkload-kpi-val { color: var(--red-dark);    }
+.wkload-kpi-card--moderado   .wkload-kpi-val { color: var(--amber-dark);  }
+.wkload-kpi-card--preventivo .wkload-kpi-val { color: var(--green-dark);  }
+
+.wkload-kpi-lbl {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+
+/* ── Filtros por urgencia ───────────────────────────────────────────── */
+.wkload-filtros {
+    display: flex;
+    gap: 6px;
+    padding: 10px 16px 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.wkload-filtros::-webkit-scrollbar { display: none; }
+
+.wkload-filtro-chip {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border-card);
+    background: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--secondary-text);
+    cursor: pointer;
+    transition: background .12s, color .12s, border-color .12s;
+}
+.wkload-filtro-chip--active {
+    background: var(--primary-blue);
+    color: #fff;
+    border-color: var(--primary-blue);
+}
+.wkload-filtro-chip[data-urgencia="critico"].wkload-filtro-chip--active    { background: var(--red-strong);   border-color: var(--red-strong);   }
+.wkload-filtro-chip[data-urgencia="moderado"].wkload-filtro-chip--active   { background: var(--amber-strong); border-color: var(--amber-strong); color: #fff; }
+.wkload-filtro-chip[data-urgencia="preventivo"].wkload-filtro-chip--active { background: var(--green-strong); border-color: var(--green-strong); }
+
+/* ── Loading ────────────────────────────────────────────────────────── */
+.wkload-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 30px 20px;
+    font-size: 0.82rem;
+    color: var(--secondary-text);
+    justify-content: center;
+}
+
+/* ── Lista de parcelas ──────────────────────────────────────────────── */
+.wkload-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0 16px;
+}
+
+.wkload-item {
+    display: flex;
+    align-items: stretch;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid var(--border-card);
+    margin-bottom: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: box-shadow .15s;
+}
+.wkload-item:active { box-shadow: 0 2px 8px var(--shadow-md); }
+
+/* Left color band by urgency */
+.wkload-band {
+    width: 4px;
+    flex-shrink: 0;
+    background: var(--border-muted);
+}
+.wkload-band--critico    { background: var(--red-strong);    }
+.wkload-band--moderado   { background: var(--amber-strong);  }
+.wkload-band--preventivo { background: var(--green-strong);  }
+.wkload-band--sin_recomendacion { background: #CBD5E0; }
+
+.wkload-item-body {
+    flex: 1;
+    padding: 10px 10px 10px 12px;
+    min-width: 0;
+}
+
+.wkload-item-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+
+.wkload-item-nombre {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wkload-item-sub {
+    font-size: 0.72rem;
+    color: var(--secondary-text);
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wkload-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* Urgency badge */
+.wkload-badge {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: .4px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+.wkload-badge--critico    { background: var(--red-bg-badge);    color: var(--red-dark);   }
+.wkload-badge--moderado   { background: var(--amber-bg-badge);  color: var(--amber-dark); }
+.wkload-badge--preventivo { background: var(--green-bg);        color: var(--green-dark); }
+.wkload-badge--sin_recomendacion { background: #EDF2F7; color: #718096; }
+
+/* Info chips */
+.wkload-chip {
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 8px;
+    background: var(--accent-bg);
+    color: var(--secondary-text);
+    white-space: nowrap;
+}
+.wkload-chip--deficit { color: var(--primary-blue); }
+.wkload-chip--lamina  { color: var(--green-dark); background: var(--green-bg); }
+
+/* Chevron */
+.wkload-chevron {
+    display: flex;
+    align-items: center;
+    padding: 0 12px 0 6px;
+    font-size: 1.3rem;
+    color: var(--secondary-text);
+    font-weight: 300;
+    flex-shrink: 0;
+}
+
+/* ── Empty / error state ────────────────────────────────────────────── */
+.wkload-empty {
+    text-align: center;
+    padding: 40px 20px;
+    font-size: 0.82rem;
+    color: var(--secondary-text);
+}
+.wkload-empty--err { color: var(--red-strong); }
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+.wkload-footer {
+    padding: 10px 16px 0;
+    text-align: right;
+}
+.wkload-footer-txt {
+    font-size: 0.7rem;
+    color: var(--secondary-text);
+}
