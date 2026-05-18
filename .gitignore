@@ -2,6 +2,7 @@
 venv/
 .venv/
 env/
+milpin_env/
 
 # Python cache
 __pycache__/
@@ -11,12 +12,44 @@ __pycache__/
 *.pyd
 *.pdb
 
-# Variables de entorno — 
-# Claude worktrees 
-.claude/worktrees/ 
- 
-# Backups temporales 
-*.conflict_backup 
- 
-# Secretos 
-backend/.env 
+# Variables de entorno — NUNCA subir
+.env
+.env.*
+!.env.example
+
+# Bases de datos locales
+*.db
+*.sqlite3
+
+# macOS
+.DS_Store
+
+# Python packaging
+*.egg-info/
+dist/
+build/
+
+# Claude / Cowork internos
+.claude/
+
+# Outputs generados
+backend/eda_output/
+
+# Modelos ML compilados (fuente de verdad: ML/models/)
+backend/models_ml/
+
+# Cache NASA POWER (regenerable vía tools/nasa_power_etl.py)
+data/raw/nasa_power/
+
+# Node
+node_modules/
+
+# Word / Office lock files
+~$*
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# pytest cache
+.pytest_cache/
+.cache/
