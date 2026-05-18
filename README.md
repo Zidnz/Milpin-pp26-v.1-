@@ -238,60 +238,121 @@ flowchart TB
 ## 📁 Estructura del proyecto
 
 ```text
-backend/
-  main.py                    # app FastAPI 2.0 con lifespan, CORS, 4 routers
-  database.py                # Engine async, IS_SQLITE flag para fallback dev
-  models.py                  # 7 modelos ORM (fuente de verdad real del schema)
-  schema.sql                 # DDL + 2 vistas KPI + seed  ⚠ desalineado con models.py
-  init_db.py                 # seeders (--reset, --check)
-  alembic.ini
-  .env                       # ⚠ contiene secretos — rotar y agregar a .gitignore
-  requirements.txt
-  migrations/
-    env.py
-    versions/
-      0001_postgis_geom_jsonb_to_geometry.py   # JSONB → GEOMETRY(Polygon,4326)
-  API/
-    db_api.py                # 15 endpoints CRUD + GET /parcelas/{id}/forecast + GET /tecnico/carga-trabajo
-    riego_api.py             # FAO-56 + /parcelas/geojson + balance hídrico conectado a BD
-    voice_endpoint.py        # ⚠ path traversal sin sanitizar
-  core/
-    balance_hidrico.py       # FAO-56 Penman-Monteith + KC_TABLE + Hargreaves + propagar_balance_hidrico()
-    eto_forecast.py          # Ridge Regression para forecast ETo 7 días (fallback: media 14 d)
-    llm_orchestrator.py      # VALID_CULTIVOS + Ollama/Groq client
-  tests/
-    conftest.py              # fixtures SQLite async
-    test_fao56_unit.py       # 51 tests unitarios (FAO-56 + TestPropagar 9 casos)
-    test_riego_e2e.py        # 32 tests e2e (endpoints + BD SQLite)
-
-frontend/
-  index.html                 # SPA principal (4 tabs + FAB de voz)
-  css/
-    styles.css               # sistema de diseño tierra (#7BB395, #4A3B28)
-  src/
-    map_engine.js            # Leaflet, carga GeoJSON desde /api/parcelas/geojson
-    ui_tabs.js               # lógica de tabs (recomendador hardcoded eliminado)
-    bi_dashboard.js          # dashboard BI conectado a API real (reemplaza demo coseno)
-    voice_client.js          # Web Speech API + fallback Whisper
-    admin_panel.js           # panel de administración (en desarrollo)
-    tecnico_workload.js      # vista de carga de trabajo para técnicos de riego
-    auth.js                  # lógica de autenticación (en desarrollo)
-  data/
-    lotes.geojson            # fallback estático de geometrías
-
-tools/
-  geo_pipeline.py            # geopandas + make_valid + Douglas-Peucker
-  generar_datos_sinteticos.py
-  nasa_power_etl.py          # ETL NASA POWER → clima_diario
-
-doc/
-  diagramas_mermaid_milpin.md
-  diagramas_uml_milpin.md
+├── backend/                          # Sin cambios mayores
+│   ├── main.py                       # app FastAPI 2.0 con lifespan
+│   ├── .env                          # ⚠ contiene secretos, rotar
+│   ├── schema.sql                    # DDL + 2 vistas KPI + seed
+│   ├── init_db.py                    # seeders
+│   ├── models.py                     # modelos ORM
+│   ├── database.py                   # IS_SQLITE flag para fallback dev
+│   ├── settings.py
+│   ├── migrations/                   # Alembic activo desde 2026-04-30
+│   ├── tests/                        # 77+ tests (FAO-56 unitarios + e2e)
+│   ├── API/
+│   │   ├── riego_api.py              # endpoint FAO-56
+│   │   ├── voice_endpoint.py         # ⚠ path traversal sin sanitizar
+│   │   ├── db_api.py
+│   │   ├── ml_api.py
+│   │   └── actuadores_api.py
+│   └── core/
+│       ├── balance_hidrico.py        # FAO-56 + KC_TABLE (fuente de verdad agro)
+│       ├── eto_forecast.py           # Ridge Regression forecast 7 días
+│       ├── llm_orchestrator.py       # VALID_CULTIVOS + Ollama client
+│       ├── actuador_control.py
+│       ├── xgboost_riego.py          # ⚠ RE-EXPORT TEMPORAL → ml/inference/
+│       └── anomaly_detector.py       # ⚠ RE-EXPORT TEMPORAL → ml/inference/
+│
+├── ml/                               # Separación ML (nueva desde 2026-05-16)
+│   ├── training/                     # Código de entrenamiento — nunca importa backend/
+│   │   ├── xgboost_riego/
+│   │   │   ├── train.py
+│   │   │   ├── eval.py
+│   │   │   ├── promote.py            # promote gate con umbrales en configs/
+│   │   │   └── generar_datos.py
+│   │   ├── isolation_forest/
+│   │   │   └── train.py             # stub, Fase B
+│   │   └── eto_ridge/
+│   │       └── train.py             # stub, Fase B
+│   ├── inference/                    # Wrappers de inferencia (singletons)
+│   │   ├── xgboost_riego.py          # ← movido desde backend/core/
+│   │   ├── anomaly_detector.py       # ← movido desde backend/core/
+│   │   └── feature_preprocessor.py
+│   ├── feature_store/
+│   │   ├── views/                    # Definiciones YAML de features
+│   │   │   ├── parcela_static.yaml
+│   │   │   ├── parcela_daily.yaml
+│   │   │   └── parcela_ciclo.yaml
+│   │   └── builders/                 # Lógica de materialización (stub)
+│   ├── monitoring/
+│   │   ├── drift.py                  # PSI, KS — detección de drift
+│   │   └── eval_metrics.py           # métricas compartidas
+│   ├── pipelines/                    # Prefect flows (stubs, Fase C/D)
+│   │   ├── nasa_power_daily.py
+│   │   ├── features_materialize.py
+│   │   ├── train_eval_promote.py
+│   │   └── batch_scoring.py
+│   ├── models/                       # Solo metadata (apunta a MLflow registry)
+│   │   └── README.md
+│   ├── experiments/                  # Notebooks experimentales
+│   │   ├── eda_milpin.ipynb
+│   │   ├── xgboost_v3_diversity.ipynb
+│   │   └── anomaly_detector.ipynb
+│   ├── configs/                      # Hyperparámetros declarativos YAML
+│   │   ├── xgboost_riego.yaml
+│   │   ├── isolation_forest.yaml
+│   │   └── eto_ridge.yaml
+│   └── tests/
+│       ├── test_preprocessor.py
+│       ├── test_drift.py
+│       └── test_promote_gate.py
+│
+├── data/
+│   ├── raw/                          # Cache NASA POWER, SHP originales
+│   ├── synthetic/                    # CSVs sintéticos (fuente de verdad)
+│   │   ├── milpin_ciclos_ml.csv      # dataset ML principal
+│   │   └── (otros CSVs generados por tools/generar_datos_sinteticos.py)
+│   ├── snapshots/                    # Parquets Feature Store (DVC)
+│   └── README.md
+│
+├── tools/                            # Scripts CLI (no ML, no backend)
+│   ├── nasa_power_etl.py             # Ingestor NASA POWER
+│   ├── geo_pipeline.py               # geopandas + make_valid + Douglas-Peucker
+│   ├── importar_csv_postgres.py
+│   ├── recuperar_cache_nasa.py
+│   ├── generar_datos_sinteticos.py
+│   └── cargar_datos_sinteticos.py
+│
+├── frontend/                         # Sin cambios
+│   ├── index.html
+│   ├── src/
+│   │   ├── map_engine.js
+│   │   ├── ui_tabs.js
+│   │   ├── bi_dashboard.js
+│   │   ├── voice_client.js
+│   │   ├── auth.js
+│   │   └── admin_panel.js
+│   ├── css/styles.css
+│   └── data/                         # GeoJSON estáticos (fallback)
+│
+├── docs/                             # Documentación canónica (reemplaza doc/)
+│   ├── ARCHITECTURE.md
+│   ├── AGRONOMY.md                   # FAO-56/33 referenciado
+│   ├── MLOPS.md
+│   ├── SECURITY.md
+│   └── runbooks/
+│       ├── nasa_power_falla.md
+│       └── drift_alerta.md
+│
+├── infra/                            # Docker, Prefect, MLflow, Grafana
+│   ├── docker-compose.yml            # postgres+postgis, minio, mlflow, grafana
+│   ├── prefect/
+│   └── grafana/
+│
+├── pyproject.toml                    # (pendiente: reemplazar requirements.txt)
+├── alembic.ini                       # (copia raíz; el canónico está en backend/)
+├── CLAUDE.md
+└── README.md
 ```
-
-> `frontend/main.py` — stub muerto neutralizado con `RuntimeError`. Pendiente `git rm frontend/main.py`.
-
----
 
 ## API Reference
 
