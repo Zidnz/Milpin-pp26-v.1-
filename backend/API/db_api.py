@@ -991,6 +991,105 @@ async def costos_por_parcela(id_parcela: uuid.UUID, db: AsyncSession = Depends(g
     return resultado.scalars().all()
 
 
+# ── Endpoint: carga de trabajo técnico de riego ───────────────────────────────
+
+@router.get("/tecnico/carga-trabajo")
+async def carga_trabajo_tecnico(
+    id_usuario: Optional[uuid.UUID] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Vista de carga de trabajo para técnicos de riego.
+
+    Retorna todas las parcelas activas con su última recomendación pendiente,
+    ordenadas por urgencia (crítico → moderado → preventivo → sin recomendación).
+
+    Parámetros opcionales:
+      id_usuario — filtra por propietario (sin filtro = todas las parcelas del sistema).
+    """
+    # --- 1. Parcelas activas con propietario y cultivo ---
+    stmt = (
+        select(Parcela, Usuario, CultivoCatalogo)
+        .join(Usuario, Parcela.id_usuario == Usuario.id_usuario)
+        .outerjoin(CultivoCatalogo, Parcela.id_cultivo_actual == CultivoCatalogo.id_cultivo)
+        .where(Parcela.activo == True)
+        .order_by(Parcela.nombre_parcela)
+    )
+    if id_usuario is not None:
+        stmt = stmt.where(Parcela.id_usuario == id_usuario)
+
+    parcelas_res = await db.execute(stmt)
+    parcelas_rows = parcelas_res.all()
+
+    if not parcelas_rows:
+        return {
+            "fecha_consulta": date.today().isoformat(),
+            "resumen": {"total": 0, "critico": 0, "moderado": 0, "preventivo": 0, "sin_recomendacion": 0},
+            "parcelas": [],
+        }
+
+    parcela_ids = [row.Parcela.id_parcela for row in parcelas_rows]
+
+    # --- 2. Todas las recomendaciones pendientes; Python-side: más reciente por parcela ---
+    recs_res = await db.execute(
+        select(Recomendacion)
+        .where(
+            Recomendacion.aceptada == "pendiente",
+            Recomendacion.id_parcela.in_(parcela_ids),
+        )
+        .order_by(Recomendacion.fecha_generacion.desc())
+    )
+    rec_por_parcela: dict[str, Recomendacion] = {}
+    for r in recs_res.scalars().all():
+        pid = str(r.id_parcela)
+        if pid not in rec_por_parcela:
+            rec_por_parcela[pid] = r
+
+    # --- 3. Construir lista de items ---
+    URGENCIA_ORDEN = {"critico": 0, "moderado": 1, "preventivo": 2}
+
+    items = []
+    for row in parcelas_rows:
+        p: Parcela = row.Parcela
+        u: Usuario = row.Usuario
+        c: Optional[CultivoCatalogo] = row.CultivoCatalogo
+        r: Optional[Recomendacion] = rec_por_parcela.get(str(p.id_parcela))
+
+        items.append({
+            "id_parcela":            str(p.id_parcela),
+            "nombre_parcela":        p.nombre_parcela or f"Parcela {str(p.id_parcela)[:8]}",
+            "id_usuario":            str(p.id_usuario),
+            "propietario":           u.nombre_completo,
+            "cultivo":               c.nombre_comun if c else None,
+            "area_ha":               float(p.area_ha) if p.area_ha else None,
+            "sistema_riego":         p.sistema_riego,
+            "nivel_urgencia":        r.nivel_urgencia if r else None,
+            "dias_sin_riego":        r.dias_sin_riego if r else None,
+            "deficit_acumulado_mm":  float(r.deficit_acumulado_mm) if r and r.deficit_acumulado_mm else None,
+            "lamina_recomendada_mm": float(r.lamina_recomendada_mm) if r and r.lamina_recomendada_mm else None,
+            "fecha_riego_sugerida":  r.fecha_riego_sugerida.isoformat() if r and r.fecha_riego_sugerida else None,
+            "id_recomendacion":      str(r.id_recomendacion) if r else None,
+            "aceptada":              r.aceptada if r else None,
+            "fecha_generacion":      r.fecha_generacion.isoformat() if r else None,
+        })
+
+    # Sort by urgency first, then alphabetically by name
+    items.sort(key=lambda x: (URGENCIA_ORDEN.get(x["nivel_urgencia"], 3), x["nombre_parcela"].lower()))
+
+    # --- 4. Resumen ---
+    conteo = {"critico": 0, "moderado": 0, "preventivo": 0, "sin_recomendacion": 0}
+    for item in items:
+        k = item["nivel_urgencia"] or "sin_recomendacion"
+        if k in conteo:
+            conteo[k] += 1
+
+    return {
+        "fecha_consulta": date.today().isoformat(),
+        "resumen":        {"total": len(items), **conteo},
+        "parcelas":       items,
+    }
+
+
 # Endpoint: proyeccion FAO-56 a N dias con Ridge Regression sobre ETo
 
 @router.get("/parcelas/{id_parcela}/forecast", tags=["Forecast"])
