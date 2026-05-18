@@ -2,7 +2,7 @@
 
 ## 1. Qué es
 
-ERP agrícola inteligente con GIS, ML y voz para optimizar el uso de agua
+DSS agrícola inteligente con GIS, ML y voz para optimizar el uso de agua
 de riego en el Valle del Yaqui, Sonora (DR-041, foco en Módulo 3).
 
 **KPI central:** reducir consumo de 8,000 m³/ha/ciclo → 6,000 m³/ha/ciclo
@@ -34,11 +34,7 @@ Ya funciona:
 - Pipeline GIS con geopandas + shapely `make_valid` + Douglas-Peucker.
 
 Falta para MVP:
-- ~~PostGIS real (hoy la geometría es JSONB).~~ **RESUELTO 2026-04-30.**
-- ~~Migraciones Alembic~~ **RESUELTO 2026-04-30** — `backend/migrations/` activo.
-- ~~Tests automatizados.~~ **RESUELTO 2026-05-01** — 77 tests (42 unitarios FAO-56 + 35 e2e con SQLite). Ver `backend/tests/`.
 - ~~Persistencia del loop recomendación→feedback (tablas existen, no se escriben).~~ **RESUELTO 2026-05-01** — `PATCH /recomendaciones/{id}/feedback` auto-inserta en `historial_riego` cuando `aceptada` es `"aceptada"` o `"modificada"`. Verificado con test `TestFeedbackLoop` (7 casos).
-- Autenticación (cualquiera puede postear `id_usuario` en el body).
 - ~~**Humedad inicial inventada.**~~ **RESUELTO 2026-05-06.** `propagar_balance_hidrico()` en `core/balance_hidrico.py` reemplaza `(CC+PMP)/2` con balance acumulado dia a dia desde el ultimo riego real. Conectado en `riego_api.py::get_balance_hidrico()` y `db_api.py::forecast_parcela()`. 9 tests unitarios nuevos en `TestPropagar` (51 total).
 
 ## 3. Stack — no cambiar sin justificación fuerte
@@ -62,21 +58,6 @@ Falta para MVP:
 ## 4. Catálogo de cultivos (fuente de verdad)
 
 Los 5 cultivos oficiales son: **Maíz, Frijol, Algodón, Uva, Chile.**
-
-Previamente existían Trigo, Cártamo y Garbanzo (formato beta/demo); fueron
-eliminados de:
-- `backend/core/balance_hidrico.py::KC_TABLE`
-- `backend/core/llm_orchestrator.py::VALID_CULTIVOS`
-- `backend/init_db.py::CULTIVOS_SEMILLA`
-- `backend/schema.sql` (seed)
-- `frontend/index.html` (select-cultivo)
-- `tools/generar_datos_sinteticos.py::CATALOGO_CULTIVOS`
-
-**Nota crítica:** Uva y Chile no son cultivos dominantes del DR-041 real
-(los reales son trigo/maíz/cártamo/algodón/garbanzo). La selección
-favorece cultivos de alto valor. Si en algún momento el proyecto se valida
-con agricultores reales, este catálogo probablemente necesite volver a
-discutirse.
 
 **Deuda estructural:** la fuente de verdad debería ser la tabla
 `cultivos_catalogo` leída en runtime, no constantes duplicadas en 6 lugares.
@@ -116,34 +97,142 @@ Fase A — higiene y consolidación (hacer antes de features nuevas):
 Usuario de prueba seeded: Ramón Valenzuela Torres (rvalenzuela@dr041-dev.com,
 Módulo 3).
 
-## 6. Estructura esperada
+## 6. Estructura del proyecto
+
+Reestructurada 2026-05-16 según sección 18 de `MILPIN_Auditoria_ML_MLOps_v1.docx`.
+Separación explícita de entrenamiento, inferencia, datos y orquestación.
 
 ```
-backend/
-  main.py                      # app FastAPI 2.0 con lifespan
-  .env                         # ⚠ contiene secretos, rotar
-  schema.sql                   # DDL + 2 vistas KPI + seed
-  init_db.py                   # seeders
-  models.py                    # 5 modelos ORM
-  database.py                  # IS_SQLITE flag para fallback dev
-  API/
-    riego_api.py               # endpoint FAO-56 (deuda: query params)
-    voice_endpoint.py          # ⚠ path traversal sin sanitizar
-    ...
-  core/
-    balance_hidrico.py         # FAO-56 + KC_TABLE
-    llm_orchestrator.py        # VALID_CULTIVOS + Ollama client
-frontend/
-  index.html
-  src/
-    map_engine.js
-    ui_tabs.js                 # recomendador fake
-    voice_client.js
-  main.py                      # ⚠ stub muerto, borrar
-tools/
-  geo_pipeline.py              # geopandas + make_valid + Douglas-Peucker
-  generar_datos_sinteticos.py
+milpin/
+├── backend/                          # Sin cambios mayores
+│   ├── main.py                       # app FastAPI 2.0 con lifespan
+│   ├── .env                          # ⚠ contiene secretos, rotar
+│   ├── schema.sql                    # DDL + 2 vistas KPI + seed
+│   ├── init_db.py                    # seeders
+│   ├── models.py                     # modelos ORM
+│   ├── database.py                   # IS_SQLITE flag para fallback dev
+│   ├── settings.py
+│   ├── migrations/                   # Alembic activo desde 2026-04-30
+│   ├── tests/                        # 77+ tests (FAO-56 unitarios + e2e)
+│   ├── API/
+│   │   ├── riego_api.py              # endpoint FAO-56
+│   │   ├── voice_endpoint.py         # ⚠ path traversal sin sanitizar
+│   │   ├── db_api.py
+│   │   ├── ml_api.py
+│   │   └── actuadores_api.py
+│   └── core/
+│       ├── balance_hidrico.py        # FAO-56 + KC_TABLE (fuente de verdad agro)
+│       ├── eto_forecast.py           # Ridge Regression forecast 7 días
+│       ├── llm_orchestrator.py       # VALID_CULTIVOS + Ollama client
+│       ├── actuador_control.py
+│       ├── xgboost_riego.py          # ⚠ RE-EXPORT TEMPORAL → ml/inference/
+│       └── anomaly_detector.py       # ⚠ RE-EXPORT TEMPORAL → ml/inference/
+│
+├── ml/                               # Separación ML (nueva desde 2026-05-16)
+│   ├── training/                     # Código de entrenamiento — nunca importa backend/
+│   │   ├── xgboost_riego/
+│   │   │   ├── train.py
+│   │   │   ├── eval.py
+│   │   │   ├── promote.py            # promote gate con umbrales en configs/
+│   │   │   └── generar_datos.py
+│   │   ├── isolation_forest/
+│   │   │   └── train.py             # stub, Fase B
+│   │   └── eto_ridge/
+│   │       └── train.py             # stub, Fase B
+│   ├── inference/                    # Wrappers de inferencia (singletons)
+│   │   ├── xgboost_riego.py          # ← movido desde backend/core/
+│   │   ├── anomaly_detector.py       # ← movido desde backend/core/
+│   │   └── feature_preprocessor.py
+│   ├── feature_store/
+│   │   ├── views/                    # Definiciones YAML de features
+│   │   │   ├── parcela_static.yaml
+│   │   │   ├── parcela_daily.yaml
+│   │   │   └── parcela_ciclo.yaml
+│   │   └── builders/                 # Lógica de materialización (stub)
+│   ├── monitoring/
+│   │   ├── drift.py                  # PSI, KS — detección de drift
+│   │   └── eval_metrics.py           # métricas compartidas
+│   ├── pipelines/                    # Prefect flows (stubs, Fase C/D)
+│   │   ├── nasa_power_daily.py
+│   │   ├── features_materialize.py
+│   │   ├── train_eval_promote.py
+│   │   └── batch_scoring.py
+│   ├── models/                       # Solo metadata (apunta a MLflow registry)
+│   │   └── README.md
+│   ├── experiments/                  # Notebooks experimentales
+│   │   ├── eda_milpin.ipynb
+│   │   ├── xgboost_v3_diversity.ipynb
+│   │   └── anomaly_detector.ipynb
+│   ├── configs/                      # Hyperparámetros declarativos YAML
+│   │   ├── xgboost_riego.yaml
+│   │   ├── isolation_forest.yaml
+│   │   └── eto_ridge.yaml
+│   └── tests/
+│       ├── test_preprocessor.py
+│       ├── test_drift.py
+│       └── test_promote_gate.py
+│
+├── data/
+│   ├── raw/                          # Cache NASA POWER, SHP originales
+│   ├── synthetic/                    # CSVs sintéticos (fuente de verdad)
+│   │   ├── milpin_ciclos_ml.csv      # dataset ML principal
+│   │   └── (otros CSVs generados por tools/generar_datos_sinteticos.py)
+│   ├── snapshots/                    # Parquets Feature Store (DVC)
+│   └── README.md
+│
+├── tools/                            # Scripts CLI (no ML, no backend)
+│   ├── nasa_power_etl.py             # Ingestor NASA POWER
+│   ├── geo_pipeline.py               # geopandas + make_valid + Douglas-Peucker
+│   ├── importar_csv_postgres.py
+│   ├── recuperar_cache_nasa.py
+│   ├── generar_datos_sinteticos.py
+│   └── cargar_datos_sinteticos.py
+│
+├── frontend/                         # Sin cambios
+│   ├── index.html
+│   ├── src/
+│   │   ├── map_engine.js
+│   │   ├── ui_tabs.js
+│   │   ├── bi_dashboard.js
+│   │   ├── voice_client.js
+│   │   ├── auth.js
+│   │   └── admin_panel.js
+│   ├── css/styles.css
+│   └── data/                         # GeoJSON estáticos (fallback)
+│
+├── docs/                             # Documentación canónica (reemplaza doc/)
+│   ├── ARCHITECTURE.md
+│   ├── AGRONOMY.md                   # FAO-56/33 referenciado
+│   ├── MLOPS.md
+│   ├── SECURITY.md
+│   └── runbooks/
+│       ├── nasa_power_falla.md
+│       └── drift_alerta.md
+│
+├── infra/                            # Docker, Prefect, MLflow, Grafana
+│   ├── docker-compose.yml            # postgres+postgis, minio, mlflow, grafana
+│   ├── prefect/
+│   └── grafana/
+│
+├── pyproject.toml                    # (pendiente: reemplazar requirements.txt)
+├── alembic.ini                       # (copia raíz; el canónico está en backend/)
+├── CLAUDE.md
+└── README.md
 ```
+
+### Regla de imports entre capas
+
+```
+frontend  →  backend/API  →  backend/core (agro puro)
+                          →  ml/inference (read-only)
+ml/training  →  data/     →  ml/configs/
+ml/training  NO importa backend/
+```
+
+### Re-exports temporales (eliminar en Fase B)
+`backend/core/xgboost_riego.py` y `backend/core/anomaly_detector.py` son
+re-exports temporales. No agregar lógica nueva allí. El código real vive en
+`ml/inference/`.
 
 ## 7. Cómo colaborar con Omar
 
