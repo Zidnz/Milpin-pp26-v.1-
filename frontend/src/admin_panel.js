@@ -264,9 +264,9 @@ const ADMIN = (() => {
     // Sólo montar si el usuario es admin
     if (!window.MILPIN_AUTH?.isAdmin?.()) return;
 
-    // Mostrar nav item admin
-    const navAdmin = document.getElementById('nav-item-admin');
-    if (navAdmin) navAdmin.style.display = 'flex';
+    // Mostrar entrada admin dentro de Config (ya no está en el nav bar)
+    const adminSection = document.getElementById('ajustes-admin-section');
+    if (adminSection) adminSection.style.display = 'block';
 
     // Filtro usuario
     const selUsr = document.getElementById('admin-filter-usuario');
