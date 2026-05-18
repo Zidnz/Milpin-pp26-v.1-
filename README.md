@@ -89,6 +89,7 @@
 | **actuadores_api.py** | 5 endpoints para control de actuadores físicos de riego. | 2026-05-16 |
 | **Módulo ML separado** | `ML/` con training, inference, configs YAML, monitoring, pipelines, experiments, feature_store. | 2026-05-16 |
 | **Power BI** | Proyecto `.pbip` en `pbir/`, medidas DAX y Power Query M en `MILPIN_PowerBI/`. Conectado a CSVs sintéticos. | — |
+| **Vista de carga de trabajo técnica** | `GET /api/tecnico/carga-trabajo` agrega parcelas activas con última recomendación pendiente, ordenadas por urgencia. Frontend: `tecnico_workload.js`. | 2026-05-18 |
 | Pipeline de voz | Whisper STT carga lazy (startup ~2 s) → Ollama `llama3.2:latest` → Web Speech API TTS | 2026-04-30 |
 | Clustering K-Means | scikit-learn 1.5, zonas de manejo y logística | — |
 | Frontend GIS | Vanilla JS + Leaflet 1.9.4, capas Esri + OpenTopoMap + límites Cajeme. `map_engine.js` carga desde PostGIS (fallback: `lotes.geojson`). | — |
