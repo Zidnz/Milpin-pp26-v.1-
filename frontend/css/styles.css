@@ -1984,6 +1984,171 @@ select, input {
     border-color: var(--primary-green);
 }
 
+/* ── Resumen multi-parcela (tab Riego) ──────────────────────── */
+/* Layout: 3 KPI cards en fila + lista con scroll (3 filas visibles) */
+.rresumen-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 1px 5px rgba(74,59,40,.08);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+/* ── KPI cards (fila superior) ───────────────────────────────── */
+.rresumen-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 16px 16px 12px;
+}
+.rresumen-kpi-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 16px 10px;
+    border-radius: 10px;
+    cursor: default;
+}
+.rresumen-kpi-card--critico    { background: #E8622A; }
+.rresumen-kpi-card--moderado   { background: #F5A623; }
+.rresumen-kpi-card--preventivo { background: #43B36B; }
+
+.rresumen-kpi-num {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+}
+.rresumen-kpi-card--critico    .rresumen-kpi-num { color: #fff; }
+.rresumen-kpi-card--moderado   .rresumen-kpi-num { color: #fff; }
+.rresumen-kpi-card--preventivo .rresumen-kpi-num { color: #fff; }
+
+.rresumen-kpi-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: .03em;
+    color: rgba(255,255,255,0.90);
+}
+
+/* ── Lista de parcelas (full scroll dentro del drawer) ──────── */
+.rresumen-lista {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid rgba(74,59,40,.06);
+}
+.rresumen-lista--scroll {
+    overflow-y: visible;   /* el scroll lo maneja .alertas-drawer-body */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(74,59,40,.18) transparent;
+}
+.rresumen-lista--scroll::-webkit-scrollbar { width: 4px; }
+.rresumen-lista--scroll::-webkit-scrollbar-thumb {
+    background: rgba(74,59,40,.2);
+    border-radius: 4px;
+}
+
+/* Fila por parcela */
+.rresumen-fila {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    min-height: 48px;
+    border-bottom: 1px solid rgba(74,59,40,.05);
+    cursor: pointer;
+    transition: filter .12s;
+    flex-wrap: nowrap;
+    box-sizing: border-box;
+}
+.rresumen-fila:last-child   { border-bottom: none; }
+.rresumen-fila:hover        { filter: brightness(.96); }
+.rresumen-fila--vacia       { cursor: default; opacity: .5; }
+.rresumen-fila--vacia:hover { filter: none; }
+
+.rresumen-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.rresumen-info  { flex: 1; min-width: 0; overflow: hidden; }
+.rresumen-nombre {
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: var(--primary-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.rresumen-cultivo {
+    font-size: 0.76rem;
+    color: var(--secondary-text);
+    font-weight: 400;
+}
+.rresumen-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.rresumen-met {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 72px;
+    flex-shrink: 0;
+}
+.rresumen-met-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--secondary-text);
+    font-weight: 600;
+}
+.rresumen-met strong {
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--primary-text);
+}
+.rresumen-arrow {
+    font-size: 1rem;
+    color: var(--secondary-text);
+    flex-shrink: 0;
+}
+
+/* Hint de scroll debajo de la lista */
+.rresumen-scroll-hint {
+    padding: 5px 16px 8px;
+    font-size: 0.68rem;
+    color: var(--secondary-text);
+    text-align: center;
+    border-top: 1px solid rgba(74,59,40,.05);
+}
+
+.rresumen-loading {
+    padding: 20px;
+    font-size: 0.82rem;
+    color: var(--secondary-text);
+    text-align: center;
+}
+.rresumen-error {
+    padding: 12px 20px;
+    font-size: 0.8rem;
+    color: var(--red-strong);
+}
+
+@media (max-width: 480px) {
+    .rresumen-kpis        { gap: 8px; padding: 12px 12px 10px; }
+    .rresumen-kpi-num     { font-size: 1.5rem; }
+    .rresumen-badge       { display: none; }
+    .rresumen-arrow       { display: none; }
+    .rresumen-fila        { padding: 10px 12px; gap: 8px; }
+    .rresumen-lista--scroll { max-height: none; }
+}
+
 /* ── KPI Grid ────────────────────────────────────────────────── */
 .bi-kpi-grid {
     display: grid;
@@ -3054,3 +3219,2598 @@ body #main-container {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ══════════════════════════════════════════════════════════════════
+   MOBILE-FIRST LAYOUT — fixes globales
+   Objetivo: app-shell real con topbar sticky, nav inferior + safe-area,
+   sin el hack de márgenes negativos en .tab-topbar.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Base ─────────────────────────────────────────────────────── */
+html { height: 100%; }
+body {
+    overscroll-behavior-y: none;          /* evita scroll rebote en iOS/Android */
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ── 2. Contenedor principal ─────────────────────────────────────── */
+/*    Eliminamos el padding global (cada tab maneja el suyo).          */
+/*    El espacio inferior cubre la nav fija + safe-area iOS.           */
+#main-container {
+    padding: 0 !important;
+    margin-bottom: 0 !important;
+    padding-bottom: calc(75px + env(safe-area-inset-bottom, 0px)) !important;
+}
+body #main-container {
+    padding-top: 0 !important;  /* anula la regla duplicada anterior */
+}
+
+/* ── 3. Topbar: sticky + sin márgenes negativos ──────────────────── */
+.tab-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 0 !important;   /* reemplaza el hack -25px -25px 20px */
+}
+
+/* ── 4. Padding interno por tab ──────────────────────────────────── */
+/*    Reemplaza el padding que antes venía de #main-container.         */
+
+/* Tab Dashboard */
+.bi-filters-bar {
+    margin: 0 12px 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 16px;
+}
+#bi-dashboard-content {
+    padding: 0 12px;
+}
+
+/* Tab Mapa */
+#tab-mapas > #map-search-bar  { margin: 8px 12px 6px; }
+#tab-mapas > #map              { margin: 0 12px; }
+#tab-mapas > #parcela-detalle-card { margin: 0 12px; }
+#tab-mapas > .data-card        { margin: 10px 12px 0; }
+
+/* Tab Riego */
+.riego-container {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+}
+
+/* Tab Ajustes */
+.ajustes-profile-card,
+.ajustes-section-title,
+.ajustes-list-card,
+.ajustes-version,
+#ajustes-admin-section {
+    margin-left: 16px;
+    margin-right: 16px;
+}
+
+/* Tab Admin (badge + kpis ya tienen padding interno) */
+#tab-admin > div[style*="ADMINISTRADOR"] {
+    padding-left: 16px;
+}
+
+/* ── 5. Nav bar: safe-area iOS ───────────────────────────────────── */
+.nav-bar {
+    height: calc(75px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    padding-top: 10px;
+    align-items: flex-start !important;
+    box-sizing: border-box;
+}
+
+/* ── 6. FAB: alinear con nav safe-area ──────────────────────────── */
+.milpin-fab {
+    bottom: calc(25px + env(safe-area-inset-bottom, 0px)) !important;
+}
+.status-label {
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* ── 7. Mapa: altura dinámica con dvh ───────────────────────────── */
+/*    56px topbar + 75px nav + safe-area + 24px margen inferior        */
+#map {
+    height: calc(100dvh - 56px - 75px - env(safe-area-inset-bottom, 0px) - 24px) !important;
+    min-height: 280px !important;
+    max-height: 62dvh;
+    border-radius: 12px !important;
+}
+
+/* ── 8. BI Filters: scroll horizontal en móvil ───────────────────── */
+.bi-filters-controls {
+    width: 100%;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+}
+.bi-filters-controls::-webkit-scrollbar { display: none; }
+
+
+/* Ocultar brand en movil para ahorrar espacio vertical */
+@media (max-width: 480px) {
+    .bi-filters-brand { display: none; }
+}
+
+/* Admin KPIs: 2 columnas en movil */
+@media (max-width: 600px) {
+    .admin-kpis-row {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+
+/* Area minima tactil en nav items */
+.nav-item {
+    min-width: 48px;
+    padding: 4px 8px;
+}
+
+/* Sin overflow horizontal global */
+.tab-content {
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ML · XGBoost — Panel de predicción en tab Riego
+   ═══════════════════════════════════════════════════════════════ */
+
+.riego-xgb-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 20px 0 10px;
+}
+
+.riego-xgb-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.riego-xgb-card {
+    background: var(--accent-bg);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.riego-xgb-card--full {
+    grid-column: 1 / -1;
+}
+
+.riego-xgb-label {
+    font-size: 0.72rem;
+    color: var(--secondary-text);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.riego-xgb-val {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    line-height: 1.2;
+}
+
+/* Badge ¿Requiere riego? */
+.riego-xgb-badge {
+    display: inline-block;
+    font-size: 0.88rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    align-self: flex-start;
+}
+.riego-xgb-badge--si {
+    background: rgba(230, 57, 70, 0.12);
+    color: #e63946;
+    border: 1px solid rgba(230, 57, 70, 0.25);
+}
+.riego-xgb-badge--no {
+    background: rgba(123, 179, 149, 0.12);
+    color: var(--primary-green);
+    border: 1px solid rgba(123, 179, 149, 0.25);
+}
+.riego-xgb-badge--loading {
+    background: var(--border-card);
+    color: var(--secondary-text);
+}
+
+/* Barra de estrés hídrico */
+.riego-xgb-bar-wrap {
+    width: 100%;
+    height: 8px;
+    background: var(--border-card);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.riego-xgb-bar {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.5s ease, background-color 0.5s ease;
+    min-width: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ML · Tarjeta de urgencia con ícono SVG
+   ═══════════════════════════════════════════════════════════════ */
+
+.xgb-urgencia-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 16px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border-card);
+    margin-bottom: 12px;
+    transition: background 0.35s ease, border-color 0.35s ease;
+}
+.xgb-urgencia-card--critico {
+    background: rgba(230, 57, 70, 0.07);
+    border-color: rgba(230, 57, 70, 0.28);
+}
+.xgb-urgencia-card--moderado {
+    background: rgba(255, 185, 50, 0.09);
+    border-color: rgba(255, 185, 50, 0.35);
+}
+.xgb-urgencia-card--preventivo {
+    background: rgba(82, 183, 136, 0.08);
+    border-color: rgba(82, 183, 136, 0.28);
+}
+
+.xgb-urgencia-icon {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.xgb-urgencia-icon svg {
+    width: 46px;
+    height: 46px;
+}
+
+.xgb-urgencia-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.xgb-urgencia-nivel {
+    font-size: 1.0rem;
+    font-weight: 700;
+    text-transform: capitalize;
+    line-height: 1.2;
+}
+.xgb-urgencia-nivel--critico   { color: #e63946; }
+.xgb-urgencia-nivel--moderado  { color: #d4820a; }
+.xgb-urgencia-nivel--preventivo{ color: var(--primary-green, #52b788); }
+
+.xgb-urgencia-desc {
+    font-size: 0.78rem;
+    color: var(--secondary-text);
+    line-height: 1.3;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ML · Gauge semicircular de riesgo de estrés
+   ═══════════════════════════════════════════════════════════════ */
+
+.xgb-gauge-card {
+    align-items: center;
+}
+.xgb-gauge-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 6px 0 2px;
+}
+.xgb-gauge-svg {
+    width: 190px;
+    height: 112px;
+    overflow: visible;
+}
+.xgb-gauge-track {
+    fill: none;
+    stroke: var(--border-card, #e5e9f0);
+    stroke-width: 15;
+    stroke-linecap: round;
+}
+.xgb-gauge-fill {
+    fill: none;
+    stroke-width: 15;
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.65s cubic-bezier(.4,0,.2,1),
+                stroke 0.4s ease;
+}
+.xgb-gauge-pct {
+    font-size: 28px;
+    font-weight: 800;
+    font-family: 'Poppins', sans-serif;
+    dominant-baseline: auto;
+}
+.xgb-gauge-sub {
+    font-size: 10.5px;
+    font-family: 'Poppins', sans-serif;
+    dominant-baseline: auto;
+}
+/* Marcas de escala baja / media / alta */
+.xgb-gauge-mark {
+    font-size: 9px;
+    font-family: 'Poppins', sans-serif;
+    fill: var(--secondary-text);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ML · Isolation Forest — Tarjeta de anomalías en tab BI
+   ═══════════════════════════════════════════════════════════════ */
+
+.bi-anomalias-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-card);
+    border-radius: 16px;
+    padding: 18px 20px;
+    margin: 0 16px 16px;
+}
+
+.bi-anomalias-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 8px;
+}
+
+.bi-anomalias-titulo {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--primary-text);
+}
+
+.bi-anomalias-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: rgba(230, 57, 70, 0.10);
+    color: #e63946;
+    border: 1px solid rgba(230, 57, 70, 0.22);
+}
+
+.bi-anomalias-badge--ok {
+    background: rgba(123, 179, 149, 0.12);
+    color: var(--primary-green);
+    border-color: rgba(123, 179, 149, 0.25);
+}
+
+.bi-anomalias-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bi-anom-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    background: var(--accent-bg);
+    border-radius: 10px;
+    border: 1px solid var(--border-card);
+    gap: 8px;
+}
+
+.bi-anom-izq {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.bi-anom-id {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bi-anom-ciclo {
+    font-size: 0.68rem;
+    color: var(--secondary-text);
+}
+
+.bi-anom-feature {
+    font-size: 0.66rem;
+    color: #e63946;
+    line-height: 1.3;
+    flex: 1.5;
+    min-width: 0;
+}
+
+.bi-anom-score {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    white-space: nowrap;
+}
+
+.bi-anomalias-ver-mas {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px;
+    background: none;
+    border: 1px solid var(--border-card);
+    border-radius: 10px;
+    color: var(--secondary-text);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-align: center;
+}
+.bi-anomalias-ver-mas:hover {
+    background: var(--accent-bg);
+}
+
+.bi-anomalias-disclaimer {
+    font-size: 0.66rem;
+    color: var(--secondary-text);
+    margin-top: 10px;
+    line-height: 1.5;
+}
+
+.bi-anomalias-loading {
+    text-align: center;
+    color: var(--secondary-text);
+    font-size: 0.82rem;
+    padding: 16px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Módulo Riego · Pill-tab switcher (Recomendaciones / Historial)
+   ═══════════════════════════════════════════════════════════════ */
+
+.riego-subtab-nav {
+    display: flex;
+    align-items: center;
+    background: rgba(15, 108, 189, 0.06);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 2px;
+    margin: 12px auto 16px;
+    width: fit-content;
+    max-width: 100%;
+    border: 1px solid var(--border-muted);
+}
+
+.riego-subtab-btn {
+    flex: 1;
+    padding: 8px 20px;
+    border: none;
+    background: transparent;
+    border-radius: 999px;
+    font-size: 0.83rem;
+    font-weight: 500;
+    color: var(--secondary-text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.18s ease, color 0.18s ease,
+                box-shadow 0.18s ease;
+    letter-spacing: 0.01em;
+}
+
+.riego-subtab-btn:hover {
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--primary-text);
+}
+
+.riego-subtab-btn.active {
+    background: #ffffff;
+    color: var(--primary-blue);
+    font-weight: 700;
+    box-shadow: 0 1px 4px rgba(15, 108, 189, 0.12),
+                0 0 0 1px rgba(15, 108, 189, 0.08);
+}
+
+/* Paneles de contenido del sub-tab */
+.riego-subtab-panel {
+    /* Sin estilos propios — la visibilidad la maneja JS con display:none/block */
+}
+
+/* ── Botón "Registrar riego manual" dentro del panel Historial ── */
+.rhist-manual-acceso {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-divider);
+    display: flex;
+    justify-content: center;
+}
+
+.riego-subtab-manual-btn {
+    background: transparent;
+    border: 1.5px solid var(--border-input);
+    border-radius: 10px;
+    color: var(--secondary-text);
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 8px 18px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.riego-subtab-manual-btn:hover {
+    background: var(--accent-bg);
+    color: var(--primary-blue);
+    border-color: var(--primary-blue);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Módulo Riego · Historial de Riego Real (panel)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Carga */
+.rhist-loading {
+    text-align: center;
+    color: var(--secondary-text);
+    font-size: 0.82rem;
+    padding: 20px 0;
+}
+
+/* Estado vacío / error */
+.rhist-estado {
+    text-align: center;
+    color: var(--secondary-text);
+    font-size: 0.84rem;
+    padding: 24px 0;
+}
+
+/* ── Grid de KPIs ── */
+.rhist-kpis-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.rhist-kpi {
+    background: var(--white);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    padding: 12px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    text-align: center;
+}
+
+.rhist-kpi--wide {
+    grid-column: span 2;
+}
+
+.rhist-kpi-val {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--primary-blue);
+    line-height: 1.1;
+    font-family: 'Poppins', sans-serif;
+}
+
+.rhist-kpi-val--fecha {
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.rhist-kpi-unit {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--secondary-text);
+    letter-spacing: 0.02em;
+}
+
+.rhist-kpi-lbl {
+    font-size: 0.71rem;
+    color: var(--secondary-text);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+/* ── Lista scrollable de eventos ── */
+.rhist-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-right: 2px;
+    /* Scroll suave y discreet */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-muted) transparent;
+}
+
+.rhist-lista::-webkit-scrollbar {
+    width: 4px;
+}
+.rhist-lista::-webkit-scrollbar-track {
+    background: transparent;
+}
+.rhist-lista::-webkit-scrollbar-thumb {
+    background: var(--border-muted);
+    border-radius: 4px;
+}
+
+/* ── Tarjeta de evento de riego ── */
+.rhist-evento {
+    background: var(--white);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    padding: 12px 14px;
+    transition: box-shadow 0.15s;
+}
+
+.rhist-evento:hover {
+    box-shadow: 0 2px 8px rgba(15, 108, 189, 0.07);
+}
+
+.rhist-evento-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.rhist-evento-fecha {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    text-transform: capitalize;
+}
+
+/* Tags de origen */
+.rhist-evento-tag {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.rhist-evento-tag--manual {
+    background: rgba(15, 108, 189, 0.08);
+    color: var(--primary-blue);
+    border: 1px solid rgba(15, 108, 189, 0.18);
+}
+
+.rhist-evento-tag--rec {
+    background: rgba(67, 179, 107, 0.10);
+    color: var(--green-dark);
+    border: 1px solid rgba(67, 179, 107, 0.22);
+}
+
+/* Grid de métricas del evento */
+.rhist-evento-metricas {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.rhist-evento-met {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.rhist-evento-met-lbl {
+    font-size: 0.68rem;
+    color: var(--secondary-text);
+    font-weight: 500;
+}
+
+.rhist-evento-met strong {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--primary-text);
+}
+
+/* Notas opcionales */
+.rhist-evento-notas {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-divider);
+    font-size: 0.76rem;
+    color: var(--secondary-text);
+    line-height: 1.4;
+    font-style: italic;
+}
+
+/* Responsive: en pantallas muy estrechas, 2 cols */
+@media (max-width: 420px) {
+    .rhist-kpis-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .rhist-kpi--wide {
+        grid-column: span 2;
+    }
+    .rhist-evento-metricas {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Campana de alertas · Badge + Drawer deslizable
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Badge numérico sobre la campana ── */
+.alertas-bell-btn {
+    position: relative; /* para que el badge se posicione sobre ella */
+}
+
+.alertas-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #E63946;
+    color: #ffffff;
+    font-size: 0.60rem;
+    font-weight: 800;
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    border: 1.5px solid rgba(15, 108, 189, 0.9); /* mismo tono que el topbar */
+    pointer-events: none;
+    letter-spacing: -0.02em;
+    box-shadow: 0 1px 4px rgba(230, 57, 70, 0.35);
+}
+
+/* Animación sutil de entrada del badge */
+@keyframes badge-pop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    70%  { transform: scale(1.15); }
+    100% { transform: scale(1);   opacity: 1; }
+}
+.alertas-badge {
+    animation: badge-pop 0.25s ease forwards;
+}
+
+/* ── Drawer deslizable ── */
+
+/* tab-costos necesita position:relative para anclar el drawer */
+#tab-costos {
+    position: relative;
+}
+
+.alertas-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 75px;       /* queda encima del nav */
+    z-index: 200;
+    background: var(--bg-main);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.30s cubic-bezier(.32,1,.28,1),
+                opacity  0.22s ease;
+}
+
+.alertas-drawer.is-open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Cabecera fija del drawer */
+.alertas-drawer-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 18px 14px;
+    background: linear-gradient(135deg, #E8622A 0%, #F0862A 100%);
+    flex-shrink: 0;
+}
+
+.alertas-drawer-icon {
+    width: 36px; height: 36px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; flex-shrink: 0;
+}
+.alertas-drawer-titles {
+    flex: 1;
+    display: flex; flex-direction: column; gap: 1px;
+}
+.alertas-drawer-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+.alertas-drawer-sub {
+    font-size: 0.68rem;
+    color: rgba(255,255,255,0.75);
+}
+
+.alertas-drawer-close {
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #ffffff;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+.alertas-drawer-close:hover {
+    background: rgba(255,255,255,0.28);
+}
+
+/* Cuerpo scrollable del drawer */
+.alertas-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 0 12px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-muted) transparent;
+}
+.alertas-drawer-body::-webkit-scrollbar { width: 4px; }
+.alertas-drawer-body::-webkit-scrollbar-thumb {
+    background: var(--border-muted);
+    border-radius: 4px;
+}
+
+/* Quitar el margen/card exterior del resumen cuando está dentro del drawer */
+.alertas-drawer-body .rresumen-card {
+    box-shadow: none;
+    border: none;
+    padding: 0;
+    background: transparent;
+}
+
+/* overlay desactivado — el drawer ahora es full-screen */
+.alertas-overlay { display: none !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   COLORES ACTIVOS POR MÓDULO (navbar data-tab)
+   Cada tab tiene su identidad cromática. El inactive state queda siempre gris.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.nav-item[data-tab="tab-bi"].active svg        { fill: #0F6CBD; stroke: none; }
+.nav-item[data-tab="tab-bi"].active span       { color: #0F6CBD; }
+
+.nav-item[data-tab="tab-mapas"].active svg     { stroke: #43B36B; fill: none; }
+.nav-item[data-tab="tab-mapas"].active span    { color: #43B36B; }
+
+.nav-item[data-tab="tab-costos"].active svg    { stroke: #0F6CBD; fill: none; }
+.nav-item[data-tab="tab-costos"].active span   { color: #0F6CBD; }
+
+.nav-item[data-tab="tab-ml"].active svg        { stroke: #7B2FBE; fill: none; }
+.nav-item[data-tab="tab-ml"].active span       { color: #7B2FBE; }
+
+/* Inactive: todos los íconos de nav en gris (override para stroke-based) */
+.nav-item svg { fill: var(--nav-inactive); stroke: none; }
+.nav-item[data-tab="tab-mapas"] svg,
+.nav-item[data-tab="tab-costos"] svg,
+.nav-item[data-tab="tab-ml"] svg   { fill: none; stroke: var(--nav-inactive); }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TOPBAR — MÓDULO ML (morado tecnológico)
+   ══════════════════════════════════════════════════════════════════════════════ */
+.tab-topbar--ml {
+    background: linear-gradient(135deg, #4A0E82 0%, #7B2FBE 100%);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TAB ML — Inteligencia ML
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Selector de parcela */
+.ml-selector-wrap {
+    padding: 16px 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ml-select {
+    border-color: rgba(123, 47, 190, 0.25);
+}
+
+.ml-select:focus {
+    outline: none;
+    border-color: rgba(123, 47, 190, 0.55);
+    box-shadow: 0 0 0 3px rgba(123, 47, 190, 0.12);
+}
+
+/* Estado vacío */
+.ml-estado {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    gap: 16px;
+    color: var(--secondary-text);
+    text-align: center;
+    font-size: 0.88rem;
+    line-height: 1.6;
+}
+
+.ml-estado-ico {
+    opacity: 0.75;
+}
+
+/* ── 1. Card principal de riesgo ──────────────────────────────────────── */
+.ml-risk-card {
+    background: var(--white);
+    border-radius: 18px;
+    padding: 18px 18px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 3px 14px rgba(123, 47, 190, 0.10);
+    border: 1.5px solid rgba(123, 47, 190, 0.12);
+    position: relative;
+    transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.ml-risk-card--critico    { border-color: rgba(230, 57, 70, 0.35);  box-shadow: 0 4px 18px rgba(230, 57, 70, 0.14); }
+.ml-risk-card--moderado   { border-color: rgba(212, 130, 10, 0.35); box-shadow: 0 4px 18px rgba(212, 130, 10, 0.12); }
+.ml-risk-card--preventivo { border-color: rgba(82, 183, 136, 0.35); box-shadow: 0 4px 18px rgba(82, 183, 136, 0.10); }
+
+.ml-risk-icon {
+    width: 52px;
+    height: 52px;
+    flex-shrink: 0;
+}
+
+.ml-risk-icon svg {
+    width: 52px;
+    height: 52px;
+}
+
+.ml-risk-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ml-risk-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 3px;
+}
+
+.ml-risk-nivel {
+    font-size: 1.4rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--primary-text);
+}
+
+.ml-risk-nivel--critico    { color: #e63946; }
+.ml-risk-nivel--moderado   { color: #d4820a; }
+.ml-risk-nivel--preventivo { color: #2E9E5B; }
+
+.ml-risk-desc {
+    font-size: 0.78rem;
+    color: var(--secondary-text);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.ml-algo-badge {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(123, 47, 190, 0.10);
+    color: #7B2FBE;
+    white-space: nowrap;
+}
+
+/* ── 2. Grid de métricas (2 columnas) ─────────────────────────────────── */
+.ml-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.ml-metric-card {
+    background: var(--white);
+    border-radius: 14px;
+    padding: 14px 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 2px 8px var(--shadow-xs);
+    border: 1px solid var(--border-card);
+}
+
+.ml-metric-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+/* ¿Requiere riego? — valor grande */
+.ml-metric-card--requiere {
+    justify-content: space-between;
+}
+
+.ml-requiere-val {
+    font-size: 2.4rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--secondary-text);
+}
+.ml-requiere-val--si { color: #e63946; }
+.ml-requiere-val--no { color: #2E9E5B; }
+
+.ml-requiere-sub {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    letter-spacing: 0.2px;
+}
+
+/* Confianza — gauge circular */
+.ml-metric-card--confianza {
+    align-items: center;
+}
+
+.ml-confianza-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+}
+
+.ml-conf-svg {
+    width: 88px;
+    height: 88px;
+}
+
+/* ── 3. Lámina ajustada ML ────────────────────────────────────────────── */
+.ml-lamina-card {
+    background: var(--white);
+    border-radius: 16px;
+    padding: 16px 18px 64px; /* extra inferior para las olas */
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px var(--shadow-xs);
+    border: 1px solid rgba(15, 108, 189, 0.12);
+    position: relative;
+    overflow: hidden;
+}
+
+/* ── Olas decorativas ─────────────────────────────────────────────────── */
+.ml-lamina-waves {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.ml-wave {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 200%;   /* doble ancho para loop sin cortes */
+    height: 100%;
+    will-change: transform;
+}
+
+/* Capa trasera — más alta, tono azul primary */
+.ml-wave--1 {
+    fill: rgba(15, 108, 189, 0.10);
+    animation: milpin-wave 22s linear infinite;
+}
+
+/* Capa media — tono accent */
+.ml-wave--2 {
+    fill: rgba(15, 108, 189, 0.07);
+    animation: milpin-wave 16s linear infinite reverse;
+}
+
+/* Capa frontal — casi blanca, espuma suave */
+.ml-wave--3 {
+    fill: rgba(235, 245, 255, 0.88);
+    animation: milpin-wave 28s linear infinite;
+}
+
+@keyframes milpin-wave {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
+/* Respeta preferencia de movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+    .ml-wave { animation: none; }
+}
+
+.ml-lamina-inner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative; /* encima de las olas */
+    z-index: 1;
+}
+
+.ml-lamina-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 5px;
+}
+
+.ml-lamina-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.ml-lamina-val {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #7B2FBE;
+    line-height: 1;
+}
+
+.ml-lamina-unit {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   FASE 2 — HEADER GLOBAL: campana + engranaje
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Botón campana (lado izquierdo) — hereda .tab-topbar-left + agrega badge */
+.tab-topbar-bell {
+    border: none;
+    background: rgba(255,255,255,0.12);
+    color: #FFFFFF;
+    cursor: pointer;
+    transition: background 0.15s;
+    /* el positioning viene de .tab-topbar-left */
+}
+
+.tab-topbar-bell:hover {
+    background: rgba(255,255,255,0.22);
+}
+
+/* Badge rojo sobre la campana */
+.tab-topbar-bell .alertas-badge {
+    position: absolute;
+    top: 4px;
+    right: 2px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--red-strong);
+    color: #ffffff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid rgba(255,255,255,0.6);
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* El botón campana necesita ser containing block para el badge */
+.tab-topbar-left.tab-topbar-bell {
+    position: absolute; /* ya viene de .tab-topbar-left */
+}
+
+/* Engranaje (lado derecho) — ya usa .tab-topbar-action, solo alias semántico */
+.tab-topbar-config {
+    /* hereda todo de .tab-topbar-action */
+}
+
+/* Asegurar que todos los topbars tengan padding simétrico para los botones */
+.tab-topbar--simple {
+    padding-left: 56px;
+    padding-right: 56px;
+}
+
+/* ── 4. Gauge card ────────────────────────────────────────────────────── */
+.ml-gauge-card {
+    background: var(--white);
+    border-radius: 18px;
+    padding: 18px 18px 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 10px var(--shadow-xs);
+    border: 1px solid var(--border-card);
+}
+
+.ml-gauge-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--secondary-text);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+/* Donut + leyenda lado a lado */
+.ml-gauge-content {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.ml-gauge-wrap {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.ml-donut-svg {
+    width: 160px;
+    height: 160px;
+}
+
+.ml-gauge-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+
+.ml-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.76rem;
+    color: var(--secondary-text);
+}
+
+.ml-legend-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.ml-legend-dot--alto  { background: #e63946; }
+.ml-legend-dot--medio { background: #d4820a; }
+.ml-legend-dot--bajo  { background: #52b788; }
+
+/* ── 5. Nota del modelo ───────────────────────────────────────────────── */
+.ml-nota {
+    font-size: 0.73rem;
+    color: var(--secondary-text);
+    text-align: center;
+    padding: 0 8px 24px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Admin → Carga de trabajo (entry button inside tab-admin)
+   ══════════════════════════════════════════════════════════════════════ */
+
+.admin-workload-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 10px 16px 4px;
+    padding: 12px 14px;
+    background: var(--accent-bg);
+    border: 1px solid var(--border-card);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background .15s;
+}
+.admin-workload-entry:active { background: #D6E8F7; }
+
+.admin-workload-entry-ico {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--primary-blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+}
+
+.admin-workload-entry-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.admin-workload-entry-title {
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: var(--primary-text);
+}
+.admin-workload-entry-sub {
+    font-size: 0.72rem;
+    color: var(--secondary-text);
+}
+.admin-workload-entry-chevron {
+    font-size: 1.2rem;
+    color: var(--secondary-text);
+    font-weight: 300;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Tab Técnico — Vista de carga de trabajo de riego
+   ══════════════════════════════════════════════════════════════════════ */
+
+.wkload-container {
+    padding: 10px 0 80px;
+}
+
+/* ── KPI resumen ────────────────────────────────────────────────────── */
+.wkload-resumen {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    padding: 10px 16px 6px;
+}
+
+.wkload-kpi-card {
+    background: var(--accent-bg);
+    border-radius: 12px;
+    padding: 10px 6px;
+    text-align: center;
+}
+.wkload-kpi-card--critico    { background: var(--red-bg-badge);   }
+.wkload-kpi-card--moderado   { background: var(--amber-bg-badge); }
+.wkload-kpi-card--preventivo { background: var(--green-bg);       }
+.wkload-kpi-card--sinrec     { background: #F0F4F8;               }
+
+.wkload-kpi-val {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    line-height: 1.1;
+}
+.wkload-kpi-card--critico    .wkload-kpi-val { color: var(--red-dark);    }
+.wkload-kpi-card--moderado   .wkload-kpi-val { color: var(--amber-dark);  }
+.wkload-kpi-card--preventivo .wkload-kpi-val { color: var(--green-dark);  }
+
+.wkload-kpi-lbl {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+
+/* ── Filtros por urgencia ───────────────────────────────────────────── */
+.wkload-filtros {
+    display: flex;
+    gap: 6px;
+    padding: 10px 16px 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.wkload-filtros::-webkit-scrollbar { display: none; }
+
+.wkload-filtro-chip {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border-card);
+    background: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--secondary-text);
+    cursor: pointer;
+    transition: background .12s, color .12s, border-color .12s;
+}
+.wkload-filtro-chip--active {
+    background: var(--primary-blue);
+    color: #fff;
+    border-color: var(--primary-blue);
+}
+.wkload-filtro-chip[data-urgencia="critico"].wkload-filtro-chip--active    { background: var(--red-strong);   border-color: var(--red-strong);   }
+.wkload-filtro-chip[data-urgencia="moderado"].wkload-filtro-chip--active   { background: var(--amber-strong); border-color: var(--amber-strong); color: #fff; }
+.wkload-filtro-chip[data-urgencia="preventivo"].wkload-filtro-chip--active { background: var(--green-strong); border-color: var(--green-strong); }
+
+/* ── Loading ────────────────────────────────────────────────────────── */
+.wkload-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 30px 20px;
+    font-size: 0.82rem;
+    color: var(--secondary-text);
+    justify-content: center;
+}
+
+/* ── Lista de parcelas ──────────────────────────────────────────────── */
+.wkload-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0 16px;
+}
+
+.wkload-item {
+    display: flex;
+    align-items: stretch;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid var(--border-card);
+    margin-bottom: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: box-shadow .15s;
+}
+.wkload-item:active { box-shadow: 0 2px 8px var(--shadow-md); }
+
+/* Left color band by urgency */
+.wkload-band {
+    width: 4px;
+    flex-shrink: 0;
+    background: var(--border-muted);
+}
+.wkload-band--critico    { background: var(--red-strong);    }
+.wkload-band--moderado   { background: var(--amber-strong);  }
+.wkload-band--preventivo { background: var(--green-strong);  }
+.wkload-band--sin_recomendacion { background: #CBD5E0; }
+
+.wkload-item-body {
+    flex: 1;
+    padding: 10px 10px 10px 12px;
+    min-width: 0;
+}
+
+.wkload-item-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+
+.wkload-item-nombre {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wkload-item-sub {
+    font-size: 0.72rem;
+    color: var(--secondary-text);
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wkload-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* Urgency badge */
+.wkload-badge {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: .4px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+.wkload-badge--critico    { background: var(--red-bg-badge);    color: var(--red-dark);   }
+.wkload-badge--moderado   { background: var(--amber-bg-badge);  color: var(--amber-dark); }
+.wkload-badge--preventivo { background: var(--green-bg);        color: var(--green-dark); }
+.wkload-badge--sin_recomendacion { background: #EDF2F7; color: #718096; }
+
+/* Info chips */
+.wkload-chip {
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 8px;
+    background: var(--accent-bg);
+    color: var(--secondary-text);
+    white-space: nowrap;
+}
+.wkload-chip--deficit { color: var(--primary-blue); }
+.wkload-chip--lamina  { color: var(--green-dark); background: var(--green-bg); }
+
+/* Chevron */
+.wkload-chevron {
+    display: flex;
+    align-items: center;
+    padding: 0 12px 0 6px;
+    font-size: 1.3rem;
+    color: var(--secondary-text);
+    font-weight: 300;
+    flex-shrink: 0;
+}
+
+/* ── Empty / error state ────────────────────────────────────────────── */
+.wkload-empty {
+    text-align: center;
+    padding: 40px 20px;
+    font-size: 0.82rem;
+    color: var(--secondary-text);
+}
+.wkload-empty--err { color: var(--red-strong); }
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+.wkload-footer {
+    padding: 10px 16px 0;
+    text-align: right;
+}
+.wkload-footer-txt {
+    font-size: 0.7rem;
+    color: var(--secondary-text);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DASHBOARD OPERACIONAL — Vista Operación (bi_operacion.js)
+   Canvas: cards flotantes sobre fondo #F5F9FC, sidebar azul
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Sub-tabs Operación / Análisis ─────────────────────────────── */
+.bi-subtab-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 0 18px;
+    border-bottom: 2px solid var(--bi-border);
+    background: var(--bi-white);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.bi-subtab {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    padding: 12px 18px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+    white-space: nowrap;
+}
+.bi-subtab:hover { color: var(--primary-text); }
+.bi-subtab--active {
+    color: var(--primary-text);
+    border-bottom-color: var(--primary-green);
+}
+.bi-subtab-actions {
+    position: absolute;
+    right: 18px;
+}
+.bi-subtab-refresh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: none;
+    border-radius: 6px;
+    color: var(--secondary-text);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.bi-subtab-refresh-btn:hover {
+    background: var(--accent-bg);
+    color: var(--primary-text);
+}
+
+/* ── Vistas ────────────────────────────────────────────────────── */
+.bi-view {
+    padding: 14px 18px 24px;
+    background: var(--bg-main);
+    min-height: calc(100vh - 160px);
+}
+
+/* ── Card base ─────────────────────────────────────────────────── */
+.bi-op-card {
+    background: var(--bi-white);
+    border-radius: 16px;
+    border: 1px solid var(--bi-border);
+    box-shadow: 0 2px 12px var(--bi-shadow-sm);
+    overflow: hidden;
+}
+.bi-op-card-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid var(--bi-border);
+}
+.bi-op-card-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    letter-spacing: .01em;
+}
+.bi-op-card-sub {
+    font-size: 0.72rem;
+    color: var(--secondary-text);
+}
+
+/* ── Zona A: Banner semáforo ───────────────────────────────────── */
+.bi-op-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: var(--bi-white);
+    border: 1px solid var(--bi-border);
+    border-radius: 16px;
+    padding: 14px 22px;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 12px var(--bi-shadow-sm);
+    min-height: 68px;
+}
+.bi-op-banner--emergency {
+    background: #FFF1F2;
+    border-color: var(--red-border);
+    box-shadow: 0 0 0 3px rgba(230,92,92,.12);
+}
+.bi-op-banner-counts {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+.bi-op-bcount {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 52px;
+}
+.bi-op-bcount-num {
+    font-size: 1.55rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+.bi-op-bcount-lbl {
+    font-size: 0.67rem;
+    font-weight: 500;
+    opacity: .75;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.bi-op-bcount--crit .bi-op-bcount-num { color: var(--red-strong); }
+.bi-op-bcount--crit .bi-op-bcount-lbl { color: var(--red-dark); }
+.bi-op-bcount--mod  .bi-op-bcount-num { color: var(--amber-strong); }
+.bi-op-bcount--mod  .bi-op-bcount-lbl { color: var(--amber-dark); }
+.bi-op-bcount--ok   .bi-op-bcount-num { color: var(--green-strong); }
+.bi-op-bcount--ok   .bi-op-bcount-lbl { color: var(--green-dark); }
+.bi-op-bcount--nd   .bi-op-bcount-num { color: var(--secondary-text); }
+.bi-op-bcount--nd   .bi-op-bcount-lbl { color: var(--secondary-text); }
+.bi-op-banner-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+.bi-op-emergency-tag {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--red-dark);
+    background: var(--red-bg-badge);
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+.bi-op-ok-tag {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--green-dark);
+    background: var(--green-bg);
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+.bi-op-banner-ts {
+    font-size: 0.7rem;
+    color: var(--secondary-text);
+}
+.bi-op-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--secondary-text);
+    font-size: 0.82rem;
+    padding: 8px 0;
+}
+.bi-op-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--red-dark);
+    padding: 6px 0;
+}
+.bi-op-retry-btn {
+    border: none;
+    background: var(--red-bg-badge);
+    color: var(--red-dark);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.bi-op-retry-btn:hover { background: var(--red-border); }
+
+/* ── Zona B + C: Grid principal ────────────────────────────────── */
+.bi-op-body {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+    align-items: start;
+}
+.bi-op-side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* ── Zona B: Cola de triage ────────────────────────────────────── */
+.bi-op-triage-wrap { }
+.bi-op-triage-card { }
+.bi-op-allok-note {
+    margin: 8px 18px 0;
+    font-size: 0.75rem;
+    color: var(--green-dark);
+    background: var(--green-bg);
+    padding: 6px 12px;
+    border-radius: 8px;
+}
+.bi-op-triage-scroll {
+    overflow-x: auto;
+    padding: 0 0 4px;
+}
+.bi-triage {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+.bi-triage th {
+    background: var(--bi-th-bg);
+    text-align: left;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--secondary-text);
+    padding: 9px 10px;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+}
+.bi-triage td {
+    padding: 10px 10px;
+    border-bottom: 1px solid var(--bi-border);
+    color: var(--primary-text);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.bi-triage-row { cursor: pointer; transition: background .12s; }
+.bi-triage-row:hover { background: var(--hover-table-row); }
+.bi-triage-row--crit { background: rgba(230,92,92,.06); }
+.bi-triage-row--crit:hover { background: rgba(230,92,92,.10); }
+.bi-triage-row--mod  { background: rgba(245,166,35,.05); }
+.bi-triage-row--mod:hover  { background: rgba(245,166,35,.10); }
+.bi-triage-row--prev { background: transparent; }
+.bi-triage-row--active { outline: 2px solid var(--primary-green); outline-offset: -2px; }
+.bi-triage-rank { font-size: 0.7rem; color: var(--secondary-text); font-weight: 600; width: 28px; }
+.bi-triage-nombre { font-weight: 600; }
+.bi-triage-deficit { font-weight: 700; color: var(--red-dark); }
+.bi-triage-row--mod  .bi-triage-deficit { color: var(--amber-dark); }
+.bi-triage-row--prev .bi-triage-deficit { color: var(--green-dark); }
+.bi-op-stale-warn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--amber-bg-badge);
+    color: var(--amber-dark);
+    font-size: 0.6rem;
+    font-weight: 800;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+.bi-op-muted { color: var(--secondary-text); }
+
+/* Badges urgencia */
+.bi-op-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    white-space: nowrap;
+}
+.bi-op-badge--crit { background: var(--red-bg-badge);   color: var(--red-dark); }
+.bi-op-badge--mod  { background: var(--amber-bg-badge); color: var(--amber-dark); }
+.bi-op-badge--ok   { background: var(--green-bg);        color: var(--green-dark); }
+.bi-op-badge--nd   { background: var(--accent-bg);       color: var(--secondary-text); }
+
+/* Botones acción triage */
+.bi-op-btn {
+    border: none;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 11px;
+    cursor: pointer;
+    transition: opacity .15s;
+    white-space: nowrap;
+}
+.bi-op-btn:hover { opacity: .82; }
+.bi-op-btn--primary {
+    background: var(--primary-green);
+    color: #fff;
+}
+.bi-op-btn--ghost {
+    background: var(--accent-bg);
+    color: var(--primary-text);
+}
+
+/* ── Zona C top: Mini-mapa ─────────────────────────────────────── */
+.bi-op-map-wrap { }
+.bi-op-map-card { }
+.bi-op-leaflet {
+    height: 200px;
+    width: 100%;
+    border-radius: 0;
+    z-index: 1;
+}
+.bi-op-map-legend {
+    display: flex;
+    gap: 12px;
+    padding: 8px 14px;
+    flex-wrap: wrap;
+}
+.bi-legend-item {
+    font-size: 0.68rem;
+    color: var(--secondary-text);
+    white-space: nowrap;
+}
+.bi-legend-crit { color: var(--red-strong); }
+.bi-legend-mod  { color: var(--amber-strong); }
+.bi-legend-ok   { color: var(--green-strong); }
+.bi-op-map-tooltip {
+    background: var(--bi-white) !important;
+    border: 1px solid var(--bi-border) !important;
+    border-radius: 6px !important;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.72rem;
+    box-shadow: 0 2px 8px var(--bi-shadow-base) !important;
+}
+
+/* ── Zona C bottom: Drift de datos ─────────────────────────────── */
+.bi-op-drift-wrap { }
+.bi-op-drift-card { }
+.bi-op-drift-body {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.bi-op-drift-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.77rem;
+    padding: 7px 10px;
+    border-radius: 8px;
+}
+.bi-op-drift-item--warn {
+    background: var(--amber-bg);
+    color: var(--amber-dark);
+}
+.bi-op-drift-item--err {
+    background: var(--red-bg);
+    color: var(--red-dark);
+}
+.bi-op-drift-ok {
+    font-size: 0.77rem;
+    color: var(--green-dark);
+    background: var(--green-bg);
+    padding: 10px 12px;
+    border-radius: 8px;
+}
+
+/* ── Zona D: Detalle parcela ───────────────────────────────────── */
+.bi-op-detail {
+    background: var(--bi-white);
+    border: 1px solid var(--bi-border);
+    border-radius: 16px;
+    box-shadow: 0 2px 16px var(--bi-shadow-base);
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+.bi-op-detail-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 22px;
+    font-size: 0.82rem;
+    color: var(--secondary-text);
+}
+.bi-op-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--bi-th-bg);
+    border-bottom: 1px solid var(--bi-border);
+}
+.bi-op-detail-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary-text);
+}
+.bi-op-detail-close {
+    border: none;
+    background: none;
+    font-size: 1rem;
+    color: var(--secondary-text);
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.bi-op-detail-close:hover { background: var(--accent-bg); color: var(--primary-text); }
+.bi-op-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    padding: 14px;
+}
+.bi-op-detail-card {
+    border: 1px solid var(--bi-border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: none;
+}
+
+/* W5: Heatmap 7 días */
+.bi-op-heatmap {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    padding: 12px 14px;
+}
+.bi-op-hm-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 4px 6px;
+    border-radius: 8px;
+    gap: 4px;
+}
+.bi-op-hm-day  { font-size: 0.65rem; font-weight: 600; opacity: .75; }
+.bi-op-hm-val  { font-size: 0.82rem; font-weight: 800; }
+.bi-op-hm-bar  { width: 100%; border-radius: 3px; min-height: 3px; }
+.bi-op-hm-cruce {
+    font-size: 0.74rem;
+    color: var(--secondary-text);
+    padding: 4px 14px 10px;
+}
+.bi-op-hm-cruce strong { color: var(--primary-text); }
+
+/* W6: Pulso climático */
+.bi-op-pulso { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.bi-op-pulso-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.bi-op-pulso-lbl {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    width: 38px;
+    text-align: right;
+    flex-shrink: 0;
+}
+.bi-op-spark {
+    flex: 1;
+    height: 30px;
+    overflow: visible;
+}
+.bi-op-pulso-last {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    width: 52px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+/* ── Zona E: Footer cumplimiento ciclo ─────────────────────────── */
+.bi-op-footer { }
+.bi-op-footer-card { padding: 14px 20px; }
+.bi-op-footer-row {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+}
+.bi-op-footer-kpi {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+.bi-op-footer-num {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--primary-text);
+}
+.bi-op-footer-num--sm    { font-size: 1.05rem; }
+.bi-op-footer-num--green { color: var(--green-strong); }
+.bi-op-footer-lbl {
+    font-size: 0.65rem;
+    color: var(--secondary-text);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    font-weight: 500;
+}
+.bi-op-footer-bar-wrap { flex: 1; min-width: 180px; }
+.bi-op-footer-bar {
+    display: flex;
+    height: 14px;
+    border-radius: 7px;
+    overflow: hidden;
+    background: var(--accent-bg);
+}
+.bi-op-footer-seg { height: 100%; transition: width .4s; }
+.bi-op-footer-seg--ok  { background: var(--green-strong); }
+.bi-op-footer-seg--mod { background: var(--amber-strong); }
+.bi-op-footer-seg--err { background: var(--red-strong); }
+.bi-op-footer-bar-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3px;
+    font-size: 0.63rem;
+    color: var(--secondary-text);
+}
+
+/* ── Estados vacíos ─────────────────────────────────────────────── */
+.bi-op-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 32px 20px;
+    text-align: center;
+}
+.bi-op-empty-icon  { font-size: 2rem; }
+.bi-op-empty-title { font-size: 0.85rem; font-weight: 700; color: var(--primary-text); }
+.bi-op-empty-sub   { font-size: 0.75rem; color: var(--secondary-text); max-width: 260px; }
+.bi-op-empty-full {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--secondary-text);
+    padding: 4px 0;
+}
+.bi-op-empty-full svg { opacity: .35; }
+.bi-op-empty-title { font-size: 0.85rem; font-weight: 700; color: var(--primary-text); }
+.bi-op-empty-sub   { font-size: 0.73rem; color: var(--secondary-text); }
+.bi-op-empty-small {
+    font-size: 0.75rem;
+    color: var(--secondary-text);
+    padding: 18px 16px;
+    text-align: center;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+    .bi-op-body { grid-template-columns: 1fr; }
+    .bi-op-side { order: -1; flex-direction: row; }
+    .bi-op-map-wrap, .bi-op-drift-wrap { flex: 1; }
+    .bi-op-detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+    .bi-op-body { grid-template-columns: 1fr; }
+    .bi-op-side { flex-direction: column; }
+    .bi-op-detail-grid { grid-template-columns: 1fr; }
+    .bi-op-footer-row { gap: 14px; }
+    .bi-op-heatmap { grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .bi-op-banner { flex-direction: column; align-items: flex-start; }
+    .bi-op-banner-status { align-items: flex-start; }
+    .bi-view { padding: 10px 12px 20px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD OPERACIONAL v2 — bi_operacion.js
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Root & loading ─────────────────────────────────────────────────────── */
+.bi-dash-root {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 4px 0 8px;
+}
+.bi-dash-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 32px 20px;
+    color: var(--secondary-text);
+    font-size: 0.82rem;
+}
+
+/* ── Card base ──────────────────────────────────────────────────────────── */
+.bi-dash-card {
+    background: var(--bi-white);
+    border: 1px solid var(--bi-border);
+    border-radius: 16px;
+    box-shadow: 0 2px 12px var(--bi-shadow-sm);
+    padding: 18px 20px 16px;
+    overflow: hidden;
+}
+
+/* ── Section header: dash + title ──────────────────────────────────────── */
+.bi-dash-sec-hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.bi-dash-sec-dash {
+    width: 3px;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--primary-blue);
+    flex-shrink: 0;
+}
+.bi-dash-sec-title {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--secondary-text);
+}
+.bi-dash-sec-sub {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--secondary-text);
+    opacity: .7;
+    margin-left: auto;
+}
+
+/* ── Section wrapper (full-width, no card) ─────────────────────────────── */
+.bi-dash-section { }
+
+/* ── KPI Grid ───────────────────────────────────────────────────────────── */
+.bi-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+}
+.bi-kpi-card {
+    background: var(--bi-white);
+    border: 1px solid var(--bi-border);
+    border-radius: 14px;
+    padding: 14px 14px 10px;
+    box-shadow: 0 1px 8px var(--bi-shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.bi-kpi-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 4px;
+}
+.bi-kpi-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--secondary-text);
+    line-height: 1.3;
+}
+.bi-trend-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    line-height: 1.4;
+}
+.bi-trend-badge.bi-trend--good    { background: var(--green-bg);        color: var(--green-dark); }
+.bi-trend-badge.bi-trend--bad     { background: var(--red-bg);          color: var(--red-dark); }
+.bi-trend-badge.bi-trend--neutral { background: var(--accent-bg);       color: var(--secondary-text); }
+.bi-kpi-value {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: var(--primary-text);
+    line-height: 1.1;
+    white-space: nowrap;
+}
+.bi-kpi-unit {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+}
+.bi-kpi-spark {
+    margin-top: 2px;
+    height: 34px;
+    overflow: hidden;
+}
+.bi-spark-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* ── Two-column rows ────────────────────────────────────────────────────── */
+.bi-dash-row {
+    display: grid;
+    gap: 16px;
+}
+.bi-intel-row {
+    grid-template-columns: 1fr 1.4fr;
+}
+.bi-estado-row {
+    grid-template-columns: 1.6fr 1fr;
+}
+
+/* ── Intel panel: heatmap + pulso ──────────────────────────────────────── */
+.bi-intel-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.bi-block-lbl {
+    display: block;
+    font-size: 0.64rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 8px;
+    opacity: .8;
+}
+.bi-heatmap-block { }
+.bi-hm-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+}
+.bi-hm-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 7px 3px 6px;
+    border-radius: 9px;
+    gap: 3px;
+}
+.bi-hm-day {
+    font-size: 0.6rem;
+    font-weight: 700;
+    opacity: .75;
+    text-transform: uppercase;
+}
+.bi-hm-val {
+    font-size: 0.85rem;
+    font-weight: 800;
+}
+.bi-pulso-block { }
+.bi-pulso-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+.bi-pulso-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.bi-pulso-lbl {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    width: 52px;
+    text-align: right;
+    flex-shrink: 0;
+}
+.bi-pulso-val {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    width: 52px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+/* ── Consumo chart panel ─────────────────────────────────────────────────── */
+.bi-consumo-panel { }
+.bi-chart-wrap {
+    width: 100%;
+    overflow: hidden;
+}
+.bi-chart-wrap--sm {
+    max-height: 86px;
+}
+.bi-svg-chart {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* ── FAO-56 Table ───────────────────────────────────────────────────────── */
+.bi-fao-panel { }
+.bi-fao-scroll { overflow-x: auto; }
+.bi-fao-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+.bi-fao-tbl th {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--secondary-text);
+    padding: 8px 10px;
+    text-align: left;
+    background: var(--bi-th-bg);
+    white-space: nowrap;
+}
+.bi-fao-tbl td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--bi-border);
+    color: var(--primary-text);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.bi-fao-row--crit { background: rgba(230,92,92,.05); }
+.bi-fao-row--mod  { background: rgba(245,166,35,.05); }
+.bi-fao-name { font-weight: 600; }
+.bi-fao-num  { font-variant-numeric: tabular-nums; text-align: right; }
+.bi-fao-str  { color: var(--secondary-text); font-size: 0.73rem; }
+.bi-fao-bdg {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+.bi-fao-bdg--crit { background: var(--red-bg-badge);   color: var(--red-dark); }
+.bi-fao-bdg--mod  { background: var(--amber-bg-badge); color: var(--amber-dark); }
+.bi-fao-bdg--ok   { background: var(--green-bg);        color: var(--green-dark); }
+
+/* ── Right stack: NDVI + Ahorro ─────────────────────────────────────────── */
+.bi-charts-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.bi-ndvi-card  { }
+.bi-ahorro-card { }
+.bi-ahorro-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 2px;
+}
+.bi-abar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.bi-abar-name {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--primary-text);
+    width: 50px;
+    flex-shrink: 0;
+}
+.bi-abar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--accent-bg);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.bi-abar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width .5s ease;
+}
+.bi-abar-pct {
+    font-size: 0.67rem;
+    font-weight: 700;
+    color: var(--secondary-text);
+    width: 28px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+/* ── Cumplimiento del Ciclo ─────────────────────────────────────────────── */
+.bi-ciclo-section { }
+.bi-ciclo-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.bi-ciclo-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.bi-ciclo-chip {
+    font-size: 0.69rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--accent-bg);
+    color: var(--primary-text);
+    white-space: nowrap;
+}
+.bi-ciclo-chip--blue  { background: var(--accent-bg);  color: var(--primary-blue); }
+.bi-ciclo-chip--green { background: var(--green-bg);    color: var(--green-dark); }
+.bi-ciclo-prog-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.bi-ciclo-track {
+    flex: 1;
+    height: 12px;
+    background: var(--accent-bg);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.bi-ciclo-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--primary-blue) 0%, var(--agri-green) 100%);
+    transition: width .6s ease;
+}
+.bi-ciclo-pct {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--primary-text);
+    white-space: nowrap;
+    min-width: 36px;
+}
+.bi-ciclo-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+.bi-ciclo-kpi {
+    background: var(--bi-surface-alt);
+    border: 1px solid var(--bi-border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.bi-ciclo-kpi--hl {
+    background: var(--green-bg);
+    border-color: var(--green-border);
+}
+.bi-ciclo-kval {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--primary-text);
+    white-space: nowrap;
+}
+.bi-ciclo-kunit {
+    font-size: 0.63rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+}
+.bi-ciclo-klbl {
+    font-size: 0.63rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--secondary-text);
+}
+.bi-ciclo-kpi--hl .bi-ciclo-kval { color: var(--green-dark); }
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+    .bi-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 1023px) {
+    .bi-intel-row  { grid-template-columns: 1fr; }
+    .bi-estado-row { grid-template-columns: 1fr; }
+    .bi-charts-stack { flex-direction: row; }
+    .bi-ndvi-card, .bi-ahorro-card { flex: 1; }
+    .bi-ciclo-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 767px) {
+    .bi-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .bi-charts-stack { flex-direction: column; }
+    .bi-ciclo-kpis { grid-template-columns: repeat(2, 1fr); }
+    .bi-ciclo-head { flex-direction: column; align-items: flex-start; }
+    .bi-dash-card { padding: 14px 14px 12px; }
+}
