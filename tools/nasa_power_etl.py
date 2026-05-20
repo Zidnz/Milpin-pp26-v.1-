@@ -20,11 +20,11 @@ Arquitectura:
             ↓
     [7] PostgreSQL (clima_diario) con INSERT ... ON CONFLICT DO NOTHING
 
-Uso CLI (ejecutar siempre desde la RAÍZ del repo, no desde backend/):
-    python tools/nasa_power_etl.py                            # todas las parcelas (2020-hoy)
-    python tools/nasa_power_etl.py --limit 1                  # solo 1 parcela (smoke test)
-    python tools/nasa_power_etl.py --parcela <uuid>           # una parcela específica
-    python tools/nasa_power_etl.py --desde 2020 --hasta 2026  # período explícito
+Uso CLI:
+    cd backend && python -m tools.nasa_power_etl              # todas las parcelas
+    python -m tools.nasa_power_etl --limit 1                  # solo 1 parcela (smoke test)
+    python -m tools.nasa_power_etl --parcela <uuid>           # una parcela específica
+    python -m tools.nasa_power_etl --desde 2020 --hasta 2023  # override período
 
 Notas de diseño:
     - Se ejecuta como CLI, no como endpoint FastAPI: el pipeline puede tardar

@@ -28,9 +28,7 @@ from core.balance_hidrico import (
     calcular_eto_hargreaves,
     calcular_eto_penman_monteith,
     obtener_curva_kc,
-    obtener_curva_kc_desde_catalogo,
     obtener_kc,
-    obtener_kc_desde_catalogo,
     propagar_balance_hidrico,
 )
 from database import get_db
@@ -216,11 +214,12 @@ async def get_balance_hidrico(
             f"Cultivo {parcela.id_cultivo_actual} referenciado por la parcela no existe.",
         )
 
-    # Kc desde el ORM CultivoCatalogo — fuente de verdad es la BD, no KC_TABLE.
-    # obtener_kc_desde_catalogo() lee kc_inicial/kc_medio/kc_final y
-    # dias_etapa_* directamente del objeto; cualquier cambio en cultivos_catalogo
-    # se refleja sin modificar balance_hidrico.py.
-    kc = obtener_kc_desde_catalogo(cultivo, dias_siembra)
+    nombre_cultivo = cultivo.nombre_comun.lower()
+
+    try:
+        kc = obtener_kc(nombre_cultivo, dias_siembra)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
     # -- 3. Clima del dia -----------------------------------------------------
     # Busca el registro más reciente disponible en o antes de la fecha
@@ -473,72 +472,16 @@ async def get_balance_hidrico_manual(
     }
 
 
-# -- Endpoint curva Kc por nombre (legacy, usa KC_TABLE) ----------------------
+# -- Endpoint curva Kc por cultivo --------------------------------------------
 
 @router.get("/kc/{cultivo}", tags=["Motor FAO-56"])
 async def get_curva_kc(cultivo: str):
     """Retorna la curva Kc completa de un cultivo (FAO-56 Tabla 12).
 
-    Lee desde KC_TABLE (hardcodeado). Para obtener la curva desde la BD
-    (fuente de verdad), usa GET /api/cultivos/{id_cultivo}/kc.
-
-    Incluye las 4 etapas fenologicas con sus rangos de dias y Kc.
+    Incluye las 4 etapas fenologicas (inicial, desarrollo, mediados, final)
+    con sus rangos de dias y valores de Kc correspondientes.
     """
     try:
         return obtener_curva_kc(cultivo)
     except ValueError as e:
         raise HTTPException(400, str(e))
-
-
-# -- Endpoint curva Kc por id desde BD (fuente de verdad) ---------------------
-
-@router.get("/cultivos/{id_cultivo}/kc", tags=["Motor FAO-56"])
-async def get_curva_kc_desde_bd(
-    id_cultivo: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    """Retorna la curva Kc completa de un cultivo leyendo desde cultivos_catalogo.
-
-    A diferencia de GET /kc/{cultivo} (KC_TABLE hardcodeado), este endpoint
-    usa la BD como fuente de verdad: refleja cualquier actualización en los
-    parámetros FAO-56 sin necesidad de modificar código.
-    """
-    res = await db.execute(
-        select(CultivoCatalogo).where(CultivoCatalogo.id_cultivo == id_cultivo)
-    )
-    cultivo = res.scalar_one_or_none()
-    if cultivo is None:
-        raise HTTPException(404, f"Cultivo {id_cultivo} no encontrado en cultivos_catalogo.")
-    return obtener_curva_kc_desde_catalogo(cultivo)
-
-
-# -- Endpoint: listar todos los cultivos del catálogo -------------------------
-
-@router.get("/cultivos", tags=["Motor FAO-56"])
-async def get_cultivos(db: AsyncSession = Depends(get_db)):
-    """Lista todos los cultivos registrados en cultivos_catalogo.
-
-    Retorna los parámetros FAO-56 completos (Kc, Ky, etapas fenológicas,
-    rendimiento potencial) para cada especie. Útil para poblar selects en
-    el frontend sin hardcodear el catálogo en el cliente.
-    """
-    res = await db.execute(select(CultivoCatalogo))
-    cultivos = res.scalars().all()
-    return [
-        {
-            "id_cultivo": str(c.id_cultivo),
-            "nombre_comun": c.nombre_comun,
-            "nombre_cientifico": c.nombre_cientifico,
-            "kc_inicial": float(c.kc_inicial),
-            "kc_medio": float(c.kc_medio),
-            "kc_final": float(c.kc_final),
-            "ky_total": float(c.ky_total),
-            "dias_etapa_inicial": c.dias_etapa_inicial,
-            "dias_etapa_desarrollo": c.dias_etapa_desarrollo,
-            "dias_etapa_media": c.dias_etapa_media,
-            "dias_etapa_final": c.dias_etapa_final,
-            "ciclo_total_dias": c.ciclo_total_dias,
-            "rendimiento_potencial_ton": float(c.rendimiento_potencial_ton) if c.rendimiento_potencial_ton else None,
-        }
-        for c in cultivos
-    ]

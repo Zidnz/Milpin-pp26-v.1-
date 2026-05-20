@@ -348,12 +348,8 @@ const BI = (() => {
         ${_htmlFAO56Status(c.faoData)}
       </div>
       ${_htmlTable(c.tableRows)}
-      ${_htmlAnomaliasCardSkeleton()}
     `;
     container.style.opacity = '1';
-
-    // Carga anomalías de forma asíncrona sin bloquear el resto del dashboard
-    _cargarAnomaliasML();
   }
 
   // ── KPI Cards ─────────────────────────────────────────────────────────────
@@ -839,117 +835,6 @@ const BI = (() => {
 
   function _capitalize(str) {
     return str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
-  }
-
-  // ── ML · Isolation Forest — Tarjeta de anomalías ─────────────────────────
-
-  /**
-   * Retorna el HTML del skeleton (estado de carga) de la tarjeta de anomalías.
-   * Se inserta en el dashboard al renderizar; luego _cargarAnomaliasML() lo rellena.
-   */
-  function _htmlAnomaliasCardSkeleton() {
-    return `
-      <div class="bi-anomalias-card" id="bi-anomalias-card">
-        <div class="bi-anomalias-header">
-          <span class="bi-anomalias-titulo">Detección de Anomalías · Isolation Forest</span>
-          <span class="bi-anomalias-badge" id="bi-anom-badge">…</span>
-        </div>
-        <div id="bi-anomalias-body">
-          <div class="bi-anomalias-loading">⏳ Analizando ciclos de riego…</div>
-        </div>
-        <div class="bi-anomalias-disclaimer">
-          Modelo entrenado con datos sintéticos. P=0.586 · R=0.466 · F1=0.519 vs ground truth.
-          No usar para decisiones operativas sin validación con datos reales del DR-041.
-        </div>
-      </div>`;
-  }
-
-  /**
-   * Fetcha /api/ml/anomalias y actualiza la tarjeta en el DOM.
-   * Si falla, muestra un mensaje de error sin romper el resto del dashboard.
-   */
-  async function _cargarAnomaliasML() {
-    const body  = document.getElementById('bi-anomalias-body');
-    const badge = document.getElementById('bi-anom-badge');
-    if (!body) return;
-
-    try {
-      const res = await fetch(`${API}/ml/anomalias?solo_anomalias=true&limit=8`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      const anomalias  = data.resultados || [];
-      const total      = data.total_anomalias || 0;
-      const totalPares = data.total_pares_analizados || 0;
-      const pct        = data.pct_anomalias || 0;
-
-      if (badge) {
-        if (total === 0) {
-          badge.textContent = 'Sin anomalías';
-          badge.className   = 'bi-anomalias-badge bi-anomalias-badge--ok';
-        } else {
-          badge.textContent = `${total} de ${totalPares} pares (${pct}%)`;
-          badge.className   = 'bi-anomalias-badge';
-        }
-      }
-
-      if (anomalias.length === 0) {
-        body.innerHTML = `<div class="bi-anomalias-loading" style="color:var(--primary-green);">
-          ✓ Ningún ciclo de riego presenta anomalías con el umbral actual.
-        </div>`;
-        return;
-      }
-
-      const scores     = anomalias.map(a => a.anomaly_score);
-      const sMin       = Math.min(...scores);
-      const sMax       = Math.max(...scores);
-      const scoreColor = (s) => {
-        const t = (s - sMin) / (sMax - sMin + 1e-9);
-        const r = Math.round(230 - (230 - 82) * t);
-        const g = Math.round(57  + (179 - 57) * t);
-        const b = Math.round(70  + (82  - 70) * t);
-        return `rgb(${r},${g},${b})`;
-      };
-      const volProm = Math.round(
-        anomalias.reduce((s, a) => s + a.vol_total_m3_ha, 0) / anomalias.length
-      );
-
-      body.innerHTML = `
-        <div class="bi-anomalias-lista">
-          ${anomalias.map(a => `
-            <div class="bi-anom-fila">
-              <div class="bi-anom-izq">
-                <span class="bi-anom-id" title="${a.id_parcela}">${a.id_parcela.slice(0,8)}&hellip;</span>
-                <span class="bi-anom-ciclo">${a.ciclo_agricola} &middot; ${a.n_eventos} riegos</span>
-              </div>
-              <span class="bi-anom-feature">${a.feature_principal.split(' — ')[0]}</span>
-              <span class="bi-anom-score" style="color:${scoreColor(a.anomaly_score)}">
-                ${a.anomaly_score.toFixed(3)}
-              </span>
-            </div>`).join('')}
-        </div>
-        <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;">
-          <span style="font-size:0.72rem;color:var(--secondary-text);">
-            Vol. promedio anómalo: ${volProm.toLocaleString('es-MX')} m³/ha
-          </span>
-          <span style="font-size:0.72rem;color:var(--secondary-text);">
-            KPI objetivo: 6,000 m³/ha/ciclo
-          </span>
-        </div>`;
-
-    } catch (err) {
-      console.warn('_cargarAnomaliasML:', err);
-      if (body) {
-        body.innerHTML = `<div class="bi-anomalias-loading">
-          Sin conexión con el endpoint ML (${err.message}).<br>
-          Verifica que el backend esté corriendo en localhost:8000.
-        </div>`;
-      }
-      if (badge) {
-        badge.textContent = 'Sin conexión';
-        badge.className   = 'bi-anomalias-badge';
-      }
-    }
   }
 
   // ── API pública ───────────────────────────────────────────────────────────

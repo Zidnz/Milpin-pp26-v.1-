@@ -49,12 +49,10 @@ class NasaPowerSettings(BaseSettings):
     )
 
     # Período histórico a descargar.
-    # 2020 como inicio captura 6 ciclos completos OI/PV con datos modernos
-    # del DR-041 (digitalización CONAGUA post-2019). Cambiar a 2000 si se
-    # necesita serie larga para análisis de tendencias climáticas históricas.
-    # anio_fin usa el año actual como default para cubrir hasta hoy sin
-    # actualizar el .env cada año. Sobreescribible con NASA_ANIO_FIN.
-    anio_inicio: int = 2020
+    # anio_fin usa el año actual como default para que el ETL siempre cubra
+    # hasta hoy sin necesidad de actualizar el .env cada año.
+    # Sobreescribible con NASA_ANIO_FIN en .env si se necesita limitar el rango.
+    anio_inicio: int = 2000
     anio_fin: int = Field(default_factory=lambda: datetime.now().year)
 
     # Endpoint NASA POWER (Daily point API, comunidad Agricultura)

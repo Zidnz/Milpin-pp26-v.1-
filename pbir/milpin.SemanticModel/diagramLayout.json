@@ -1,0 +1,100 @@
+{
+  "version": "1.1.0",
+  "diagrams": [
+    {
+      "ordinal": 0,
+      "scrollPosition": {
+        "x": 0,
+        "y": 319.38416918239352
+      },
+      "nodes": [
+        {
+          "location": {
+            "x": 663.39745324870069,
+            "y": 253.04440188472319
+          },
+          "nodeIndex": "usuarios",
+          "nodeLineageTag": "00e3f185-703c-4fcb-aacf-4f9c096eb586",
+          "size": {
+            "height": 274,
+            "width": 234
+          },
+          "zIndex": 1
+        },
+        {
+          "location": {
+            "x": 661.38178478219493,
+            "y": 633.60415445010642
+          },
+          "nodeIndex": "parcelas",
+          "nodeLineageTag": "14b1cc0b-65b3-40cf-b592-5e7d8a533b2e",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 2
+        },
+        {
+          "location": {
+            "x": 1437.9643249189551,
+            "y": 639.56281420982532
+          },
+          "nodeIndex": "cultivos_catalogo",
+          "nodeLineageTag": "82104a10-f961-4c8f-99c4-22dc9daf3a35",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 3
+        },
+        {
+          "location": {
+            "x": 1048.6357720707231,
+            "y": 633.60415445010642
+          },
+          "nodeIndex": "recomendaciones",
+          "nodeLineageTag": "4abd8c37-4f87-4b7f-8e3f-391d1e2cd99f",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 6
+        },
+        {
+          "location": {
+            "x": 659.30721922249063,
+            "y": 1111.0914262263097
+          },
+          "nodeIndex": "historial_riego",
+          "nodeLineageTag": "4bce82f0-d0e5-4522-8df1-ff549cf201f0",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 4
+        },
+        {
+          "location": {
+            "x": 289.84086557332097,
+            "y": 633.60415445010665
+          },
+          "nodeIndex": "costos_ciclo",
+          "nodeLineageTag": "f80ce2ef-7784-4d00-8d3f-407846010119",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 5
+        }
+      ],
+      "name": "Todas las tablas",
+      "zoomValue": 50.346892102823148,
+      "pinKeyFieldsToTop": false,
+      "showExtraHeaderInfo": false,
+      "hideKeyFieldsWhenCollapsed": false,
+      "tablesLocked": false
+    }
+  ],
+  "selectedDiagram": "Todas las tablas",
+  "defaultDiagram": "Todas las tablas"
+}

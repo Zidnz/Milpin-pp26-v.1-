@@ -2,59 +2,26 @@
 main.py — Punto de entrada de la API MILPÍN AgTech v2.0
 
 Microservicios registrados:
-    /api/balance_hidrico          → Motor FAO-56 (cálculo en memoria, sin persistencia)
-    /api/kc/{cultivo}             → Curvas Kc por cultivo
-    /api/voz                      → Pipeline STT + Ollama
-    /api/usuarios                 → CRUD usuarios (BD)
-    /api/cultivos                 → Catálogo FAO-56 (BD)
-    /api/parcelas                 → CRUD parcelas (BD)
-    /api/riego                    → Historial de riego (BD)
-    /api/recomendaciones          → Recomendaciones persistentes (BD)
-    /api/actuadores/{id}/activar  → Control automático FAO-56 + XGBoost
-    /api/actuadores/modelo/*      → Métricas y diagnóstico del modelo XGBoost
-    /api/ml/prediccion/{id}       → XGBoost: requiere_riego, lamina_ajustada, riesgo_estres
-    /api/ml/anomalias             → Isolation Forest: detección de ciclos anómalos
-    /api/ml/metricas              → Métricas de ambos modelos ML
+    /api/balance_hidrico  → Motor FAO-56 (cálculo en memoria, sin persistencia)
+    /api/kc/{cultivo}     → Curvas Kc por cultivo
+    /api/voz              → Pipeline STT + Ollama
+    /api/usuarios         → CRUD usuarios (BD)
+    /api/cultivos         → Catálogo FAO-56 (BD)
+    /api/parcelas         → CRUD parcelas (BD)
+    /api/riego            → Historial de riego (BD)
+    /api/recomendaciones  → Recomendaciones persistentes (BD)
 """
 
 from contextlib import asynccontextmanager
 
 import os
-import sys
-from pathlib import Path
-
-# Agrega la raíz del repo a sys.path para que `ml.inference` sea importable
-# desde el backend (que corre en backend/ como cwd).
-_REPO_ROOT = str(Path(__file__).parent.parent)
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-
-# Alias de paquete para case-sensitivity Linux/macOS.
-# En Windows ML/ == ml/ (case-insensitive). En Linux hay que registrar
-# todos los submódulos explícitamente para que el import system no se confunda.
-try:
-    import ML as _ml_pkg
-    import ML.inference as _ml_inf
-    import ML.inference.xgboost_riego as _ml_xgb
-    import ML.inference.anomaly_detector as _ml_ad
-    for _name, _mod in [
-        ("ml",                            _ml_pkg),
-        ("ml.inference",                  _ml_inf),
-        ("ml.inference.xgboost_riego",    _ml_xgb),
-        ("ml.inference.anomaly_detector", _ml_ad),
-    ]:
-        sys.modules.setdefault(_name, _mod)
-except ImportError:
-    pass  # En Windows los nombres ml/ == ML/ resuelven solos
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from API.actuadores_api import router as actuadores_router
 from API.db_api import router as db_router
-from API.ml_api import router as ml_router
 from API.riego_api import router as riego_router
 from API.voice_endpoint import router as voice_router
 from database import create_all_tables
@@ -145,19 +112,6 @@ app.include_router(riego_router, prefix="/api")
 
 # Capa de persistencia (PostgreSQL) — MVP 5 tablas
 app.include_router(db_router, prefix="/api")
-
-# Control automático de actuadores (FAO-56 + XGBoost)
-app.include_router(actuadores_router, prefix="/api")
-
-# Machine Learning: XGBoost predicción + Isolation Forest anomalías
-app.include_router(ml_router, prefix="/api")
-
-# ── Health check ──────────────────────────────────────────────────────────────
-@app.get("/health", tags=["Sistema"])
-async def health():
-    """Verificación rápida de que el backend está en línea."""
-    return {"status": "ok", "sistema": "MILPÍN AgTech v2.0", "version": "mvp"}
-
 
 # ── Archivos estáticos: imágenes de cultivos ──────────────────────────────────
 # Sirve la carpeta /imagenes/ del proyecto en /static/imagenes/

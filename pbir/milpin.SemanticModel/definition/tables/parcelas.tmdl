@@ -1,0 +1,143 @@
+table parcelas
+	lineageTag: 14b1cc0b-65b3-40cf-b592-5e7d8a533b2e
+
+	column id_parcela
+		dataType: string
+		lineageTag: 39a3d83a-f3e6-4130-8baa-fdd5df5f06e0
+		summarizeBy: none
+		sourceColumn: id_parcela
+
+		annotation SummarizationSetBy = Automatic
+
+	column id_usuario
+		dataType: string
+		lineageTag: 7ec61c0d-26f3-4b2a-a21e-f904388805f6
+		summarizeBy: none
+		sourceColumn: id_usuario
+
+		annotation SummarizationSetBy = Automatic
+
+	column id_cultivo_actual
+		dataType: string
+		lineageTag: 4ccf5060-48e9-464c-8ef1-b57fac994442
+		summarizeBy: none
+		sourceColumn: id_cultivo_actual
+
+		annotation SummarizationSetBy = Automatic
+
+	column nombre_parcela
+		dataType: string
+		lineageTag: ad6ab2c2-1cc6-4480-b015-31ce27cc9b9f
+		summarizeBy: none
+		sourceColumn: nombre_parcela
+
+		annotation SummarizationSetBy = Automatic
+
+	column geom
+		dataType: string
+		lineageTag: eb77e5e1-6a66-41ee-92d0-add4a3be3964
+		summarizeBy: none
+		sourceColumn: geom
+
+		annotation SummarizationSetBy = Automatic
+
+	column area_ha
+		dataType: double
+		lineageTag: 5aa002a4-8a74-4649-896b-a0f6fd6b16fb
+		summarizeBy: sum
+		sourceColumn: area_ha
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column tipo_suelo
+		dataType: string
+		lineageTag: 074b509b-e906-45f9-a75a-321039510547
+		summarizeBy: none
+		sourceColumn: tipo_suelo
+
+		annotation SummarizationSetBy = Automatic
+
+	column conductividad_electrica
+		dataType: double
+		lineageTag: 201f4b51-2f3b-40f7-b187-9c7d37c507ad
+		summarizeBy: sum
+		sourceColumn: conductividad_electrica
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column profundidad_raiz_cm
+		dataType: int64
+		formatString: 0
+		lineageTag: 5a322924-3b22-46c6-84f5-4ac494c7852b
+		summarizeBy: sum
+		sourceColumn: profundidad_raiz_cm
+
+		annotation SummarizationSetBy = Automatic
+
+	column capacidad_campo
+		dataType: double
+		lineageTag: 44375356-4696-4fbb-9657-43b5854d08d1
+		summarizeBy: sum
+		sourceColumn: capacidad_campo
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column punto_marchitez
+		dataType: double
+		lineageTag: 729fca86-d4d7-48c0-bc4b-461a9d922916
+		summarizeBy: sum
+		sourceColumn: punto_marchitez
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column sistema_riego
+		dataType: string
+		lineageTag: 0e8b0d86-6d12-44ba-adb8-c683c746b3a0
+		summarizeBy: none
+		sourceColumn: sistema_riego
+
+		annotation SummarizationSetBy = Automatic
+
+	column activo
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: b582d3e6-9390-4531-86a7-1a7bd03ee5b0
+		summarizeBy: none
+		sourceColumn: activo
+
+		annotation SummarizationSetBy = Automatic
+
+	column created_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 5ad40262-1f23-4b62-b938-ce0f4d5e5c44
+		summarizeBy: none
+		sourceColumn: created_at
+
+		variation Variación
+			isDefault
+			relationship: 12f22851-640c-47d5-8b82-3da11ce53608
+			defaultHierarchy: LocalDateTable_642966df-717b-457a-bdcd-8bd8d5588475.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+	partition parcelas = m
+		mode: import
+		source =
+				let
+				    Origen = Csv.Document(File.Contents("C:\Users\madri\Downloads\pp26(Omar)\data\synthetic\parcelas.csv"),[Delimiter=",", Columns=14, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+				    #"Encabezados promovidos" = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+				    #"Tipo cambiado" = Table.TransformColumnTypes(#"Encabezados promovidos",{{"id_parcela", type text}, {"id_usuario", type text}, {"id_cultivo_actual", type text}, {"nombre_parcela", type text}, {"geom", type text}, {"area_ha", type number}, {"tipo_suelo", type text}, {"conductividad_electrica", type number}, {"profundidad_raiz_cm", Int64.Type}, {"capacidad_campo", type number}, {"punto_marchitez", type number}, {"sistema_riego", type text}, {"activo", type logical}, {"created_at", type datetime}})
+				in
+				    #"Tipo cambiado"
+
+	annotation PBI_ResultType = Table
+
