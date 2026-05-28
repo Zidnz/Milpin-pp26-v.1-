@@ -27,6 +27,7 @@ Endpoints disponibles:
 
 import asyncio
 import json
+import random
 import sys
 import uuid
 from datetime import date, datetime, timedelta
@@ -38,6 +39,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from security import (
+    TokenOut,
+    create_access_token,
+    get_current_admin,
+    get_current_user,
+    get_optional_user,
+    hash_password,
+    verify_password,
+)
 from core.balance_hidrico import obtener_curva_kc
 from database import get_db
 from models import CostoCiclo, CultivoCatalogo, HistorialRiego, Parcela, Recomendacion, Usuario
@@ -128,6 +138,7 @@ async def _etl_parcela_background(parcela_id: uuid.UUID) -> None:
 class UsuarioCreate(BaseModel):
     nombre_completo: str
     email: str
+    password: str = Field(..., min_length=6, description="Contraseña en texto plano (se hashea en servidor).")
     telefono: Optional[str] = None
     modulo_dr041: Optional[str] = None
     rol: str = "agricultor"
@@ -144,6 +155,15 @@ class UsuarioOut(BaseModel):
 
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=120)
+    password: str = Field(..., min_length=1)
+
+
+class RegisterRequest(BaseModel):
+    nombre_completo: str = Field(..., min_length=2, max_length=120)
+    email: str = Field(..., min_length=5, max_length=120)
+    password: str = Field(..., min_length=6)
+    telefono: Optional[str] = None
+    modulo_dr041: Optional[str] = None
 
 
 class CultivoOut(BaseModel):
@@ -163,7 +183,6 @@ class CultivoOut(BaseModel):
 
 
 class ParcelaCreate(BaseModel):
-    id_usuario: uuid.UUID
     id_cultivo_actual: Optional[uuid.UUID] = None
     nombre_parcela: Optional[str] = None
     geom: Optional[dict] = Field(None, description="GeoJSON Polygon del lote")
@@ -203,6 +222,8 @@ class RiegoCreate(BaseModel):
     id_parcela: uuid.UUID
     id_recomendacion: Optional[uuid.UUID] = None
     fecha_riego: date
+    # ciclo_agricola se autocalcula desde fecha_riego si no se envía.
+    ciclo_agricola: Optional[str] = None
     volumen_m3_ha: Optional[float] = None
     lamina_mm: Optional[float] = None
     duracion_horas: Optional[float] = None
@@ -216,6 +237,8 @@ class RiegoOut(BaseModel):
     id_parcela: uuid.UUID
     id_recomendacion: Optional[uuid.UUID]
     fecha_riego: date
+    ciclo_agricola: Optional[str]
+    ciclo_vol_target_m3_ha: Optional[float]
     volumen_m3_ha: Optional[float]
     lamina_mm: Optional[float]
     metodo_riego: Optional[str]
@@ -266,21 +289,29 @@ class FeedbackRecomendacion(BaseModel):
 # ── Endpoints: usuarios ───────────────────────────────────────────────────────
 
 @router.post("/usuarios", response_model=UsuarioOut, status_code=status.HTTP_201_CREATED)
-async def crear_usuario(data: UsuarioCreate, db: AsyncSession = Depends(get_db)):
-    """Registra un nuevo agricultor o técnico en el sistema."""
-    # Verificar email único
+async def crear_usuario(
+    data: UsuarioCreate,
+    db: AsyncSession = Depends(get_db),
+    _admin: Usuario = Depends(get_current_admin),
+):
+    """Crea un usuario (solo admins). Para auto-registro usar POST /auth/register."""
     existe = await db.execute(select(Usuario).where(Usuario.email == data.email))
     if existe.scalar_one_or_none():
         raise HTTPException(status_code=409, detail=f"Email '{data.email}' ya está registrado.")
-    usuario = Usuario(id_usuario=uuid.uuid4(), **data.model_dump())
+    payload = data.model_dump()
+    plain_pw = payload.pop("password")
+    usuario = Usuario(id_usuario=uuid.uuid4(), hashed_password=hash_password(plain_pw), **payload)
     db.add(usuario)
     await db.flush()
     return usuario
 
 
 @router.get("/usuarios", response_model=list[UsuarioOut])
-async def listar_usuarios(db: AsyncSession = Depends(get_db)):
-    """Lista los usuarios activos disponibles para el login del frontend."""
+async def listar_usuarios(
+    db: AsyncSession = Depends(get_db),
+    _admin: Usuario = Depends(get_current_admin),
+):
+    """Lista los usuarios activos (solo admins)."""
     resultado = await db.execute(
         select(Usuario)
         .where(Usuario.activo == True)
@@ -298,27 +329,70 @@ async def obtener_usuario(id_usuario: uuid.UUID, db: AsyncSession = Depends(get_
     return usuario
 
 
-@router.post("/auth/login", response_model=UsuarioOut)
-async def login_dataset(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+@router.post("/auth/login", response_model=TokenOut)
+async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     """
-    Login minimo basado en el dataset existente.
+    Autentica al usuario con email y contraseña. Retorna un JWT Bearer.
 
-    No hay password persistido en `usuarios`, asi que para esta demo el acceso
-    valida que el email exista y que el usuario siga activo.
+    El token debe enviarse en el header:
+        Authorization: Bearer <access_token>
     """
     email = data.email.strip().lower()
-    if not email:
-        raise HTTPException(status_code=400, detail="Email requerido.")
-
     resultado = await db.execute(
         select(Usuario).where(func.lower(Usuario.email) == email)
     )
     usuario = resultado.scalar_one_or_none()
-    if not usuario:
-        raise HTTPException(status_code=401, detail="Usuario no encontrado en el dataset.")
-    if not usuario.activo:
-        raise HTTPException(status_code=403, detail="Usuario inactivo.")
-    return usuario
+    if not usuario or not usuario.activo:
+        raise HTTPException(status_code=401, detail="Credenciales inválidas.")
+    if not usuario.hashed_password:
+        raise HTTPException(
+            status_code=401,
+            detail="Usuario sin contraseña configurada. Usa POST /api/auth/register.",
+        )
+    if not verify_password(data.password, usuario.hashed_password):
+        raise HTTPException(status_code=401, detail="Credenciales inválidas.")
+
+    return TokenOut(
+        access_token=create_access_token(usuario.id_usuario, usuario.rol),
+        id_usuario=usuario.id_usuario,
+        nombre_completo=usuario.nombre_completo,
+        email=usuario.email,
+        rol=usuario.rol,
+    )
+
+
+@router.post("/auth/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
+async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Registro público: crea un nuevo usuario con contraseña y retorna el JWT.
+
+    El rol siempre es 'agricultor'. Para crear admins usar POST /api/usuarios
+    con un token de admin.
+    """
+    email = data.email.strip().lower()
+    existe = await db.execute(select(Usuario).where(func.lower(Usuario.email) == email))
+    if existe.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"El email '{email}' ya está registrado.")
+
+    usuario = Usuario(
+        id_usuario=uuid.uuid4(),
+        nombre_completo=data.nombre_completo.strip(),
+        email=email,
+        telefono=data.telefono,
+        modulo_dr041=data.modulo_dr041,
+        rol="agricultor",
+        hashed_password=hash_password(data.password),
+    )
+    db.add(usuario)
+    await db.flush()
+
+    return TokenOut(
+        access_token=create_access_token(usuario.id_usuario, usuario.rol),
+        id_usuario=usuario.id_usuario,
+        nombre_completo=usuario.nombre_completo,
+        email=usuario.email,
+        rol=usuario.rol,
+    )
 
 
 # ── Endpoints: cultivos_catalogo ──────────────────────────────────────────────
@@ -347,14 +421,22 @@ async def obtener_cultivo(id_cultivo: uuid.UUID, db: AsyncSession = Depends(get_
 async def listar_parcelas(
     id_usuario: Optional[uuid.UUID] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[Usuario] = Depends(get_optional_user),
 ):
-    """Lista parcelas activas; puede filtrarse por el usuario autenticado."""
+    """Lista parcelas activas.
+
+    - Con JWT de agricultor: solo devuelve sus propias parcelas.
+    - Con JWT de admin: devuelve todas (filtrable con ?id_usuario=).
+    - Sin JWT: retorna todas (backward compat con Leaflet map).
+    """
     stmt = (
         select(Parcela)
         .where(Parcela.activo == True)
         .order_by(Parcela.nombre_parcela)
     )
-    if id_usuario is not None:
+    if current_user is not None and current_user.rol != "admin":
+        stmt = stmt.where(Parcela.id_usuario == current_user.id_usuario)
+    elif id_usuario is not None:
         stmt = stmt.where(Parcela.id_usuario == id_usuario)
     resultado = await db.execute(stmt)
     return [_to_parcela_out(p) for p in resultado.scalars().all()]
@@ -434,28 +516,80 @@ async def parcelas_geojson(
     return result.scalar_one()
 
 
+_MILPIN_VOL_TARGET_M3_HA = 6_000.0
+"""Volumen objetivo MILPÍN por ciclo (m³/ha). KPI: reducir 25% vs. baseline
+DR-041 de 8,000 m³/ha/ciclo. Se persiste en historial_riego.ciclo_vol_target_m3_ha
+para que Power BI y el detector de anomalías tengan el target en cada fila."""
+
+
+def _ciclo_agricola(fecha: date) -> str:
+    """Infiere el ciclo agrícola del Valle del Yaqui (DR-041) desde una fecha.
+
+    Convención DR-041:
+        OI (Otoño-Invierno): oct–mar → el año del label es el de cierre (marzo).
+            Oct–Dic YYYY  →  OI-{YYYY+1}
+            Ene–Mar YYYY  →  OI-{YYYY}
+        PV (Primavera-Verano): abr–sep → año del período.
+            Abr–Sep YYYY  →  PV-{YYYY}
+    """
+    m = fecha.month
+    if m >= 10:
+        return f"OI-{fecha.year + 1}"
+    elif m <= 3:
+        return f"OI-{fecha.year}"
+    return f"PV-{fecha.year}"
+
+
+def _suelo_franco_arcilloso() -> tuple[float, float]:
+    """Genera CC y PMP con variación realista para suelo franco-arcilloso
+    del Valle del Yaqui, Sonora.
+
+    Rangos basados en FAO-56 Annex 5 y Hillel (1998) para Loam / Clay-Loam:
+        CC:  0.27 – 0.42 m³/m³  (µ = 0.34, σ = 0.025)
+        PMP: CC - diferencia     (diferencia µ = 0.16, σ = 0.015)
+    Restricción dura: CC − PMP ≥ 0.08 (agua disponible mínima viable).
+
+    Returns: (capacidad_campo, punto_marchitez) en m³/m³, 4 decimales.
+    """
+    cc = random.gauss(0.34, 0.025)
+    cc = round(max(0.27, min(0.42, cc)), 4)
+
+    diff = random.gauss(0.16, 0.015)
+    diff = max(0.08, min(0.22, diff))
+
+    pmp = round(max(0.10, cc - diff), 4)
+    return cc, pmp
+
+
 @router.post("/parcelas", response_model=ParcelaOut, status_code=status.HTTP_201_CREATED)
 async def crear_parcela(
     data: ParcelaCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ):
-    """Registra un nuevo lote de cultivo asociado a un usuario.
+    """Registra un nuevo lote de cultivo. El dueño es el usuario autenticado (JWT).
 
     Tras crear la parcela, dispara automáticamente el ETL de NASA POWER como
     tarea en background para descargar los datos climáticos de los últimos 5
     años. La respuesta se devuelve inmediatamente; el ETL corre en paralelo.
     """
-    # Verificar que el usuario existe
-    usuario = await db.execute(select(Usuario).where(Usuario.id_usuario == data.id_usuario))
-    if not usuario.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-
     payload = data.model_dump()
+    payload["id_usuario"] = current_user.id_usuario
     # Separar geom: el dict GeoJSON no se puede pasar directamente al ORM,
     # hay que convertirlo a WKBElement de GeoAlchemy2.
     geom_dict = payload.pop("geom", None)
     geom_wkb = _geom_from_geojson(geom_dict)
+
+    # Si el usuario no envió datos edáficos, generar valores realistas para
+    # suelo franco-arcilloso del Valle del Yaqui en lugar de dejar NULL.
+    # NULL rompe el cálculo FAO-56 silenciosamente (usa fallbacks hardcoded).
+    if payload.get("capacidad_campo") is None or payload.get("punto_marchitez") is None:
+        cc_gen, pmp_gen = _suelo_franco_arcilloso()
+        if payload.get("capacidad_campo") is None:
+            payload["capacidad_campo"] = cc_gen
+        if payload.get("punto_marchitez") is None:
+            payload["punto_marchitez"] = pmp_gen
 
     parcela = Parcela(id_parcela=uuid.uuid4(), geom=geom_wkb, **payload)
     db.add(parcela)
@@ -650,19 +784,32 @@ async def kpi_parcela(
 # ── Endpoints: historial_riego ────────────────────────────────────────────────
 
 @router.post("/riego", response_model=RiegoOut, status_code=status.HTTP_201_CREATED)
-async def registrar_riego(data: RiegoCreate, db: AsyncSession = Depends(get_db)):
+async def registrar_riego(
+    data: RiegoCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     """
-    Registra un evento de riego ejecutado.
+    Registra un evento de riego ejecutado. Requiere JWT del dueño de la parcela.
 
     Si se proporciona id_recomendacion, actualiza automáticamente el estado
     de la recomendación a 'aceptada' (o 'modificada' si la lámina difiere).
     """
-    # Verificar que la parcela existe
     p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == data.id_parcela))
-    if not p_res.scalar_one_or_none():
+    parcela = p_res.scalar_one_or_none()
+    if not parcela:
         raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+    if current_user.rol != "admin" and parcela.id_usuario != current_user.id_usuario:
+        raise HTTPException(status_code=403, detail="Sin acceso a esta parcela.")
 
-    riego = HistorialRiego(id_riego=uuid.uuid4(), **data.model_dump())
+    payload = data.model_dump()
+    # Autocalcular ciclo_agricola si el cliente no lo envió
+    if not payload.get("ciclo_agricola"):
+        payload["ciclo_agricola"] = _ciclo_agricola(data.fecha_riego)
+    # Siempre fijar el target MILPÍN (no depende del cliente)
+    payload["ciclo_vol_target_m3_ha"] = _MILPIN_VOL_TARGET_M3_HA
+
+    riego = HistorialRiego(id_riego=uuid.uuid4(), **payload)
     db.add(riego)
 
     # Actualizar feedback de la recomendación si viene vinculada
@@ -721,17 +868,23 @@ async def historial_riego_parcela(
 @router.post(
     "/recomendaciones", response_model=RecomendacionOut, status_code=status.HTTP_201_CREATED
 )
-async def guardar_recomendacion(data: RecomendacionCreate, db: AsyncSession = Depends(get_db)):
+async def guardar_recomendacion(
+    data: RecomendacionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     """
     Persiste una recomendación generada por el motor FAO-56.
 
-    Este endpoint es llamado internamente por riego_api.py después de
-    calcular el balance hídrico, para guardar el resultado con trazabilidad.
+    Requiere JWT del dueño de la parcela (o admin). El motor FAO-56 en
+    riego_api.py persiste directamente vía ORM, no llama a este endpoint.
     """
-    # Verificar que la parcela existe
     p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == data.id_parcela))
-    if not p_res.scalar_one_or_none():
+    parcela = p_res.scalar_one_or_none()
+    if not parcela:
         raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+    if current_user.rol != "admin" and parcela.id_usuario != current_user.id_usuario:
+        raise HTTPException(status_code=403, detail="Sin acceso a esta parcela.")
 
     rec = Recomendacion(id_recomendacion=uuid.uuid4(), **data.model_dump())
     db.add(rec)
@@ -752,8 +905,16 @@ async def recomendaciones_por_parcela(
     El frontend usa este endpoint para renderizar el tab de Riego.
     """
     p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == id_parcela))
-    if not p_res.scalar_one_or_none():
+    parcela = p_res.scalar_one_or_none()
+    if not parcela:
         raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+
+    # Valores edáficos de la parcela como fallback para recomendaciones antiguas
+    # que no tienen cc_pct/humedad_actual_pct en parametros_json.
+    # capacidad_campo y punto_marchitez se guardan en BD como fracción (0–1);
+    # los multiplicamos × 100 para que el frontend reciba porcentaje (0–100).
+    _cc_fallback  = float(parcela.capacidad_campo or 0.34) * 100.0
+    _pmp_fallback = float(parcela.punto_marchitez or 0.18) * 100.0
 
     # Recomendacion pendiente mas reciente
     res_activa = await db.execute(
@@ -781,6 +942,19 @@ async def recomendaciones_por_parcela(
 
     def _fmt(r: Recomendacion) -> dict:
         pj = r.parametros_json or {}
+
+        # cc_pct: preferir el snapshot guardado; si no existe (rec antigua),
+        # usar el valor actual de la parcela como fallback.
+        cc_pct = pj.get("cc_pct") or _cc_fallback
+
+        # humedad_actual_pct: ídem. Si falta en el snapshot (recomendaciones
+        # generadas antes del 2026-05-06), estimar con el punto medio CC+PMP.
+        # El flag humedad_estimada avisa al frontend que es un valor aproximado.
+        hum_pct = pj.get("humedad_actual_pct")
+        humedad_estimada = hum_pct is None
+        if hum_pct is None:
+            hum_pct = round((_cc_fallback + _pmp_fallback) / 2.0, 2)
+
         return {
             "id_recomendacion": str(r.id_recomendacion),
             "fecha_generacion": r.fecha_generacion.isoformat(),
@@ -793,13 +967,14 @@ async def recomendaciones_por_parcela(
             "nivel_urgencia": r.nivel_urgencia,
             "aceptada": r.aceptada,
             "lamina_ejecutada_mm": float(r.lamina_ejecutada_mm) if r.lamina_ejecutada_mm else None,
-            # ── Campos extraídos de parametros_json para el frontend ──
+            # ── Campos extraídos de parametros_json (con fallbacks) ──
             "cultivo": pj.get("cultivo"),
             "parcela_nombre": pj.get("parcela"),
             "kc": pj.get("kc"),
             "precipitacion_mm": pj.get("precipitacion_mm"),
-            "humedad_actual_pct": pj.get("humedad_actual_pct"),
-            "cc_pct": pj.get("cc_pct"),
+            "humedad_actual_pct": hum_pct,
+            "humedad_estimada": humedad_estimada,
+            "cc_pct": cc_pct,
             "dias_siembra": pj.get("dias_siembra"),
             "parametros_json": pj,
         }
@@ -829,6 +1004,7 @@ async def feedback_recomendacion(
     id_recomendacion: uuid.UUID,
     feedback: FeedbackRecomendacion,
     db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ):
     """
     Registra la respuesta del agricultor a una recomendacion.
@@ -850,6 +1026,14 @@ async def feedback_recomendacion(
     rec = resultado.scalar_one_or_none()
     if not rec:
         raise HTTPException(status_code=404, detail="Recomendacion no encontrada.")
+
+    # Verificar propiedad: la recomendación pertenece a una parcela del usuario
+    p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == rec.id_parcela))
+    parcela = p_res.scalar_one_or_none()
+    if current_user.rol != "admin" and (
+        parcela is None or parcela.id_usuario != current_user.id_usuario
+    ):
+        raise HTTPException(status_code=403, detail="Sin acceso a esta recomendación.")
 
     if rec.aceptada != "pendiente":
         raise HTTPException(
@@ -884,6 +1068,8 @@ async def feedback_recomendacion(
             id_parcela=rec.id_parcela,
             id_recomendacion=rec.id_recomendacion,
             fecha_riego=fecha_riego,
+            ciclo_agricola=_ciclo_agricola(fecha_riego),
+            ciclo_vol_target_m3_ha=_MILPIN_VOL_TARGET_M3_HA,
             lamina_mm=lamina_mm,
             volumen_m3_ha=volumen_m3_ha,
             metodo_riego=parcela.sistema_riego if parcela else None,
@@ -903,6 +1089,8 @@ async def feedback_recomendacion(
             id_parcela=rec.id_parcela,
             id_recomendacion=rec.id_recomendacion,
             fecha_riego=fecha_riego,
+            ciclo_agricola=_ciclo_agricola(fecha_riego),
+            ciclo_vol_target_m3_ha=_MILPIN_VOL_TARGET_M3_HA,
             lamina_mm=0.0,
             volumen_m3_ha=0.0,
             metodo_riego=None,
@@ -952,11 +1140,18 @@ class CostoCicloOut(BaseModel):
 # Endpoints: costos_ciclo
 
 @router.post("/costos", response_model=CostoCicloOut, status_code=status.HTTP_201_CREATED)
-async def registrar_costo_ciclo(data: CostoCicloCreate, db: AsyncSession = Depends(get_db)):
+async def registrar_costo_ciclo(
+    data: CostoCicloCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     """Registra el resumen economico de un ciclo agricola. Calcula margen si no se provee."""
     p_res = await db.execute(select(Parcela).where(Parcela.id_parcela == data.id_parcela))
-    if not p_res.scalar_one_or_none():
+    parcela = p_res.scalar_one_or_none()
+    if not parcela:
         raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+    if current_user.rol != "admin" and parcela.id_usuario != current_user.id_usuario:
+        raise HTTPException(status_code=403, detail="Sin acceso a esta parcela.")
 
     payload = data.model_dump()
 
@@ -989,6 +1184,105 @@ async def costos_por_parcela(id_parcela: uuid.UUID, db: AsyncSession = Depends(g
         .order_by(CostoCiclo.ciclo_agricola.desc())
     )
     return resultado.scalars().all()
+
+
+# ── Endpoint: carga de trabajo técnico de riego ───────────────────────────────
+
+@router.get("/tecnico/carga-trabajo")
+async def carga_trabajo_tecnico(
+    id_usuario: Optional[uuid.UUID] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Vista de carga de trabajo para técnicos de riego.
+
+    Retorna todas las parcelas activas con su última recomendación pendiente,
+    ordenadas por urgencia (crítico → moderado → preventivo → sin recomendación).
+
+    Parámetros opcionales:
+      id_usuario — filtra por propietario (sin filtro = todas las parcelas del sistema).
+    """
+    # --- 1. Parcelas activas con propietario y cultivo ---
+    stmt = (
+        select(Parcela, Usuario, CultivoCatalogo)
+        .join(Usuario, Parcela.id_usuario == Usuario.id_usuario)
+        .outerjoin(CultivoCatalogo, Parcela.id_cultivo_actual == CultivoCatalogo.id_cultivo)
+        .where(Parcela.activo == True)
+        .order_by(Parcela.nombre_parcela)
+    )
+    if id_usuario is not None:
+        stmt = stmt.where(Parcela.id_usuario == id_usuario)
+
+    parcelas_res = await db.execute(stmt)
+    parcelas_rows = parcelas_res.all()
+
+    if not parcelas_rows:
+        return {
+            "fecha_consulta": date.today().isoformat(),
+            "resumen": {"total": 0, "critico": 0, "moderado": 0, "preventivo": 0, "sin_recomendacion": 0},
+            "parcelas": [],
+        }
+
+    parcela_ids = [row.Parcela.id_parcela for row in parcelas_rows]
+
+    # --- 2. Todas las recomendaciones pendientes; Python-side: más reciente por parcela ---
+    recs_res = await db.execute(
+        select(Recomendacion)
+        .where(
+            Recomendacion.aceptada == "pendiente",
+            Recomendacion.id_parcela.in_(parcela_ids),
+        )
+        .order_by(Recomendacion.fecha_generacion.desc())
+    )
+    rec_por_parcela: dict[str, Recomendacion] = {}
+    for r in recs_res.scalars().all():
+        pid = str(r.id_parcela)
+        if pid not in rec_por_parcela:
+            rec_por_parcela[pid] = r
+
+    # --- 3. Construir lista de items ---
+    URGENCIA_ORDEN = {"critico": 0, "moderado": 1, "preventivo": 2}
+
+    items = []
+    for row in parcelas_rows:
+        p: Parcela = row.Parcela
+        u: Usuario = row.Usuario
+        c: Optional[CultivoCatalogo] = row.CultivoCatalogo
+        r: Optional[Recomendacion] = rec_por_parcela.get(str(p.id_parcela))
+
+        items.append({
+            "id_parcela":            str(p.id_parcela),
+            "nombre_parcela":        p.nombre_parcela or f"Parcela {str(p.id_parcela)[:8]}",
+            "id_usuario":            str(p.id_usuario),
+            "propietario":           u.nombre_completo,
+            "cultivo":               c.nombre_comun if c else None,
+            "area_ha":               float(p.area_ha) if p.area_ha else None,
+            "sistema_riego":         p.sistema_riego,
+            "nivel_urgencia":        r.nivel_urgencia if r else None,
+            "dias_sin_riego":        r.dias_sin_riego if r else None,
+            "deficit_acumulado_mm":  float(r.deficit_acumulado_mm) if r and r.deficit_acumulado_mm else None,
+            "lamina_recomendada_mm": float(r.lamina_recomendada_mm) if r and r.lamina_recomendada_mm else None,
+            "fecha_riego_sugerida":  r.fecha_riego_sugerida.isoformat() if r and r.fecha_riego_sugerida else None,
+            "id_recomendacion":      str(r.id_recomendacion) if r else None,
+            "aceptada":              r.aceptada if r else None,
+            "fecha_generacion":      r.fecha_generacion.isoformat() if r else None,
+        })
+
+    # Sort by urgency first, then alphabetically by name
+    items.sort(key=lambda x: (URGENCIA_ORDEN.get(x["nivel_urgencia"], 3), x["nombre_parcela"].lower()))
+
+    # --- 4. Resumen ---
+    conteo = {"critico": 0, "moderado": 0, "preventivo": 0, "sin_recomendacion": 0}
+    for item in items:
+        k = item["nivel_urgencia"] or "sin_recomendacion"
+        if k in conteo:
+            conteo[k] += 1
+
+    return {
+        "fecha_consulta": date.today().isoformat(),
+        "resumen":        {"total": len(items), **conteo},
+        "parcelas":       items,
+    }
 
 
 # Endpoint: proyeccion FAO-56 a N dias con Ridge Regression sobre ETo

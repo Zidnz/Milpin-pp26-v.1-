@@ -12,6 +12,7 @@ Ver README_DB.md para instrucciones de instalación.
 
 import asyncio
 import math
+import random
 import sys
 import uuid
 from datetime import date, datetime, timedelta, timezone
@@ -20,8 +21,30 @@ import numpy as np
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from security import hash_password
 from database import AsyncSessionLocal, create_all_tables, drop_all_tables, engine
 from models import ClimaDiario, CultivoCatalogo, HistorialRiego, Parcela, Recomendacion, Usuario
+
+
+def _suelo_franco_arcilloso() -> tuple[float, float]:
+    """Genera CC y PMP con variación realista para suelo franco-arcilloso
+    del Valle del Yaqui, Sonora.
+
+    Rangos basados en FAO-56 Annex 5 y Hillel (1998) para Loam / Clay-Loam:
+        CC:  0.27 – 0.42 m³/m³  (µ = 0.34, σ = 0.025)
+        PMP: CC - diferencia     (diferencia µ = 0.16, σ = 0.015)
+    Restricción dura: CC − PMP ≥ 0.08 (agua disponible mínima viable).
+
+    Returns: (capacidad_campo, punto_marchitez) en m³/m³, 4 decimales.
+    """
+    cc = random.gauss(0.34, 0.025)
+    cc = round(max(0.27, min(0.42, cc)), 4)
+
+    diff = random.gauss(0.16, 0.015)
+    diff = max(0.08, min(0.22, diff))
+
+    pmp = round(max(0.10, cc - diff), 4)
+    return cc, pmp
 
 
 # ── Datos semilla: catálogo definitivo MILPÍN (FAO-56 Tabla 12, FAO-33 Tabla 25)
@@ -38,6 +61,8 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 45,
         "dias_etapa_final": 30,
         "rendimiento_potencial_ton": 10.0,
+        "rendimiento_min_ton": 5.0,   # CIMMYT/INIFAP DR-041, ciclo PV sin estrés hídrico
+        "rendimiento_max_ton": 12.0,  # techo tecnificado con riego deficitario controlado
     },
     {
         "nombre_comun": "Frijol",
@@ -51,6 +76,8 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 40,
         "dias_etapa_final": 20,
         "rendimiento_potencial_ton": 2.0,
+        "rendimiento_min_ton": 0.8,
+        "rendimiento_max_ton": 2.5,
     },
     {
         "nombre_comun": "Algodón",
@@ -64,6 +91,8 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 55,
         "dias_etapa_final": 45,
         "rendimiento_potencial_ton": 3.5,
+        "rendimiento_min_ton": 1.5,   # fibra limpia ton/ha
+        "rendimiento_max_ton": 4.5,
     },
     {
         "nombre_comun": "Uva",
@@ -77,6 +106,8 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 75,
         "dias_etapa_final": 50,
         "rendimiento_potencial_ton": 22.5,
+        "rendimiento_min_ton": 12.0,
+        "rendimiento_max_ton": 28.0,
     },
     {
         "nombre_comun": "Chile",
@@ -90,25 +121,31 @@ CULTIVOS_SEMILLA = [
         "dias_etapa_media": 40,
         "dias_etapa_final": 20,
         "rendimiento_potencial_ton": 30.0,
+        "rendimiento_min_ton": 15.0,
+        "rendimiento_max_ton": 40.0,
     },
 ]
 
 # Usuario de prueba para desarrollo
+# Contraseña dev: milpin2024
 USUARIO_PRUEBA = {
     "nombre_completo": "Ramón Valenzuela Torres",
     "email": "rvalenzuela@dr041-dev.com",
     "telefono": "+52 644 100 0001",
     "modulo_dr041": "Módulo 3",
     "rol": "agricultor",
+    "password_dev": "milpin2024",
 }
 
 # Usuario administrador (acceso a todas las parcelas)
+# Contraseña dev: admin2024
 USUARIO_ADMIN = {
     "nombre_completo": "Administrador MILPÍN",
     "email": "admin@milpin-dr041.com",
     "telefono": "+52 644 000 0000",
     "modulo_dr041": "DR-041 Completo",
     "rol": "admin",
+    "password_dev": "admin2024",
 }
 
 
@@ -152,34 +189,57 @@ async def seed_cultivos(db: AsyncSession) -> int:
 
 
 async def seed_usuario_prueba(db: AsyncSession) -> bool:
-    """Inserta un usuario de prueba para desarrollo."""
+    """Inserta un usuario de prueba para desarrollo. Contraseña: milpin2024"""
     resultado = await db.execute(
         select(Usuario).where(Usuario.email == USUARIO_PRUEBA["email"])
     )
-    if resultado.scalar_one_or_none() is None:
-        usuario = Usuario(id_usuario=uuid.uuid4(), **USUARIO_PRUEBA)
+    existente = resultado.scalar_one_or_none()
+    if existente is None:
+        data = {k: v for k, v in USUARIO_PRUEBA.items() if k != "password_dev"}
+        usuario = Usuario(
+            id_usuario=uuid.uuid4(),
+            hashed_password=hash_password(USUARIO_PRUEBA["password_dev"]),
+            **data,
+        )
         db.add(usuario)
         await db.commit()
-        print(f"  + Usuario de prueba insertado: {USUARIO_PRUEBA['email']}")
+        print(f"  + Usuario de prueba insertado: {USUARIO_PRUEBA['email']} (pwd: milpin2024)")
         return True
     else:
-        print(f"  ○ Usuario de prueba ya existe: {USUARIO_PRUEBA['email']}")
+        # Actualizar contraseña si aún es NULL (migración desde dataset sin auth)
+        if existente.hashed_password is None:
+            existente.hashed_password = hash_password(USUARIO_PRUEBA["password_dev"])
+            await db.commit()
+            print(f"  ↑ Contraseña actualizada para: {USUARIO_PRUEBA['email']} (pwd: milpin2024)")
+        else:
+            print(f"  ○ Usuario de prueba ya existe: {USUARIO_PRUEBA['email']}")
         return False
 
 
 async def seed_usuario_admin(db: AsyncSession) -> bool:
-    """Inserta el usuario administrador si no existe."""
+    """Inserta el usuario administrador si no existe. Contraseña: admin2024"""
     resultado = await db.execute(
         select(Usuario).where(Usuario.email == USUARIO_ADMIN["email"])
     )
-    if resultado.scalar_one_or_none() is None:
-        admin = Usuario(id_usuario=uuid.uuid4(), **USUARIO_ADMIN)
+    existente = resultado.scalar_one_or_none()
+    if existente is None:
+        data = {k: v for k, v in USUARIO_ADMIN.items() if k != "password_dev"}
+        admin = Usuario(
+            id_usuario=uuid.uuid4(),
+            hashed_password=hash_password(USUARIO_ADMIN["password_dev"]),
+            **data,
+        )
         db.add(admin)
         await db.commit()
-        print(f"  + Admin insertado: {USUARIO_ADMIN['email']}")
+        print(f"  + Admin insertado: {USUARIO_ADMIN['email']} (pwd: admin2024)")
         return True
     else:
-        print(f"  ○ Admin ya existe: {USUARIO_ADMIN['email']}")
+        if existente.hashed_password is None:
+            existente.hashed_password = hash_password(USUARIO_ADMIN["password_dev"])
+            await db.commit()
+            print(f"  ↑ Contraseña actualizada para: {USUARIO_ADMIN['email']} (pwd: admin2024)")
+        else:
+            print(f"  ○ Admin ya existe: {USUARIO_ADMIN['email']}")
         return False
 
 
@@ -229,6 +289,9 @@ async def seed_parcela_prueba(db: AsyncSession) -> uuid.UUID | None:
     }
     _geom_wkb = _from_shape(_shape(_geom_dict), srid=4326)
 
+    # Generar CC y PMP realistas para el lote demo (variación por corrida)
+    _cc_demo, _pmp_demo = _suelo_franco_arcilloso()
+
     parcela = Parcela(
         id_parcela=uuid.uuid4(),
         id_usuario=usuario.id_usuario,
@@ -239,8 +302,8 @@ async def seed_parcela_prueba(db: AsyncSession) -> uuid.UUID | None:
         tipo_suelo="franco-arcilloso",
         conductividad_electrica=1.8,
         profundidad_raiz_cm=60,
-        capacidad_campo=0.34,
-        punto_marchitez=0.18,
+        capacidad_campo=_cc_demo,
+        punto_marchitez=_pmp_demo,
         sistema_riego="gravedad",
     )
     db.add(parcela)
