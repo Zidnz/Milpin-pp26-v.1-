@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     telefono         VARCHAR(20),
     modulo_dr041     VARCHAR(50),
     activo           BOOLEAN      NOT NULL DEFAULT TRUE,
+    rol              VARCHAR(20)  NOT NULL DEFAULT 'agricultor',
+    hashed_password  VARCHAR(200),
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
 
     CONSTRAINT uq_usuarios_email UNIQUE (email)
@@ -58,7 +60,12 @@ CREATE TABLE IF NOT EXISTS cultivos_catalogo (
     dias_etapa_final          INTEGER      NOT NULL,
 
     -- Rendimiento potencial máximo en condiciones óptimas
-    rendimiento_potencial_ton NUMERIC(8,2)
+    rendimiento_potencial_ton NUMERIC(8,2),
+
+    -- Rango de rendimiento esperado (ton/ha) bajo condiciones normales DR-041
+    -- Fuente: CIMMYT/INIFAP para Yaqui; FAO para cultivos de alto valor
+    rendimiento_min_ton       NUMERIC(8,2),
+    rendimiento_max_ton       NUMERIC(8,2)
 );
 
 COMMENT ON TABLE  cultivos_catalogo                 IS 'Catálogo FAO-56/33 de especies del Valle del Yaqui.';
@@ -71,13 +78,14 @@ INSERT INTO cultivos_catalogo
     (nombre_comun, nombre_cientifico,
      kc_inicial, kc_medio, kc_final, ky_total,
      dias_etapa_inicial, dias_etapa_desarrollo, dias_etapa_media, dias_etapa_final,
-     rendimiento_potencial_ton)
+     rendimiento_potencial_ton, rendimiento_min_ton, rendimiento_max_ton)
 VALUES
-    ('Maíz',    'Zea mays',             0.30, 1.20, 0.60, 1.25, 25, 40, 45, 30, 10.0),
-    ('Frijol',  'Phaseolus vulgaris',   0.40, 1.15, 0.35, 1.15, 20, 30, 40, 20,  2.0),
-    ('Algodón', 'Gossypium hirsutum',   0.35, 1.20, 0.70, 0.85, 30, 50, 55, 45,  3.5),
-    ('Uva',     'Vitis vinifera',       0.30, 0.85, 0.45, 0.85, 30, 60, 75, 50, 22.5),
-    ('Chile',   'Capsicum annuum',      0.60, 1.05, 0.90, 1.10, 30, 35, 40, 20, 30.0)
+--                                                                           pot   min   max
+    ('Maíz',    'Zea mays',             0.30, 1.20, 0.60, 1.25, 25, 40, 45, 30, 10.0,  5.0, 12.0),
+    ('Frijol',  'Phaseolus vulgaris',   0.40, 1.15, 0.35, 1.15, 20, 30, 40, 20,  2.0,  0.8,  2.5),
+    ('Algodón', 'Gossypium hirsutum',   0.35, 1.20, 0.70, 0.85, 30, 50, 55, 45,  3.5,  1.5,  4.5),
+    ('Uva',     'Vitis vinifera',       0.30, 0.85, 0.45, 0.85, 30, 60, 75, 50, 22.5, 12.0, 28.0),
+    ('Chile',   'Capsicum annuum',      0.60, 1.05, 0.90, 1.10, 30, 35, 40, 20, 30.0, 15.0, 40.0)
 ON CONFLICT DO NOTHING;
 
 
@@ -212,20 +220,22 @@ CREATE TABLE IF NOT EXISTS historial_riego (
         REFERENCES recomendaciones(id_recomendacion) ON DELETE SET NULL,
 
     -- Datos del evento de riego
-    fecha_riego       DATE         NOT NULL,
-    volumen_m3_ha     NUMERIC(10,2),
-    lamina_mm         NUMERIC(8,2),
-    duracion_horas    NUMERIC(6,2),
-    metodo_riego      VARCHAR(30)
+    fecha_riego              DATE         NOT NULL,
+    ciclo_agricola           VARCHAR(20),           -- OI-YYYY / PV-YYYY (autocalculado)
+    ciclo_vol_target_m3_ha   NUMERIC(10,2),         -- objetivo MILPÍN: 6,000 m³/ha/ciclo
+    volumen_m3_ha            NUMERIC(10,2),
+    lamina_mm                NUMERIC(8,2),
+    duracion_horas           NUMERIC(6,2),
+    metodo_riego             VARCHAR(30)
         CONSTRAINT ck_riego_metodo
         CHECK (metodo_riego IN ('gravedad', 'goteo', 'aspersion', 'microaspersion')),
-    origen_decision   VARCHAR(20)
+    origen_decision          VARCHAR(20)
         CONSTRAINT ck_riego_origen
         CHECK (origen_decision IN ('sistema', 'manual', 'voz')),
-    costo_energia_mxn NUMERIC(10,2),
-    observaciones     TEXT,
+    costo_energia_mxn        NUMERIC(10,2),
+    observaciones            TEXT,
 
-    created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_at               TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 COMMENT ON TABLE  historial_riego               IS 'Eventos de riego ejecutados. KPI: volumen_m3_ha vs. baseline 8,000 m3/ha/ciclo DR-041.';

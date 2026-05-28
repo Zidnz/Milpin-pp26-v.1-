@@ -12,6 +12,7 @@ Uso:
 Cada clase tiene su propio `env_prefix`, de modo que NASA_ANIO_INICIO no colisiona
 con, por ejemplo, OLLAMA_URL si se agrega en el futuro.
 """
+import secrets
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -49,10 +50,12 @@ class NasaPowerSettings(BaseSettings):
     )
 
     # Período histórico a descargar.
-    # anio_fin usa el año actual como default para que el ETL siempre cubra
-    # hasta hoy sin necesidad de actualizar el .env cada año.
-    # Sobreescribible con NASA_ANIO_FIN en .env si se necesita limitar el rango.
-    anio_inicio: int = 2000
+    # 2020 como inicio captura 6 ciclos completos OI/PV con datos modernos
+    # del DR-041 (digitalización CONAGUA post-2019). Cambiar a 2000 si se
+    # necesita serie larga para análisis de tendencias climáticas históricas.
+    # anio_fin usa el año actual como default para cubrir hasta hoy sin
+    # actualizar el .env cada año. Sobreescribible con NASA_ANIO_FIN.
+    anio_inicio: int = 2020
     anio_fin: int = Field(default_factory=lambda: datetime.now().year)
 
     # Endpoint NASA POWER (Daily point API, comunidad Agricultura)
@@ -99,3 +102,32 @@ class NasaPowerSettings(BaseSettings):
 
 # Instancia única reutilizable (pydantic la valida al importar)
 nasa_settings = NasaPowerSettings()
+
+
+class AuthSettings(BaseSettings):
+    """
+    Configuración JWT para la autenticación de usuarios.
+
+    Variables de entorno con prefijo AUTH_:
+        AUTH_JWT_SECRET_KEY  — clave HMAC-SHA256. DEBE establecerse en producción.
+                               Si no está en .env, genera una clave aleatoria en
+                               cada arranque (tokens no sobreviven restart).
+        AUTH_JWT_ALGORITHM   — por defecto HS256 (simétrico, suficiente para MVP).
+        AUTH_JWT_EXPIRE_MINUTES — duración del token en minutos. Default: 480 (8 h).
+    """
+    model_config = SettingsConfigDict(
+        env_file=str(BACKEND_DIR / ".env"),
+        env_file_encoding="utf-8",
+        env_prefix="AUTH_",
+        extra="ignore",
+    )
+
+    jwt_secret_key: str = Field(
+        default_factory=lambda: secrets.token_hex(32),
+        description="Clave HMAC para firmar JWT. Sobreescribir con AUTH_JWT_SECRET_KEY en .env.",
+    )
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 480  # 8 horas — jornada completa de campo
+
+
+auth_settings = AuthSettings()
