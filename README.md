@@ -102,7 +102,6 @@
 | **Autenticación** | `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. Bloqueador principal. Migración `0002` ya agrega columna `rol` (agricultor/admin). |
 | CORS restringido | `allow_origins=["*"]` — reemplazar por allowlist. |
 | Seguridad en voz | Path traversal en `voice_endpoint.py` (`temp_{audio_file.filename}` sin sanitizar), sin límite de tamaño ni validación de content-type. |
-| Limpieza de archivos obsoletos | `backend/core/xgboost_riego.py` y `anomaly_detector.py` ahora levantan `ImportError` (Fase B completada). Eliminar con `git rm`. Ver abajo. |
 
 ---
 
@@ -114,8 +113,8 @@
 4. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist con los dominios reales del frontend.
 5. **`schema.sql` desalineado.** El DDL todavía documenta la fase JSONB; el runtime ya usa GeoAlchemy2. `backend/models.py` es la fuente de verdad real del schema.
 6. **Catálogo de cultivos duplicado.** Los cultivos válidos viven como constantes en 6 archivos (`KC_TABLE`, `VALID_CULTIVOS`, `CULTIVOS_SEMILLA`, `schema.sql`, `index.html`, `generar_datos_sinteticos.py`). Debería leerse desde la tabla `cultivos_catalogo` en runtime.
-7. **Archivos muertos en `backend/core/`.** `xgboost_riego.py` y `anomaly_detector.py` ahora levantan `ImportError` (la migración a `ML/inference/` completó Fase B). Eliminar con `git rm backend/core/xgboost_riego.py backend/core/anomaly_detector.py`.
-8. **Conflict backups sin limpiar.** Hay 4 archivos `.conflict_backup` en `backend/` (artefactos de merge). Eliminar con `git rm --force *.conflict_backup`.
+7. ~~**Archivos muertos en `backend/core/`.**~~ **RESUELTO 2026-05-28.** `xgboost_riego.py` y `anomaly_detector.py` eliminados del disco. El código real vive en `ML/inference/`.
+8. ~~**Conflict backups sin limpiar.**~~ No existen en el repo (ya estaban limpios).
 9. **Modelos `.joblib` duplicados.** Los 7 archivos en `backend/models_ml/` son copias de `ML/models/`. `ml_api.py` debería apuntar solo a `ML/models/`. Eliminar `backend/models_ml/`.
 10. **`milpin_env/` en el repo.** El entorno virtual está commiteado en la raíz. Agregarlo a `.gitignore` y hacer `git rm -r --cached milpin_env/`.
 11. **Forecast sin validación cruzada.** `eto_forecast.py` entrena Ridge Regression sin split de validación; el RMSE reportado es in-sample. Baja prioridad mientras no haya más de ~60 registros climáticos reales.
@@ -251,9 +250,7 @@ milpin/
 │   │   ├── balance_hidrico.py     # FAO-56 Penman-Monteith + KC_TABLE + propagar_balance_hidrico()
 │   │   ├── eto_forecast.py        # Ridge Regression forecast ETo 7 días
 │   │   ├── llm_orchestrator.py    # VALID_CULTIVOS + Ollama/Groq client
-│   │   ├── actuador_control.py    # Lógica de control de actuadores
-│   │   ├── xgboost_riego.py       # ⚠ ELIMINAR — levanta ImportError, reemplazado por ML/inference/
-│   │   └── anomaly_detector.py    # ⚠ ELIMINAR — levanta ImportError, reemplazado por ML/inference/
+│   │   └── actuador_control.py    # Lógica de control de actuadores
 │   ├── models_ml/                 # ⚠ DUPLICADO — mismo contenido que ML/models/. Eliminar.
 │   │   └── *.joblib               # 7 archivos de modelos entrenados
 │   ├── migrations/
@@ -423,10 +420,8 @@ milpin/
 └── .gitignore
 ```
 
-> **Archivos a limpiar (deuda):**
-> - `backend/core/xgboost_riego.py` y `anomaly_detector.py` — levantan `ImportError`, eliminar con `git rm`
+> **Deuda estructural pendiente:**
 > - `backend/models_ml/` — duplicado de `ML/models/`, eliminar
-> - `backend/core/*.conflict_backup`, `backend/*.conflict_backup` — artefactos de merge
 > - `milpin_env/` — entorno virtual commiteado, agregar a `.gitignore` y hacer `git rm -r --cached`
 
 ---
