@@ -1,6 +1,6 @@
 <div align="center">
 <img src="imagenes/icono.jpeg" alt="MILPÍN Logo" width="120" style="border-radius:50%"/>
-<h1>🌾 MILPÍN AgTech</h1>
+<h1>MILPÍN AgTech</h1>
 <h3>Sistema Inteligente de Optimización de Riego — Valle del Yaqui, DR-041</h3>
 <p>
   <img src="https://img.shields.io/badge/estado-pre--MVP-orange?style=for-the-badge"/>
@@ -27,7 +27,7 @@
 
 ---
 
-> **⚠️ Proyecto académico — datos sintéticos intencionalmente.**
+> **ADVERTENCIA: Proyecto académico — datos sintéticos intencionalmente.**
 > MILPÍN es un sistema de apoyo a decisiones desarrollado como proyecto de ciencia de datos aplicada.
 > **No se llevará a producción.** Todos los datos de parcelas, usuarios, clima e historial son sintéticos
 > y generados por los scripts de `tools/` y `ML/training/`. El motor agronómico FAO-56 es real y preciso;
@@ -63,11 +63,11 @@
 
 ---
 
-## 📊 Estado del proyecto
+## Estado del proyecto
 
 **Fase actual: Pre-MVP — bloqueador único: autenticación**
 
-### ✔ Implementado y funcionando
+### Implementado y funcionando
 
 | Componente | Detalle | Fecha |
 |---|---|---|
@@ -95,7 +95,7 @@
 | Clustering K-Means | scikit-learn 1.5, zonas de manejo y logística | — |
 | Frontend GIS | Vanilla JS + Leaflet 1.9.4, capas Esri + OpenTopoMap + límites Cajeme. `map_engine.js` carga desde PostGIS (fallback: `lotes.geojson`). | — |
 
-### ◻ Pendiente para MVP
+### Pendiente para MVP
 
 | Ítem | Descripción |
 |---|---|
@@ -105,7 +105,7 @@
 
 ---
 
-## 🔧 Deuda técnica vigente
+## Deuda técnica vigente
 
 1. **Sin autenticación — bloqueador MVP.** `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. La columna `rol` ya existe en BD (migración `0002`), falta el middleware de verificación.
 2. **Credenciales en `.env`.** `backend/.env` tiene la password de postgres. El archivo ya está en `.gitignore` — verificar que no haya sido commiteado históricamente con `git log -- backend/.env`.
@@ -224,7 +224,7 @@ flowchart TB
 
 ---
 
-## 📁 Estructura del proyecto
+## Estructura del proyecto
 
 ```text
 milpin/
@@ -232,26 +232,26 @@ milpin/
 │   ├── main.py                    # FastAPI 2.0 con lifespan, CORS, 6 routers
 │   ├── database.py                # Engine async, IS_SQLITE flag para fallback dev
 │   ├── models.py                  # 7 modelos ORM — fuente de verdad del schema
-│   ├── schema.sql                 # DDL + 2 vistas KPI + seed  ⚠ desalineado con models.py
+│   ├── schema.sql                 # DDL + 2 vistas KPI + seed  [WARN] desalineado con models.py
 │   ├── init_db.py                 # seeders (--reset, --check)
 │   ├── settings.py
 │   ├── alembic.ini
 │   ├── pytest.ini
 │   ├── requirements.txt
-│   ├── .env                       # ⚠ contiene secretos — rotar, verificar gitignore
+│   ├── .env                       # [WARN] contiene secretos — rotar, verificar gitignore
 │   ├── API/
 │   │   ├── db_api.py              # CRUD: 14 endpoints + forecast parcela
 │   │   ├── riego_api.py           # FAO-56 + /parcelas/geojson + balance hídrico
 │   │   ├── ml_api.py              # XGBoost predicción + Isolation Forest anomalías + métricas
 │   │   ├── actuadores_api.py      # Control de actuadores físicos de riego
 │   │   ├── operacion_api.py       # Triage FAO-56 priorizado + serie climática W6
-│   │   └── voice_endpoint.py      # ⚠ path traversal sin sanitizar
+│   │   └── voice_endpoint.py      # [WARN] path traversal sin sanitizar
 │   ├── core/
 │   │   ├── balance_hidrico.py     # FAO-56 Penman-Monteith + KC_TABLE + propagar_balance_hidrico()
 │   │   ├── eto_forecast.py        # Ridge Regression forecast ETo 7 días
 │   │   ├── llm_orchestrator.py    # VALID_CULTIVOS + Ollama/Groq client
 │   │   └── actuador_control.py    # Lógica de control de actuadores
-│   ├── models_ml/                 # ⚠ DUPLICADO — mismo contenido que ML/models/. Eliminar.
+│   ├── models_ml/                 # [WARN] DUPLICADO — mismo contenido que ML/models/. Eliminar.
 │   │   └── *.joblib               # 7 archivos de modelos entrenados
 │   ├── migrations/
 │   │   ├── env.py
@@ -519,7 +519,7 @@ POST /api/voice-command   # FALLBACK — audio WebM → Whisper STT → LLM
 
 **Intents soportados:** `navegar`, `ejecutar_analisis`, `llenar_prescripcion`, `consultar`, `saludo`, `desconocido`.
 
-> **⚠ Seguridad:** `voice-command` no sanitiza el nombre del archivo (path traversal). Deuda técnica #3.
+> **ADVERTENCIA - Seguridad:** `voice-command` no sanitiza el nombre del archivo (path traversal). Deuda técnica #3.
 
 ---
 
@@ -590,7 +590,7 @@ alembic revision -m "descripcion_cambio"      # crea nueva migración
 
 ---
 
-## 🤖 Machine Learning
+## Machine Learning
 
 El módulo `ML/` está separado de `backend/` con una regla de imports explícita: `ML/training/` nunca importa desde `backend/`.
 
@@ -611,7 +611,7 @@ Los datos que alimentan los modelos y la BD son **100% sintéticos** generados p
 
 ---
 
-## 📊 Power BI
+## Power BI
 
 El directorio `MILPIN_PowerBI/` contiene el archivo Power BI y los scripts de configuración:
 
@@ -759,6 +759,6 @@ flowchart LR
 
 <sub>Proyecto académico — Ciencia de Datos aplicada al agro · Valle del Yaqui, Sonora, México</sub>
 
-<sub>⚠️ Pre-MVP · Datos sintéticos intencionalmente · PostGIS ✅ · 4 Migraciones ✅ · 108+7 Tests ✅ · XGBoost entrenado ✅ · IForest entrenado ✅ · 6 Routers ✅ · Dashboard Operacional ✅</sub>
+<sub>Pre-MVP · Datos sintéticos intencionalmente · PostGIS OK · 4 Migraciones OK · 108+7 Tests OK · XGBoost entrenado OK · IForest entrenado OK · 6 Routers OK · Dashboard Operacional OK</sub>
 
 </div>
