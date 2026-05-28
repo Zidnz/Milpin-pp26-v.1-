@@ -14,10 +14,11 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import bcrypt as _bcrypt
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,17 +28,16 @@ from models import Usuario
 from settings import auth_settings
 
 # ── Crypto ────────────────────────────────────────────────────────────────────
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _bearer = HTTPBearer(auto_error=True)
 _optional_bearer = HTTPBearer(auto_error=False)
 
 
 def hash_password(plain: str) -> str:
-    return _pwd_ctx.hash(plain)
+    return _bcrypt.hashpw(plain.encode(), _bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_ctx.verify(plain, hashed)
+    return _bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 # ── Token schema ──────────────────────────────────────────────────────────────
