@@ -16,6 +16,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import JSON, Text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from security import create_access_token
 
 _TEST_DB_URL = "sqlite+aiosqlite://"
 os.environ["DATABASE_URL"] = _TEST_DB_URL
@@ -23,6 +24,29 @@ os.environ["DATABASE_URL"] = _TEST_DB_URL
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
+
+# Agrega la raíz del repo para que `from ml.inference.x` resuelva en tests
+_REPO_ROOT = os.path.dirname(_BACKEND_DIR)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+# Alias de paquete para case-sensitivity Linux/macOS.
+# En Windows ML/ == ml/ (case-insensitive). En Linux hay que registrar
+# todos los submódulos explícitamente para que pytest no resuelva a paths cacheados.
+try:
+    import ML as _ml_pkg
+    import ML.inference as _ml_inf
+    import ML.inference.xgboost_riego as _ml_xgb
+    import ML.inference.anomaly_detector as _ml_ad
+    for _name, _mod in [
+        ("ml",                          _ml_pkg),
+        ("ml.inference",                _ml_inf),
+        ("ml.inference.xgboost_riego",  _ml_xgb),
+        ("ml.inference.anomaly_detector", _ml_ad),
+    ]:
+        sys.modules.setdefault(_name, _mod)
+except ImportError:
+    pass  # En Windows los nombres ml/ == ML/ resuelven solos
 
 import models  # noqa: E402
 from database import Base, get_db  # noqa: E402
@@ -67,10 +91,7 @@ async def db_session(test_engine):
         yield session
 
 
-@pytest_asyncio.fixture(scope="function")
-async def client(test_engine):
-    factory = async_sessionmaker(test_engine, expire_on_commit=False)
-
+def _make_db_override(factory):
     async def _override_get_db():
         async with factory() as session:
             try:
@@ -79,9 +100,34 @@ async def client(test_engine):
             except Exception:
                 await session.rollback()
                 raise
+    return _override_get_db
 
-    app.dependency_overrides[get_db] = _override_get_db
+
+@pytest_asyncio.fixture(scope="function")
+async def client(test_engine):
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    app.dependency_overrides[get_db] = _make_db_override(factory)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def auth_client(test_engine, seeded):
+    """Cliente HTTP con JWT del usuario del fixture seeded.
+
+    Usar en tests que ejercen endpoints protegidos (POST /parcelas,
+    PATCH /recomendaciones/{id}/feedback, etc.).
+    """
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    token = create_access_token(seeded["id_usuario"], "agricultor")
+    headers = {"Authorization": f"Bearer {token}"}
+    app.dependency_overrides[get_db] = _make_db_override(factory)
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+        headers=headers,
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()
 
