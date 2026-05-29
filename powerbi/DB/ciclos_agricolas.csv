@@ -1,0 +1,4 @@
+id_ciclo,ciclo,anio,fecha_inicio,fecha_fin,temporada,milpin_activo
+CIC-2025-PV,PV-2025,2025,2025-03-01,2025-10-15,Primavera-Verano,False
+CIC-2025-OI,OI-2025,2025,2025-10-20,2026-04-30,Otono-Invierno,False
+CIC-2026-PV,PV-2026,2026,2026-03-01,2026-10-20,Primavera-Verano,True
