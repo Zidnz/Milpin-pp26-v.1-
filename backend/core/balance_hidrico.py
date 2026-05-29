@@ -26,6 +26,21 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
+# Eficiencia de aplicación por sistema de riego
+# Fuente: FAO-56 §6.2 + valores típicos para DR-041 / Valle del Yaqui
+#   gravedad      : 0.65 — surcos y tablares; pérdidas por escurrimiento y percolación
+#   aspersion     : 0.80 — pivotes centrales; pérdidas por evaporación en viento
+#   microaspersion: 0.82 — frutales (uva, chile); menor radio de mojado que aspersión
+#   goteo         : 0.90 — subsuperficial/superficial; pérdidas mínimas
+# ---------------------------------------------------------------------------
+EFICIENCIA_RIEGO: dict[str, float] = {
+    "gravedad":       0.65,
+    "aspersion":      0.80,
+    "microaspersion": 0.82,
+    "goteo":          0.90,
+}
+
+# ---------------------------------------------------------------------------
 # Tablas FAO-56: Coeficientes de cultivo (Kc) por etapa fenológica
 # Fuente: FAO-56, Tabla 12 (valores típicos para clima semiárido)
 # Estructura: {cultivo: {etapas_dias: (ini, des, med, fin), kc: (kc_ini, kc_med, kc_fin)}}
@@ -482,6 +497,125 @@ def obtener_curva_kc(cultivo: str) -> dict:
     }
 
 
+def obtener_kc_desde_catalogo(cultivo_obj, dias_desde_siembra: int) -> float:
+    """Kc según FAO-56 leyendo los parámetros directamente desde un objeto
+    CultivoCatalogo ORM o un dict equivalente — sin pasar por KC_TABLE.
+
+    Esta función es la vía recomendada cuando el endpoint ya cargó el cultivo
+    desde la BD: evita la duplicación entre KC_TABLE y cultivos_catalogo y
+    garantiza que cualquier actualización en la BD se refleje sin reiniciar.
+
+    Acepta cualquier objeto con atributos (o dict con claves):
+        kc_inicial, kc_medio, kc_final
+        dias_etapa_inicial, dias_etapa_desarrollo, dias_etapa_media, dias_etapa_final
+
+    Aplica exactamente la misma lógica de interpolación que obtener_kc().
+    """
+    if isinstance(cultivo_obj, dict):
+        kc_ini = float(cultivo_obj["kc_inicial"])
+        kc_med = float(cultivo_obj["kc_medio"])
+        kc_fin = float(cultivo_obj["kc_final"])
+        d_ini  = int(cultivo_obj["dias_etapa_inicial"])
+        d_des  = int(cultivo_obj["dias_etapa_desarrollo"])
+        d_med  = int(cultivo_obj["dias_etapa_media"])
+        d_fin  = int(cultivo_obj["dias_etapa_final"])
+    else:
+        kc_ini = float(cultivo_obj.kc_inicial)
+        kc_med = float(cultivo_obj.kc_medio)
+        kc_fin = float(cultivo_obj.kc_final)
+        d_ini  = int(cultivo_obj.dias_etapa_inicial)
+        d_des  = int(cultivo_obj.dias_etapa_desarrollo)
+        d_med  = int(cultivo_obj.dias_etapa_media)
+        d_fin  = int(cultivo_obj.dias_etapa_final)
+
+    fin_ini = d_ini
+    fin_des = fin_ini + d_des
+    fin_med = fin_des + d_med
+    fin_fin = fin_med + d_fin
+
+    if dias_desde_siembra < 0:
+        return kc_ini
+
+    if dias_desde_siembra <= fin_ini:
+        return kc_ini
+    elif dias_desde_siembra <= fin_des:
+        progreso = (dias_desde_siembra - fin_ini) / d_des
+        return kc_ini + (kc_med - kc_ini) * progreso
+    elif dias_desde_siembra <= fin_med:
+        return kc_med
+    elif dias_desde_siembra <= fin_fin:
+        progreso = (dias_desde_siembra - fin_med) / d_fin
+        return kc_med + (kc_fin - kc_med) * progreso
+    else:
+        return kc_fin
+
+
+def obtener_curva_kc_desde_catalogo(cultivo_obj) -> dict:
+    """Curva Kc completa (4 etapas) desde un objeto CultivoCatalogo ORM o dict.
+
+    Equivalente a obtener_curva_kc() pero lee desde el objeto de BD en vez
+    del KC_TABLE hardcodeado. Agrega el campo 'fuente': 'cultivos_catalogo'
+    para que el cliente pueda distinguir el origen del dato.
+    """
+    if isinstance(cultivo_obj, dict):
+        nombre = cultivo_obj.get("nombre_comun", "desconocido")
+        kc_ini = float(cultivo_obj["kc_inicial"])
+        kc_med = float(cultivo_obj["kc_medio"])
+        kc_fin = float(cultivo_obj["kc_final"])
+        d_ini  = int(cultivo_obj["dias_etapa_inicial"])
+        d_des  = int(cultivo_obj["dias_etapa_desarrollo"])
+        d_med  = int(cultivo_obj["dias_etapa_media"])
+        d_fin  = int(cultivo_obj["dias_etapa_final"])
+    else:
+        nombre = cultivo_obj.nombre_comun
+        kc_ini = float(cultivo_obj.kc_inicial)
+        kc_med = float(cultivo_obj.kc_medio)
+        kc_fin = float(cultivo_obj.kc_final)
+        d_ini  = int(cultivo_obj.dias_etapa_inicial)
+        d_des  = int(cultivo_obj.dias_etapa_desarrollo)
+        d_med  = int(cultivo_obj.dias_etapa_media)
+        d_fin  = int(cultivo_obj.dias_etapa_final)
+
+    fin_ini = d_ini
+    fin_des = fin_ini + d_des
+    fin_med = fin_des + d_med
+    fin_fin = fin_med + d_fin
+
+    return {
+        "cultivo": nombre,
+        "ciclo_total_dias": fin_fin,
+        "fuente": "cultivos_catalogo",
+        "etapas": [
+            {
+                "nombre": "inicial",
+                "dias": f"1-{fin_ini}",
+                "duracion_dias": d_ini,
+                "kc": kc_ini,
+            },
+            {
+                "nombre": "desarrollo",
+                "dias": f"{fin_ini + 1}-{fin_des}",
+                "duracion_dias": d_des,
+                "kc_inicio": kc_ini,
+                "kc_fin": kc_med,
+            },
+            {
+                "nombre": "mediados",
+                "dias": f"{fin_des + 1}-{fin_med}",
+                "duracion_dias": d_med,
+                "kc": kc_med,
+            },
+            {
+                "nombre": "final",
+                "dias": f"{fin_med + 1}-{fin_fin}",
+                "duracion_dias": d_fin,
+                "kc_inicio": kc_med,
+                "kc_fin": kc_fin,
+            },
+        ],
+    }
+
+
 def calcular_balance_hidrico(
     etc_mm: float,
     precipitacion_mm: float,
@@ -489,6 +623,7 @@ def calcular_balance_hidrico(
     capacidad_campo_pct: float,
     punto_marchitez_pct: float,
     profundidad_raiz_m: float = 0.6,
+    sistema_riego: str = "gravedad",
 ) -> dict:
     """Calcula el balance hídrico diario del suelo y determina la necesidad de riego.
 
@@ -504,10 +639,14 @@ def calcular_balance_hidrico(
         capacidad_campo_pct: capacidad de campo del suelo (%)
         punto_marchitez_pct: punto de marchitez permanente (%)
         profundidad_raiz_m: profundidad efectiva de raíces (m). Default: 0.6m
+        sistema_riego: uno de 'gravedad', 'aspersion', 'microaspersion', 'goteo'.
+            Determina la eficiencia de aplicación usada para convertir lámina neta
+            a lámina bruta. Valores de referencia en EFICIENCIA_RIEGO. Default: 'gravedad'.
 
     Retorna:
         dict con: lamina_neta_mm, lamina_bruta_mm, volumen_m3_ha,
-                  requiere_riego, deficit_mm, humedad_resultante_pct
+                  requiere_riego, deficit_mm, humedad_resultante_pct,
+                  eficiencia_aplicada (fracción 0-1 usada en el cálculo)
     """
     # Agua disponible total (ADT) en la zona radicular
     # ADT = (CC - PMP) * profundidad_raiz * 10  [mm]
@@ -534,9 +673,13 @@ def calcular_balance_hidrico(
     # Lámina neta de riego: agua necesaria para llevar el suelo a CC
     lamina_neta_mm = max(0.0, (capacidad_campo_pct - humedad_actual_pct) * profundidad_raiz_m * 10.0)
 
-    # Lámina bruta: considera eficiencia de aplicación del 75% (riego por surcos/aspersión)
-    eficiencia_riego = 0.75
-    lamina_bruta_mm = lamina_neta_mm / eficiencia_riego
+    # Lámina bruta: divide la lámina neta por la eficiencia del sistema de riego.
+    # Eficiencias de referencia en EFICIENCIA_RIEGO (goteo ~0.90, gravedad ~0.65).
+    # Si llega un valor desconocido se usa 0.75 como fallback conservador.
+    eficiencia_aplicada = EFICIENCIA_RIEGO.get(
+        (sistema_riego or "gravedad").lower().strip(), 0.75
+    )
+    lamina_bruta_mm = lamina_neta_mm / eficiencia_aplicada
 
     # Volumen por hectárea: 1 mm = 10 m³/ha
     volumen_m3_ha = lamina_bruta_mm * 10.0
@@ -551,6 +694,7 @@ def calcular_balance_hidrico(
         "requiere_riego": requiere_riego,
         "deficit_mm": round(deficit_mm, 2),
         "humedad_resultante_pct": round(humedad_resultante, 2),
+        "eficiencia_aplicada": eficiencia_aplicada,
     }
 
 
