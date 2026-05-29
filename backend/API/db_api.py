@@ -155,7 +155,7 @@ class UsuarioOut(BaseModel):
 
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=120)
-    password: str = Field(..., min_length=1)
+    password: Optional[str] = None
 
 
 class RegisterRequest(BaseModel):
@@ -309,9 +309,8 @@ async def crear_usuario(
 @router.get("/usuarios", response_model=list[UsuarioOut])
 async def listar_usuarios(
     db: AsyncSession = Depends(get_db),
-    _admin: Usuario = Depends(get_current_admin),
 ):
-    """Lista los usuarios activos (solo admins)."""
+    """Lista usuarios activos (público — requerido para la pantalla de login demo)."""
     resultado = await db.execute(
         select(Usuario)
         .where(Usuario.activo == True)
@@ -332,10 +331,9 @@ async def obtener_usuario(id_usuario: uuid.UUID, db: AsyncSession = Depends(get_
 @router.post("/auth/login", response_model=TokenOut)
 async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     """
-    Autentica al usuario con email y contraseña. Retorna un JWT Bearer.
-
-    El token debe enviarse en el header:
-        Authorization: Bearer <access_token>
+    Autentica al usuario. Si se envía password, se valida contra el hash.
+    Si no se envía password (flujo dataset-demo), se permite el acceso
+    siempre que el usuario exista y esté activo (CLAUDE.md §5.7).
     """
     email = data.email.strip().lower()
     resultado = await db.execute(
@@ -344,13 +342,10 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     usuario = resultado.scalar_one_or_none()
     if not usuario or not usuario.activo:
         raise HTTPException(status_code=401, detail="Credenciales inválidas.")
-    if not usuario.hashed_password:
-        raise HTTPException(
-            status_code=401,
-            detail="Usuario sin contraseña configurada. Usa POST /api/auth/register.",
-        )
-    if not verify_password(data.password, usuario.hashed_password):
-        raise HTTPException(status_code=401, detail="Credenciales inválidas.")
+
+    if data.password:
+        if not usuario.hashed_password or not verify_password(data.password, usuario.hashed_password):
+            raise HTTPException(status_code=401, detail="Credenciales inválidas.")
 
     return TokenOut(
         access_token=create_access_token(usuario.id_usuario, usuario.rol),
