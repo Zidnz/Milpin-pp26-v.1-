@@ -1,10 +1,42 @@
+# ── Backend / API ────────────────────────────────────────────────────────────
 fastapi
 uvicorn[standard]
-scikit-learn
-numpy
-openai-whisper
 python-multipart
 requests
 httpx
 aiofiles
+
+# ── Base de datos ─────────────────────────────────────────────────────────────
+sqlalchemy[asyncio]
+asyncpg
+aiosqlite
+alembic
+psycopg2-binary
+GeoAlchemy2
+
+# ── ML / Datos ────────────────────────────────────────────────────────────────
+numpy>=2.0
+scipy>=1.13
+pandas>=2.0
+scikit-learn>=1.5
+xgboost>=2.0
+shap>=0.46
+optuna>=3.0
+
+# ── Visualización (notebooks) ────────────────────────────────────────────────
+matplotlib>=3.8
+seaborn>=0.13
+
+# ── Motor agronómico / GIS ────────────────────────────────────────────────────
+shapely>=2.0
+geopandas
+
+# ── Voz ──────────────────────────────────────────────────────────────────────
+openai-whisper
 imageio-ffmpeg
+gTTS
+
+# ── Utilidades ────────────────────────────────────────────────────────────────
+python-dotenv
+pydantic>=2.0
+pydantic-settings
