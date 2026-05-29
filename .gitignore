@@ -57,3 +57,7 @@ node_modules/
 # pytest cache
 .pytest_cache/
 .cache/
+
+# CVs personales
+RESUME~4.docx
+Resume_actualizado.docx
