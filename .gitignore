@@ -2,6 +2,7 @@
 venv/
 .venv/
 env/
+milpin_env/
 
 # Python cache
 __pycache__/
@@ -33,6 +34,16 @@ build/
 
 # Outputs generados
 backend/eda_output/
+
+# Modelos ML compilados (fuente de verdad: ML/models/)
+backend/models_ml/
+
+# Cache NASA POWER (regenerable vía tools/nasa_power_etl.py)
+data/raw/nasa_power/
+
+# Datasets grandes (>100MB, usar DVC o regenerar)
+data/synthetic/milpin_ciclos_ml.csv
+ML/milpin_ciclos_ml.csv
 
 # Node
 node_modules/
