@@ -180,18 +180,28 @@ class TestBalanceHidrico:
         ADT = (34-18)*0.6*10 = 96mm
         umbral = 18 + 0.5*16 = 26%
 
-    Escenario A (humedad=25%, bajo umbral, ETc=8mm, precip=0):
+    Escenario A — gravedad (eficiencia=0.65), humedad=25%, ETc=8mm, precip=0:
         requiere_riego = True
         lamina_neta = (34-25)*6 = 54mm
-        lamina_bruta = 54/0.75 = 72mm
-        volumen = 720 m3/ha
+        lamina_bruta = 54/0.65 ≈ 83.08mm
+        volumen = 830.8 m3/ha
+
+    Escenario B — goteo (eficiencia=0.90), mismas condiciones edáficas:
+        lamina_neta = 54mm (idéntica — depende solo del suelo)
+        lamina_bruta = 54/0.90 = 60mm
+        volumen = 600.0 m3/ha
+        ahorro vs gravedad = (830.8-600)/830.8 ≈ 27.8%
     """
 
     SUELO = dict(capacidad_campo_pct=34.0, punto_marchitez_pct=18.0, profundidad_raiz_m=0.6)
 
-    def _balance(self, humedad, etc=8.0, precip=0.0):
+    def _balance(self, humedad, etc=8.0, precip=0.0, sistema_riego="gravedad"):
         return calcular_balance_hidrico(
-            etc_mm=etc, precipitacion_mm=precip, humedad_actual_pct=humedad, **self.SUELO
+            etc_mm=etc,
+            precipitacion_mm=precip,
+            humedad_actual_pct=humedad,
+            sistema_riego=sistema_riego,
+            **self.SUELO,
         )
 
     def test_requiere_riego_bajo_umbral(self):
@@ -201,13 +211,39 @@ class TestBalanceHidrico:
         assert self._balance(humedad=30.0)["requiere_riego"] is False
 
     def test_lamina_neta_escenario_a(self):
+        # Lámina neta no depende del sistema de riego — solo del suelo
         assert self._balance(humedad=25.0)["lamina_neta_mm"] == pytest.approx(54.0, abs=0.01)
 
-    def test_lamina_bruta_escenario_a(self):
-        assert self._balance(humedad=25.0)["lamina_bruta_mm"] == pytest.approx(72.0, abs=0.01)
+    def test_lamina_bruta_gravedad(self):
+        # gravedad: eficiencia=0.65 → 54/0.65 = 83.077mm
+        assert self._balance(humedad=25.0, sistema_riego="gravedad")["lamina_bruta_mm"] == pytest.approx(83.08, abs=0.1)
 
-    def test_volumen_m3_ha_escenario_a(self):
-        assert self._balance(humedad=25.0)["volumen_m3_ha"] == pytest.approx(720.0, abs=0.1)
+    def test_volumen_m3_ha_gravedad(self):
+        assert self._balance(humedad=25.0, sistema_riego="gravedad")["volumen_m3_ha"] == pytest.approx(830.8, abs=1.0)
+
+    def test_lamina_bruta_goteo(self):
+        # goteo: eficiencia=0.90 → 54/0.90 = 60.00mm
+        assert self._balance(humedad=25.0, sistema_riego="goteo")["lamina_bruta_mm"] == pytest.approx(60.0, abs=0.01)
+
+    def test_volumen_m3_ha_goteo(self):
+        assert self._balance(humedad=25.0, sistema_riego="goteo")["volumen_m3_ha"] == pytest.approx(600.0, abs=0.1)
+
+    def test_goteo_consume_menos_agua_que_gravedad(self):
+        # El punto central del sistema: goteo siempre da menor volumen bruto
+        vol_gravedad = self._balance(humedad=25.0, sistema_riego="gravedad")["volumen_m3_ha"]
+        vol_goteo = self._balance(humedad=25.0, sistema_riego="goteo")["volumen_m3_ha"]
+        assert vol_goteo < vol_gravedad
+
+    def test_eficiencia_aplicada_en_respuesta(self):
+        b_gravedad = self._balance(humedad=25.0, sistema_riego="gravedad")
+        b_goteo = self._balance(humedad=25.0, sistema_riego="goteo")
+        assert b_gravedad["eficiencia_aplicada"] == pytest.approx(0.65)
+        assert b_goteo["eficiencia_aplicada"] == pytest.approx(0.90)
+
+    def test_sistema_desconocido_usa_fallback(self):
+        # Valor desconocido: debe usar fallback 0.75 sin lanzar excepción
+        b = self._balance(humedad=25.0, sistema_riego="inundacion_ultrasonica")
+        assert b["eficiencia_aplicada"] == pytest.approx(0.75)
 
     def test_deficit_positivo_cuando_requiere_riego(self):
         assert self._balance(humedad=20.0)["deficit_mm"] > 0.0
@@ -230,8 +266,11 @@ class TestBalanceHidrico:
 
     def test_claves_presentes_en_respuesta(self):
         b = self._balance(humedad=25.0)
-        claves = {"lamina_neta_mm", "lamina_bruta_mm", "volumen_m3_ha",
-                  "requiere_riego", "deficit_mm", "humedad_resultante_pct"}
+        claves = {
+            "lamina_neta_mm", "lamina_bruta_mm", "volumen_m3_ha",
+            "requiere_riego", "deficit_mm", "humedad_resultante_pct",
+            "eficiencia_aplicada",
+        }
         assert claves.issubset(b.keys())
 
 
