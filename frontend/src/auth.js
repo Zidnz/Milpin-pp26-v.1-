@@ -118,6 +118,12 @@ const MILPIN_AUTH = (() => {
         _updateProfileUI();
     }
 
+    const DEV_USERS = [
+        { email: "rvalenzuela@dr041-dev.com", password: "milpin2024", nombre_completo: "Ramón Valenzuela Torres", modulo_dr041: "Módulo 3", rol: "usuario", id_usuario: "00000000-0000-0000-0000-000000000001" },
+        { email: "admin@dr041-dev.com",       password: "admin2024",  nombre_completo: "Admin DR-041",             modulo_dr041: "DR-041",   rol: "admin",   id_usuario: "00000000-0000-0000-0000-000000000000" },
+    ];
+    let _offlineMode = false;
+
     async function _loadUsers() {
         const select = document.getElementById("login-user-select");
         if (!select) return [];
@@ -125,11 +131,18 @@ const MILPIN_AUTH = (() => {
         select.innerHTML = '<option value="">Selecciona un usuario del dataset</option>';
         _setStatus("Cargando usuarios del dataset...");
 
-        const res = await fetch(`${API_BASE}/usuarios`);
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
+        let users = [];
+        try {
+            const res = await fetch(`${API_BASE}/usuarios`, { signal: AbortSignal.timeout(4000) });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            users = await res.json();
+            _offlineMode = false;
+        } catch {
+            users = DEV_USERS;
+            _offlineMode = true;
+            _setStatus("Backend no disponible — modo demo", false);
         }
-        const users = await res.json();
+
         users.forEach(user => {
             const opt = document.createElement("option");
             opt.value = user.email;
@@ -143,7 +156,7 @@ const MILPIN_AUTH = (() => {
             select.value = selectedOption.value;
             _renderUserPreview(JSON.parse(selectedOption.dataset.user));
         }
-        _setStatus("");
+        if (!_offlineMode) _setStatus("");
         return users;
     }
 
@@ -156,6 +169,15 @@ const MILPIN_AUTH = (() => {
         _setStatus("");
 
         try {
+            if (_offlineMode) {
+                const user = DEV_USERS.find(u => u.email === email);
+                if (!user) throw new Error("Usuario no encontrado en modo demo");
+                _saveUser(user);
+                _hideLogin();
+                window.location.reload();
+                return;
+            }
+
             const res = await fetch(`${API_BASE}/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -225,12 +247,23 @@ const MILPIN_AUTH = (() => {
         }
     }
 
+    function getToken() {
+        return currentUser?.access_token || null;
+    }
+
+    function getAuthHeader() {
+        const token = getToken();
+        return token ? { "Authorization": `Bearer ${token}` } : {};
+    }
+
     return {
         init,
         login,
         logout,
         getCurrentUser,
         getUserId,
+        getToken,
+        getAuthHeader,
         getParcelasQuery,
         isAdmin,
     };

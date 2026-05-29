@@ -502,7 +502,7 @@
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════
-         TAB ML — Inteligencia ML · XGBoost · Riesgo Hídrico
+         TAB ML — Inteligencia ML · XGBoost + Isolation Forest
          ══════════════════════════════════════════════════════════════ -->
     <div id="tab-ml" class="tab-content" style="display:none;">
         <div class="tab-topbar tab-topbar--ml tab-topbar--simple">
@@ -515,7 +515,7 @@
             </button>
             <div class="tab-topbar-center">
                 <span class="tab-topbar-title">Inteligencia ML</span>
-                <span class="tab-topbar-sub">XGBoost · Riesgo Hídrico</span>
+                <span class="tab-topbar-sub">XGBoost · Isolation Forest · Riesgo Hídrico</span>
             </div>
             <button class="tab-topbar-action tab-topbar-config" onclick="abrirConfiguracion()" aria-label="Configuración">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -550,7 +550,7 @@
             <div id="ml-risk-card" class="ml-risk-card">
                 <div id="ml-risk-icon" class="ml-risk-icon"></div>
                 <div class="ml-risk-body">
-                    <div class="ml-risk-label">Estado hídrico</div>
+                    <div class="ml-risk-label">Estado hídrico · XGBoost</div>
                     <div id="ml-risk-nivel" class="ml-risk-nivel">—</div>
                     <div id="ml-risk-desc" class="ml-risk-desc">—</div>
                 </div>
@@ -584,35 +584,15 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Olas decorativas — solo visual, no afecta datos -->
                 <div class="ml-lamina-waves" aria-hidden="true">
-                    <!-- Capa trasera: más alta, más oscura -->
-                    <svg class="ml-wave ml-wave--1" viewBox="0 0 2400 52"
-                         preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M0 32 C150 18 450 44 600 32
-                                 C750 18 1050 44 1200 32
-                                 C1350 18 1650 44 1800 32
-                                 C1950 18 2250 44 2400 32
-                                 L2400 52 L0 52 Z"/>
+                    <svg class="ml-wave ml-wave--1" viewBox="0 0 2400 52" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 32 C150 18 450 44 600 32 C750 18 1050 44 1200 32 C1350 18 1650 44 1800 32 C1950 18 2250 44 2400 32 L2400 52 L0 52 Z"/>
                     </svg>
-                    <!-- Capa media: ligeramente más baja -->
-                    <svg class="ml-wave ml-wave--2" viewBox="0 0 2400 52"
-                         preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M0 37 C180 25 420 46 600 37
-                                 C780 28 1020 46 1200 37
-                                 C1380 28 1620 46 1800 37
-                                 C1980 28 2220 46 2400 37
-                                 L2400 52 L0 52 Z"/>
+                    <svg class="ml-wave ml-wave--2" viewBox="0 0 2400 52" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 37 C180 25 420 46 600 37 C780 28 1020 46 1200 37 C1380 28 1620 46 1800 37 C1980 28 2220 46 2400 37 L2400 52 L0 52 Z"/>
                     </svg>
-                    <!-- Capa frontal: más baja, más suave -->
-                    <svg class="ml-wave ml-wave--3" viewBox="0 0 2400 52"
-                         preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M0 42 C200 34 400 48 600 42
-                                 C800 36 1000 48 1200 42
-                                 C1400 36 1600 48 1800 42
-                                 C2000 36 2200 48 2400 42
-                                 L2400 52 L0 52 Z"/>
+                    <svg class="ml-wave ml-wave--3" viewBox="0 0 2400 52" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 42 C200 34 400 48 600 42 C800 36 1000 48 1200 42 C1400 36 1600 48 1800 42 C2000 36 2200 48 2400 42 L2400 52 L0 52 Z"/>
                     </svg>
                 </div>
             </div>
@@ -639,13 +619,48 @@
                 </div>
             </div>
 
-            <!-- 5. Nota del modelo -->
+            <!-- 5. XAI Grid: Explicabilidad + Radar de riesgo (NUEVO) -->
+            <div class="ml-xai-grid">
+
+                <!-- Feature breakdown: por qué decidió el modelo -->
+                <div class="ml-features-card">
+                    <div class="ml-features-header">
+                        <svg viewBox="0 0 20 20" fill="none" width="17" height="17" aria-hidden="true">
+                            <circle cx="10" cy="10" r="9" stroke="#7B2FBE" stroke-width="1.6" fill="rgba(123,47,190,0.08)"/>
+                            <path d="M7 8.5C7 7.12 8.12 6 9.5 6S12 7.12 12 8.5c0 1.07-.65 1.99-1.58 2.39L10 11v1" stroke="#7B2FBE" stroke-width="1.5" stroke-linecap="round"/>
+                            <circle cx="10" cy="14" r=".8" fill="#7B2FBE"/>
+                        </svg>
+                        <span class="ml-features-title">¿Por qué este resultado?</span>
+                    </div>
+                    <div id="ml-features-body" class="ml-features-body"></div>
+                    <div id="ml-features-source" class="ml-features-source"></div>
+                </div>
+
+                <!-- Radar chart: perfil multidimensional de riesgo -->
+                <div class="ml-radar-card">
+                    <div class="ml-radar-title">Perfil de riesgo</div>
+                    <div id="ml-radar-wrap" class="ml-radar-wrap"></div>
+                    <p class="ml-radar-sub">Área mayor = mayor riesgo multidimensional</p>
+                </div>
+
+            </div><!-- /ml-xai-grid -->
+
             <p class="ml-nota">
-                Modelo entrenado con datos sintéticos FAO-56.
-                No sustituye el criterio agronómico.
+                Modelos entrenados con datos sintéticos FAO-56 · 4,000 muestras.
+                No sustituye el criterio agronómico del técnico de campo.
             </p>
 
         </div><!-- /ml-panel -->
+
+        <!-- ── Rendimiento del modelo (colapsable) ── -->
+        <div class="ml-section-card ml-metricas-section">
+            <button class="ml-metricas-toggle" onclick="_toggleMLMetricas()">
+                <span>Rendimiento del modelo · XGBoost + Isolation Forest</span>
+                <span id="ml-metricas-icon" class="ml-metricas-chevron">▾</span>
+            </button>
+            <div id="ml-metricas-body" class="ml-metricas-body" style="display:none;"></div>
+        </div>
+
     </div><!-- /tab-ml -->
 
     <div id="tab-ajustes" class="tab-content" style="display:none;">
@@ -978,8 +993,8 @@
             </svg>
         </div>
         <div class="alertas-drawer-titles">
-            <span class="alertas-drawer-title">Alertas</span>
-            <span class="alertas-drawer-sub">Monitoreo hídrico DR-041</span>
+            <span class="alertas-drawer-title">Anomalías · Isolation Forest</span>
+            <span class="alertas-drawer-sub">Ciclos de riego fuera del patrón · DR-041</span>
         </div>
         <button class="alertas-drawer-close" onclick="toggleAlertasPanel()"
                 aria-label="Cerrar">✕</button>
@@ -988,7 +1003,7 @@
 </div>
 <div id="alertas-overlay" class="alertas-overlay" onclick="toggleAlertasPanel()"></div>
 
-<script src="src/auth.js"></script>
+<script src="src/auth.js?v=2"></script>
 <script src="src/map_engine.js"></script>
 <script src="src/bi_operacion.js"></script>
 <script src="src/bi_dashboard.js"></script>

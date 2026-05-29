@@ -88,26 +88,26 @@ const BIOp = (() => {
     const ahorro   = BASELINE_M3 - consumo;
     const total    = (c.cumplen_meta || 0) + (c.parciales || 0) + (c.fuera_meta || 0) || 14;
     const pctCumpl = total > 0 ? Math.round((c.cumplen_meta || 9) / total * 100) : 78;
-    const etc      = 5.4;
-    const ndvi     = 0.71;
-    const riesgo   = total > 0 ? Math.round((c.fuera_meta || 2) / total * 100) : 14;
+    const etc       = 5.4;
+    const alertas   = (t.resumen?.critico || 0) + (t.resumen?.moderado || 0);
+    const ahorroMXN = Math.round(ahorro * 1.68);
+    const cumplColor = pctCumpl >= 75 ? '#43A047' : pctCumpl >= 50 ? '#FB8C00' : '#E53935';
 
     container.innerHTML = `
 <div class="bi-dash-root">
 
-  <!-- RESUMEN AGRONÓMICO -->
+  <!-- RESUMEN AGRONÓMICO — 5 KPIs del Plan de Negocio -->
   <section class="bi-dash-section">
     <div class="bi-dash-sec-hdr">
       <span class="bi-dash-sec-dash"></span>
       <span class="bi-dash-sec-title">RESUMEN AGRONÓMICO</span>
     </div>
-    <div class="bi-kpi-grid">
-      ${_kpiCard('Consumo Promedio', _fmt(consumo),  'm³/ha',  _series(6800, consumo,  1), '#0F6CBD', consumo < BASELINE_M3, 'down')}
-      ${_kpiCard('Ahorro Estimado',  _fmt(ahorro),   'm³/ha',  _series(1000, ahorro,   2), '#43B36B', ahorro  > 0,           'up')}
-      ${_kpiCard('Cumplimiento',     pctCumpl,       '%',      _series(55,   pctCumpl, 3), '#8B5CF6', pctCumpl >= 70,        'up')}
-      ${_kpiCard('ETc Promedio',     etc.toFixed(1), 'mm/día', _series(4.8,  etc,      4), '#F5A623', true,                  'neutral')}
-      ${_kpiCard('NDVI Medio',       ndvi.toFixed(2),'',       _series(0.55, ndvi,     5), '#10B981', ndvi >= 0.6,           'up')}
-      ${_kpiCard('Riesgo Ciclo',     riesgo,         '%',      _series(30,   riesgo,   6), '#E65C5C', riesgo <= 20,          'down')}
+    <div class="bi-kpi-grid bi-kpi-grid--5">
+      ${_kpiCard('Consumo Agua',        _fmt(consumo),         'm³/ha', _series(6800, consumo,    1), '#2196F3', consumo < BASELINE_M3, 'down')}
+      ${_kpiCard('Ahorro Acumulado',    _fmt(ahorro),          'm³/ha', _series(1000, ahorro,     2), '#43A047', ahorro > 0,            'up')}
+      ${_kpiCard('Ahorro Económico',    '$' + _fmt(ahorroMXN), 'MXN',   _series(1680, ahorroMXN,  3), '#00897B', ahorroMXN > 0,         'up')}
+      ${_kpiCard('Cumplimiento FAO-56', pctCumpl,              '%',     _series(55,   pctCumpl,   4), cumplColor, pctCumpl >= 75,        'up')}
+      ${_kpiCard('Alertas Activas',     alertas,               '',      _series(5,    alertas,    5), alertas > 0 ? '#E53935' : '#43A047', alertas === 0, alertas > 0 ? 'down' : 'neutral')}
     </div>
   </section>
 
@@ -145,19 +145,17 @@ const BIOp = (() => {
       <div class="bi-dash-card bi-ndvi-card">
         <div class="bi-dash-sec-hdr">
           <span class="bi-dash-sec-dash"></span>
-          <span class="bi-dash-sec-title">ÍNDICE NDVI</span>
-          <span class="bi-dash-sec-sub">últimas 8 semanas</span>
+          <span class="bi-dash-sec-title">CUMPLIMIENTO FAO-56 POR CULTIVO</span>
+          <span class="bi-dash-sec-sub">% dentro del rango objetivo</span>
         </div>
-        <div class="bi-chart-wrap bi-chart-wrap--sm">
-          <svg id="bi-ndvi-svg" class="bi-svg-chart" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
-        </div>
+        ${_htmlCumplimientoBarras(pars)}
       </div>
       <div class="bi-dash-card bi-ahorro-card">
         <div class="bi-dash-sec-hdr">
           <span class="bi-dash-sec-dash"></span>
-          <span class="bi-dash-sec-title">AHORRO POR CULTIVO</span>
+          <span class="bi-dash-sec-title">SOBRE-RIEGO vs OBJETIVO</span>
         </div>
-        ${_htmlAhorroBars()}
+        ${_htmlSobreRiegoBars(pars)}
       </div>
     </div>
   </section>
@@ -170,7 +168,6 @@ const BIOp = (() => {
     // Draw SVG charts after DOM is ready
     requestAnimationFrame(() => {
       _drawConsumoChart(c);
-      _drawNdviChart();
     });
   }
 
@@ -304,24 +301,95 @@ const BIOp = (() => {
     </div>`;
   }
 
-  // ── Ahorro por cultivo (barras horizontales) ──────────────────────────────
-  function _htmlAhorroBars() {
-    const items = [
-      { n: 'Maíz',    pct: 24, color: '#0F6CBD' },
-      { n: 'Algodón', pct: 19, color: '#8B5CF6' },
-      { n: 'Chile',   pct: 16, color: '#10B981' },
-      { n: 'Frijol',  pct: 21, color: '#F5A623' },
-      { n: 'Uva',     pct: 12, color: '#E65C5C' },
-    ];
-    const bars = items.map(it => `
+  // ── Cumplimiento FAO-56 por cultivo (barras apiladas) ────────────────────
+  // Pregunta 4: ¿Qué cultivo tiene peor cumplimiento FAO-56?
+  function _htmlCumplimientoBarras(pars) {
+    const porCultivo = {};
+    pars.forEach(p => {
+      const c = p.cultivo || 'Sin cultivo';
+      if (!porCultivo[c]) porCultivo[c] = { ok: 0, mod: 0, crit: 0 };
+      if      (p.nivel_urgencia === 'critico')  porCultivo[c].crit++;
+      else if (p.nivel_urgencia === 'moderado') porCultivo[c].mod++;
+      else                                       porCultivo[c].ok++;
+    });
+
+    const items = Object.entries(porCultivo);
+    if (!items.length) {
+      return `<div style="font-size:.8rem;color:var(--secondary-text);padding:12px 0">Sin datos de parcelas.</div>`;
+    }
+
+    const bars = items.map(([nombre, counts]) => {
+      const total  = counts.ok + counts.mod + counts.crit || 1;
+      const pctOk   = Math.round(counts.ok   / total * 100);
+      const pctMod  = Math.round(counts.mod  / total * 100);
+      const pctCrit = Math.round(counts.crit / total * 100);
+      const cumplColor = pctCrit > 30 ? '#E53935' : pctCrit > 0 ? '#FB8C00' : '#43A047';
+      return `
       <div class="bi-abar-row">
-        <span class="bi-abar-name">${it.n}</span>
-        <div class="bi-abar-track">
-          <div class="bi-abar-fill" style="width:${it.pct}%;background:${it.color}"></div>
+        <span class="bi-abar-name">${nombre}</span>
+        <div class="bi-abar-track bi-abar-stacked">
+          ${pctOk   ? `<div class="bi-abar-fill" style="width:${pctOk}%;background:#43A047" title="Normal: ${pctOk}%"></div>`    : ''}
+          ${pctMod  ? `<div class="bi-abar-fill" style="width:${pctMod}%;background:#FB8C00" title="Moderado: ${pctMod}%"></div>` : ''}
+          ${pctCrit ? `<div class="bi-abar-fill" style="width:${pctCrit}%;background:#E53935" title="Crítico: ${pctCrit}%"></div>`: ''}
         </div>
-        <span class="bi-abar-pct">${it.pct}%</span>
-      </div>`).join('');
-    return `<div class="bi-ahorro-bars">${bars}</div>`;
+        <span class="bi-abar-pct" style="color:${cumplColor}">${100 - pctCrit}%</span>
+      </div>`;
+    }).join('');
+
+    return `
+    <div class="bi-ahorro-bars">
+      <div class="bi-stacked-legend">
+        <span class="bi-stacked-dot" style="background:#43A047"></span><span>Normal</span>
+        <span class="bi-stacked-dot" style="background:#FB8C00"></span><span>Moderado</span>
+        <span class="bi-stacked-dot" style="background:#E53935"></span><span>Crítico</span>
+      </div>
+      ${bars}
+    </div>`;
+  }
+
+  // ── Sobre-riego vs Objetivo (barras con umbral FAO-56) ────────────────────
+  // Pregunta 1: ¿Estamos consumiendo dentro del objetivo FAO-56?
+  function _htmlSobreRiegoBars(pars) {
+    const LAMINA_OBJETIVO = { 'Maíz': 55, 'Algodón': 48, 'Chile': 35, 'Frijol': 28, 'Uva': 20 };
+    const porCultivo = {};
+    pars.forEach(p => {
+      const c   = p.cultivo || 'Sin cultivo';
+      const lam = p.lamina_recomendada_mm || 0;
+      if (!porCultivo[c]) porCultivo[c] = { lamMax: 0, obj: LAMINA_OBJETIVO[c] || 40 };
+      if (lam > porCultivo[c].lamMax) porCultivo[c].lamMax = lam;
+    });
+
+    const items = Object.entries(porCultivo);
+    if (!items.length) {
+      return `<div style="font-size:.8rem;color:var(--secondary-text);padding:12px 0">Sin datos de parcelas.</div>`;
+    }
+
+    const maxLam = Math.max(...items.map(([, v]) => Math.max(v.lamMax, v.obj)), 60);
+    const bars = items.map(([nombre, v]) => {
+      const pctLam  = Math.min(100, Math.round((v.lamMax / maxLam) * 100));
+      const pctObj  = Math.min(100, Math.round((v.obj    / maxLam) * 100));
+      const sobreRiego = v.lamMax > v.obj * 1.1;
+      const barColor   = sobreRiego ? '#E53935' : '#2196F3';
+      return `
+      <div class="bi-abar-row">
+        <span class="bi-abar-name">${nombre}</span>
+        <div class="bi-abar-track" style="position:relative">
+          <div class="bi-abar-fill" style="width:${pctLam}%;background:${barColor}"></div>
+          <div style="position:absolute;top:0;left:${pctObj}%;height:100%;width:2px;background:#FB8C00;opacity:.9"></div>
+        </div>
+        <span class="bi-abar-pct" style="color:${barColor}">${v.lamMax} mm</span>
+      </div>`;
+    }).join('');
+
+    return `
+    <div class="bi-ahorro-bars">
+      <div class="bi-stacked-legend">
+        <span class="bi-stacked-dot" style="background:#2196F3"></span><span>Lámina real</span>
+        <span class="bi-stacked-dot" style="background:#E53935"></span><span>Sobre-riego</span>
+        <span class="bi-stacked-dot" style="background:#FB8C00;border-radius:0;width:3px;height:10px"></span><span>Objetivo FAO-56</span>
+      </div>
+      ${bars}
+    </div>`;
   }
 
   // ── Cumplimiento del ciclo ────────────────────────────────────────────────
@@ -442,34 +510,6 @@ const BIOp = (() => {
     svg.innerHTML = out;
   }
 
-  // ── SVG: NDVI Area ────────────────────────────────────────────────────────
-  function _drawNdviChart() {
-    const svg = document.getElementById('bi-ndvi-svg');
-    if (!svg) return;
-    const W = 300, H = 80;
-    const pL = 6, pR = 6, pT = 6, pB = 6;
-    const cW = W - pL - pR, cH = H - pT - pB;
-    const data = [0.52, 0.56, 0.59, 0.62, 0.64, 0.67, 0.70, 0.71];
-    const mn = 0.40, mx = 0.85, rng = mx - mn;
-
-    const toX = (i) => pL + (i / (data.length - 1)) * cW;
-    const toY = (v) => pT + cH * (1 - (v - mn) / rng);
-
-    const pts = data.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
-    const x0  = toX(0).toFixed(1), xN = toX(data.length-1).toFixed(1), yB = (pT+cH).toFixed(1);
-
-    svg.innerHTML = `
-      <defs>
-        <linearGradient id="ndviGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#10B981" stop-opacity="0.40"/>
-          <stop offset="100%" stop-color="#10B981" stop-opacity="0.03"/>
-        </linearGradient>
-      </defs>
-      <polygon points="${x0},${yB} ${pts} ${xN},${yB}" fill="url(#ndviGrad)"/>
-      <polyline points="${pts}" fill="none" stroke="#10B981" stroke-width="2.2" stroke-linejoin="round"/>
-      <circle cx="${xN}" cy="${toY(data[data.length-1]).toFixed(1)}" r="3.5" fill="#10B981"/>
-    `;
-  }
 
   // ── Loading indicator ─────────────────────────────────────────────────────
   function _showLoading() {

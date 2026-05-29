@@ -50,8 +50,6 @@ function cambiarPestana(event, tabId) {
         }
         if (tabId === "tab-costos") {
             _cargarParcelasEnSelect("select-parcela-riego");
-            // Cargar resumen en background para actualizar el badge aunque el drawer esté cerrado
-            cargarResumenParcelas();
         }
         if (tabId === "tab-bi") {
             BI.init();
@@ -340,6 +338,9 @@ function _renderizarCardActiva(rec) {
             || "Monitorea el estado hídrico del cultivo antes del próximo riego.";
     }
 
+    // ── 7b. Banner de incertidumbre (Fase 3) ──────────────────────────────────
+    _renderizarIncertidumbre(rec);
+
     // ── 8. Mostrar card + forecast ────────────────────────────────────────────
     // XGBoost se muestra en el tab ML (módulo propio), no aquí.
     document.getElementById("riego-card-activa").style.display = "block";
@@ -347,6 +348,99 @@ function _renderizarCardActiva(rec) {
     const diasSiembra = rec.dias_siembra ?? rec.parametros_json?.dias_siembra;
     if (_parcelaRiegoActual && diasSiembra) {
         cargarForecast(_parcelaRiegoActual, diasSiembra);
+    }
+}
+
+/**
+ * Renderiza (o actualiza) el banner de incertidumbre debajo de la card de riego.
+ *
+ * Tres niveles visuales:
+ *   alta  → fondo naranja/rojo, requiere validación humana
+ *   media → fondo amarillo, revisar si el contexto cambia
+ *   baja  → fondo verde suave, confianza razonable (puede ocultarse)
+ *
+ * El banner se crea dinámicamente si no existe; se elimina si la
+ * recomendación no trae datos de incertidumbre (compatibilidad con
+ * respuestas antiguas del backend).
+ *
+ * (OECD 2019; UNESCO 2021: comunicar límites sin generar rechazo ni garantía.)
+ */
+function _renderizarIncertidumbre(rec) {
+    const CONTENEDOR_ID = "rcard-incertidumbre";
+    const card = document.getElementById("riego-card-activa");
+    if (!card) return;
+
+    // Eliminar banner previo si existe
+    const previo = document.getElementById(CONTENEDOR_ID);
+    if (previo) previo.remove();
+
+    // Si el backend no envía datos de incertidumbre (respuesta antigua), no mostrar nada
+    const nivel   = rec.nivel_incertidumbre;
+    const mensaje = rec.mensaje_incertidumbre;
+    if (!nivel || !mensaje) return;
+
+    // No mostrar el banner de nivel "baja" — es la situación normal y añadir
+    // texto extra podría interpretarse como garantía implícita.
+    if (nivel === "baja") return;
+
+    const ESTILOS = {
+        alta: {
+            bg:     "#fff3cd",
+            borde:  "#e6a817",
+            icono:  "⚠️",
+            etiq:   "Validación recomendada",
+            color:  "#7a4f00",
+        },
+        media: {
+            bg:     "#e8f4fd",
+            borde:  "#5b9bd5",
+            icono:  "ℹ️",
+            etiq:   "Dato orientativo",
+            color:  "#1a4971",
+        },
+    };
+
+    const s = ESTILOS[nivel] || ESTILOS["media"];
+
+    const banner = document.createElement("div");
+    banner.id = CONTENEDOR_ID;
+    banner.style.cssText = [
+        `background:${s.bg}`,
+        `border-left:4px solid ${s.borde}`,
+        `color:${s.color}`,
+        "border-radius:6px",
+        "padding:10px 14px",
+        "margin:10px 0 4px 0",
+        "font-size:0.88rem",
+        "line-height:1.5",
+    ].join(";");
+
+    // Cabecera: icono + etiqueta de nivel
+    const cab = document.createElement("div");
+    cab.style.cssText = "font-weight:600;margin-bottom:4px;";
+    cab.textContent = `${s.icono} ${s.etiq}`;
+    banner.appendChild(cab);
+
+    // Mensaje en lenguaje natural
+    const txt = document.createElement("div");
+    txt.textContent = mensaje;
+    banner.appendChild(txt);
+
+    // Indicador adicional: "requiere validación humana"
+    if (rec.requiere_validacion_humana) {
+        const nota = document.createElement("div");
+        nota.style.cssText = "margin-top:6px;font-style:italic;font-size:0.83rem;";
+        nota.textContent = "Esta recomendación requiere revisión de un técnico antes de ejecutarse.";
+        banner.appendChild(nota);
+    }
+
+    // Insertar justo después del bloque de consejo agronómico, antes del botón de feedback
+    const consejoEl = document.querySelector(".rcard-consejo");
+    if (consejoEl && consejoEl.parentNode) {
+        consejoEl.parentNode.insertBefore(banner, consejoEl.nextSibling);
+    } else {
+        // Fallback: al final de la card
+        card.appendChild(banner);
     }
 }
 
@@ -453,7 +547,7 @@ async function _submitFeedback() {
     try {
         const res = await fetch(`${API_BASE}/recomendaciones/${_recActualId}/feedback`, {
             method: "PATCH",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...MILPIN_AUTH.getAuthHeader() },
             body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -876,7 +970,7 @@ async function registrarRiegoManual() {
     try {
         const res = await fetch(`${API_BASE}/riego`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...MILPIN_AUTH.getAuthHeader() },
             body: JSON.stringify(payload),
         });
 
@@ -1141,9 +1235,35 @@ async function cargarPrediccionXGB(idParcela) {
 }
 
 // ── Panel de Alertas (drawer desde topbar) ───────────────────────────────────
-// La campana abre/cierra el drawer con el resumen de estado hídrico.
+// La campana abre el drawer con anomalías de Isolation Forest.
 
 let _alertasPanelAbierto = false;
+
+async function _cargarDrawerAnomalias() {
+    const bodyEl = document.getElementById('riego-resumen-wrap');
+    if (!bodyEl) return;
+
+    bodyEl.innerHTML = '<div class="ml-loading" style="padding:18px 0"><span class="bi-spinner"></span> Consultando Isolation Forest…</div>';
+
+    try {
+        const res = await fetch(`${API_BASE}/ml/anomalias?solo_anomalias=false&limit=20`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        // Reutilizar el renderer del tab ML
+        _renderMLAnomalias(data, bodyEl);
+
+        // Badge: mostrar número de anomalías
+        const nAnom = data.total_anomalias || 0;
+        _actualizarBadgeAlertas(nAnom, 0);
+    } catch (err) {
+        console.warn('[MILPÍN Drawer Anomalias]', err);
+        bodyEl.innerHTML = `<div class="ml-anomaly-error" style="padding:16px">
+            No se pudo cargar el análisis de anomalías.<br>
+            <small>${err.message}</small>
+        </div>`;
+    }
+}
 
 function toggleAlertasPanel() {
     const drawer  = document.getElementById('alertas-drawer');
@@ -1156,8 +1276,7 @@ function toggleAlertasPanel() {
         drawer.classList.add('is-open');
         drawer.setAttribute('aria-hidden', 'false');
         if (overlay) overlay.classList.add('is-visible');
-        // Cargar/refrescar el resumen al abrir
-        cargarResumenParcelas();
+        _cargarDrawerAnomalias();
     } else {
         drawer.classList.remove('is-open');
         drawer.setAttribute('aria-hidden', 'true');
@@ -1452,11 +1571,371 @@ async function cargarMLTab(idParcela) {
         if (laminaEl)      laminaEl.textContent    = `${(data.lamina_ajustada_mm ?? 0).toFixed(1)}`;
         if (gaugeWrap)     gaugeWrap.innerHTML     = _mlDonutSVG(data.riesgo_estres);
 
+        _renderMLFeatureBreakdown(data);
+
     } catch (err) {
         console.warn('[MILPÍN ML]', err);
         if (riskNivel) riskNivel.textContent = 'Sin datos';
         if (riskDesc)  riskDesc.textContent  = `No se pudo conectar con el backend. (${err.message})`;
     }
+}
+
+// ── ML · Explicabilidad: Feature Breakdown + Radar ────────────────────────────
+
+function _renderMLFeatureBreakdown(data) {
+    const bodyEl    = document.getElementById('ml-features-body');
+    const sourceEl  = document.getElementById('ml-features-source');
+    const radarWrap = document.getElementById('ml-radar-wrap');
+    if (!bodyEl) return;
+
+    const inp = data.inputs_usados || {};
+    const cc  = inp.cc_pct || 29.5;
+
+    const features = [
+        {
+            label: 'Déficit acumulado',
+            val: inp.deficit_mm,
+            max: 80,
+            unit: 'mm',
+            desc: 'Agua faltante en el perfil de suelo',
+            riskDir: 'high',
+        },
+        {
+            label: 'ETc diaria',
+            val: inp.etc_mm,
+            max: 12,
+            unit: 'mm/día',
+            desc: 'Evapotranspiración del cultivo (ETo × Kc)',
+            riskDir: 'high',
+        },
+        {
+            label: 'Kc (etapa fenológica)',
+            val: inp.kc,
+            max: 1.5,
+            unit: '',
+            desc: 'Coeficiente de cultivo en la etapa actual',
+            riskDir: 'neutral',
+        },
+        {
+            label: 'Días sin riego',
+            val: inp.dias_sin_riego,
+            max: 21,
+            unit: 'días',
+            desc: 'Tiempo transcurrido desde el último riego registrado',
+            riskDir: 'high',
+        },
+        {
+            label: 'Humedad del suelo',
+            val: inp.humedad_pct,
+            max: cc,
+            unit: '%',
+            desc: 'Humedad volumétrica actual vs capacidad de campo',
+            riskDir: 'low',
+        },
+    ];
+
+    bodyEl.innerHTML = features.map(f => {
+        const v   = f.val ?? 0;
+        const pct = Math.min(100, Math.max(0, (v / f.max) * 100));
+        let barColor;
+        if (f.riskDir === 'neutral') {
+            barColor = '#7B2FBE';
+        } else if (f.riskDir === 'high') {
+            barColor = pct > 72 ? '#e63946' : pct > 42 ? '#d4820a' : '#52b788';
+        } else {
+            barColor = pct < 30 ? '#e63946' : pct < 55 ? '#d4820a' : '#52b788';
+        }
+
+        const numFmt = (n) => {
+            if (n == null) return '—';
+            if (f.unit === '' && n < 2) return n.toFixed(2);
+            if (n >= 10) return Math.round(n).toString();
+            return n.toFixed(1);
+        };
+        const valDisplay = v != null
+            ? `${numFmt(v)}${f.unit ? ' ' + f.unit : ''}`
+            : '—';
+
+        return `<div class="ml-feature-row">
+            <div class="ml-feature-meta">
+                <span class="ml-feature-label">${f.label}</span>
+                <span class="ml-feature-val" style="color:${barColor}">${valDisplay}</span>
+            </div>
+            <div class="ml-feature-bar-track">
+                <div class="ml-feature-bar" style="width:${pct.toFixed(1)}%;background:${barColor}"></div>
+            </div>
+            <div class="ml-feature-desc">${f.desc}</div>
+        </div>`;
+    }).join('');
+
+    if (sourceEl) {
+        const fuente = inp.fuente === 'ultima_recomendacion'
+            ? '✓ Datos de la última recomendación FAO-56'
+            : '⚠ Usando valores por defecto — sin recomendación activa';
+        sourceEl.textContent = fuente;
+        sourceEl.className   = 'ml-features-source '
+            + (inp.fuente === 'ultima_recomendacion'
+                ? 'ml-features-source--ok'
+                : 'ml-features-source--warn');
+    }
+
+    if (radarWrap) radarWrap.innerHTML = _mlRadarSVG(inp);
+}
+
+/**
+ * Genera SVG de radar (pentágono) con 5 ejes de riesgo.
+ * Área mayor = mayor riesgo hídrico multidimensional.
+ * Cada eje normalizado 0–1: 1 = máximo riesgo en esa dimensión.
+ */
+function _mlRadarSVG(inp) {
+    const cx = 100, cy = 105, maxR = 72;
+    const n   = 5;
+    const cc  = inp.cc_pct || 29.5;
+
+    const axes = [
+        { label: 'Déficit',    val: Math.min(1, (inp.deficit_mm    || 0) / 80) },
+        { label: 'ETc',        val: Math.min(1, (inp.etc_mm        || 0) / 12) },
+        { label: 'Kc',         val: Math.min(1, (inp.kc            || 0) / 1.5) },
+        { label: 'Sin riego', val: Math.min(1, (inp.dias_sin_riego || 0) / 21) },
+        { label: 'Sequía',     val: Math.min(1, 1 - Math.min(1, (inp.humedad_pct || cc) / cc)) },
+    ];
+
+    const avgRisk  = axes.reduce((s, a) => s + a.val, 0) / n;
+    const riskColor = avgRisk > 0.60 ? '#e63946'
+                    : avgRisk > 0.30 ? '#d4820a'
+                    : '#52b788';
+
+    function pt(i, r) {
+        const angle = (2 * Math.PI * i / n) - Math.PI / 2;
+        return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+    }
+
+    // Anillos de referencia
+    const ringsSVG = [0.25, 0.5, 0.75, 1.0].map(scale => {
+        const d = Array.from({ length: n }, (_, i) => {
+            const p = pt(i, maxR * scale);
+            return `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+        }).join(' ') + ' Z';
+        return `<path d="${d}" fill="none" stroke="rgba(123,47,190,0.10)" stroke-width="1"/>`;
+    }).join('');
+
+    // Líneas de eje
+    const axisLinesSVG = Array.from({ length: n }, (_, i) => {
+        const end = pt(i, maxR);
+        return `<line x1="${cx}" y1="${cy}" x2="${end.x.toFixed(1)}" y2="${end.y.toFixed(1)}"
+                      stroke="rgba(123,47,190,0.15)" stroke-width="1"/>`;
+    }).join('');
+
+    // Polígono de datos
+    const dataPts = axes.map((a, i) => {
+        const p = pt(i, maxR * Math.max(0.04, a.val));
+        return `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    }).join(' ') + ' Z';
+
+    // Etiquetas en cada vértice
+    const labelsSVG = axes.map((a, i) => {
+        const p  = pt(i, maxR + 16);
+        const ha = p.x < cx - 5 ? 'end' : p.x > cx + 5 ? 'start' : 'middle';
+        return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}"
+                      text-anchor="${ha}" dominant-baseline="middle"
+                      font-size="9" font-family="Poppins,sans-serif"
+                      fill="var(--secondary-text)">${a.label}</text>`;
+    }).join('');
+
+    return `<svg class="ml-radar-svg" viewBox="0 0 200 210"
+                 aria-label="Perfil de riesgo hídrico multidimensional">
+        ${ringsSVG}
+        ${axisLinesSVG}
+        <path d="${dataPts}" fill="${riskColor}" fill-opacity="0.18"
+              stroke="${riskColor}" stroke-width="2" stroke-linejoin="round"/>
+        ${labelsSVG}
+        <circle cx="${cx}" cy="${cy}" r="3" fill="${riskColor}" opacity="0.55"/>
+    </svg>`;
+}
+
+// ── ML · Detección de Anomalías · Isolation Forest ────────────────────────────
+
+async function cargarMLAnomalias() {
+    const bodyEl = document.getElementById('ml-anomaly-body');
+    if (!bodyEl) return;
+
+    bodyEl.innerHTML = '<div class="ml-loading"><span class="bi-spinner"></span> Consultando Isolation Forest…</div>';
+
+    try {
+        const res = await fetch(`${API_BASE}/ml/anomalias?solo_anomalias=false&limit=20`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        _renderMLAnomalias(data, bodyEl);
+    } catch (err) {
+        console.warn('[MILPÍN ML Anomalias]', err);
+        bodyEl.innerHTML = `<div class="ml-anomaly-error">
+            No se pudo conectar con el modelo de anomalías.<br>
+            <small>${err.message}</small>
+        </div>`;
+    }
+}
+
+function _renderMLAnomalias(data, bodyEl) {
+    const total   = data.total_pares_analizados || 0;
+    const nAnom   = data.total_anomalias        || 0;
+    const pct     = data.pct_anomalias          || 0;
+    const results = (data.resultados || []).filter(r => r.es_anomalia).slice(0, 8);
+
+    const summaryHtml = `
+    <div class="ml-anomaly-summary">
+        <div class="ml-anomaly-kpi${nAnom > 0 ? ' ml-anomaly-kpi--warn' : ''}">
+            <span class="ml-anomaly-kpi-num">${nAnom}</span>
+            <span class="ml-anomaly-kpi-lbl">Anomalías</span>
+        </div>
+        <div class="ml-anomaly-kpi">
+            <span class="ml-anomaly-kpi-num">${total}</span>
+            <span class="ml-anomaly-kpi-lbl">Ciclos analizados</span>
+        </div>
+        <div class="ml-anomaly-kpi">
+            <span class="ml-anomaly-kpi-num">${pct.toFixed(1)}%</span>
+            <span class="ml-anomaly-kpi-lbl">Tasa anomalía</span>
+        </div>
+    </div>`;
+
+    if (!results.length) {
+        bodyEl.innerHTML = summaryHtml
+            + '<div class="ml-anomaly-empty">Sin ciclos de riego anómalos detectados. El historial está dentro del patrón esperado.</div>';
+        return;
+    }
+
+    const FEAT_LABEL = {
+        vol_total_m3_ha: 'Volumen total atípico',
+        n_eventos:       'Frecuencia inusual',
+        vol_media_evento:'Dosis por evento atípica',
+        vol_cv:          'Irregularidad de volumen',
+        max_gap_dias:    'Brecha prolongada entre riegos',
+        costo_total_mxn: 'Costo fuera de rango',
+    };
+
+    const itemsHtml = results.map(r => {
+        // score_samples: más negativo = más anómalo; rango típico [-0.5, 0]
+        const score = r.anomaly_score || 0;
+        const level = Math.min(1, Math.max(0, -score * 3.5));
+        const barColor = level > 0.65 ? '#e63946' : level > 0.35 ? '#d4820a' : '#52b788';
+        const barPct   = (level * 100).toFixed(0);
+
+        const parcela = (r.id_parcela || '').length > 20
+            ? r.id_parcela.slice(0, 8) + '…'
+            : (r.id_parcela || 'Parcela');
+
+        const motivo = FEAT_LABEL[r.feature_principal] || r.feature_principal || '';
+
+        return `<div class="ml-anomaly-item">
+            <div class="ml-anomaly-item-header">
+                <span class="ml-anomaly-parcela" title="${r.id_parcela || ''}">${parcela}</span>
+                <span class="ml-anomaly-ciclo">${r.ciclo_agricola || '—'}</span>
+                <span class="ml-anomaly-score-chip" style="background:${barColor}18;color:${barColor}">
+                    ${score.toFixed(3)}
+                </span>
+            </div>
+            <div class="ml-anomaly-score-bar-track" title="Nivel de anomalía: ${barPct}%">
+                <div class="ml-anomaly-score-bar" style="width:${barPct}%;background:${barColor}"></div>
+            </div>
+            <div class="ml-anomaly-metrics">
+                ${r.vol_total_m3_ha != null ? `<span>Vol: ${Math.round(r.vol_total_m3_ha).toLocaleString('es-MX')} m³/ha</span>` : ''}
+                ${r.n_eventos       != null ? `<span>${r.n_eventos} evento${r.n_eventos !== 1 ? 's' : ''}</span>` : ''}
+                ${r.vol_cv          != null ? `<span>CV: ${r.vol_cv.toFixed(2)}</span>` : ''}
+                ${r.max_gap_dias    != null && r.max_gap_dias > 0 ? `<span>Gap: ${r.max_gap_dias} días</span>` : ''}
+                ${motivo ? `<span class="ml-anomaly-motivo">${motivo}</span>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    bodyEl.innerHTML = summaryHtml + `<div class="ml-anomaly-list">${itemsHtml}</div>`;
+
+    if (data.disclaimer) {
+        bodyEl.innerHTML += `<p class="ml-anomaly-disclaimer">${data.disclaimer}</p>`;
+    }
+}
+
+// ── ML · Métricas del modelo (colapsable) ─────────────────────────────────────
+
+function _toggleMLMetricas() {
+    const body = document.getElementById('ml-metricas-body');
+    const icon = document.getElementById('ml-metricas-icon');
+    if (!body) return;
+    const open = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    if (icon) icon.textContent = open ? '▴' : '▾';
+    if (open && !body.hasAttribute('data-loaded')) {
+        body.setAttribute('data-loaded', '1');
+        cargarMLMetricas();
+    }
+}
+
+async function cargarMLMetricas() {
+    const bodyEl = document.getElementById('ml-metricas-body');
+    if (!bodyEl) return;
+
+    bodyEl.innerHTML = '<div class="ml-loading"><span class="bi-spinner"></span> Cargando métricas…</div>';
+
+    try {
+        const res = await fetch(`${API_BASE}/ml/metricas`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        _renderMLMetricas(data, bodyEl);
+    } catch (err) {
+        console.warn('[MILPÍN ML Metricas]', err);
+        bodyEl.innerHTML = `<div class="ml-anomaly-error">No se pudo cargar métricas: ${err.message}</div>`;
+    }
+}
+
+function _renderMLMetricas(data, bodyEl) {
+    const xgb = data.xgboost_riego    || {};
+    const iso = data.isolation_forest || {};
+    const xm  = xgb.metricas || {};
+    const im  = iso.metricas || {};
+
+    function chip(label, val) {
+        if (val == null) return '';
+        const n = typeof val === 'number'
+            ? (val <= 1 ? (val * 100).toFixed(1) + '%' : val.toFixed(1))
+            : val;
+        return `<div class="ml-met-chip">
+            <span class="ml-met-chip-lbl">${label}</span>
+            <span class="ml-met-chip-val">${n}</span>
+        </div>`;
+    }
+
+    const xgbChips = [
+        chip('Accuracy',    xm.clasificador?.accuracy),
+        chip('F1',          xm.clasificador?.f1),
+        chip('AUC-ROC',     xm.clasificador?.roc_auc),
+        chip('R² lámina',   xm.regresor_lamina?.r2),
+        chip('R² estrés',   xm.regresor_estres?.r2),
+    ].filter(Boolean).join('');
+
+    const isoChips = [
+        chip('Precision', im.precision),
+        chip('Recall',    im.recall),
+        chip('F1',        im.f1),
+    ].filter(Boolean).join('');
+
+    bodyEl.innerHTML = `
+    <div class="ml-metricas-grid">
+        <div class="ml-met-section">
+            <div class="ml-met-header">
+                <span class="ml-met-dot ${xgb.entrenado ? 'ml-met-dot--ok' : 'ml-met-dot--err'}"></span>
+                <span class="ml-met-title">XGBoost Riego</span>
+            </div>
+            <div class="ml-met-desc">${xgb.descripcion || ''}</div>
+            <div class="ml-met-chips">${xgbChips || '<span style="font-size:.7rem;color:var(--secondary-text)">Sin métricas disponibles</span>'}</div>
+        </div>
+        <div class="ml-met-section">
+            <div class="ml-met-header">
+                <span class="ml-met-dot ${iso.entrenado ? 'ml-met-dot--ok' : 'ml-met-dot--err'}"></span>
+                <span class="ml-met-title">Isolation Forest</span>
+            </div>
+            <div class="ml-met-desc">${iso.descripcion || ''}</div>
+            <div class="ml-met-chips">${isoChips || '<span style="font-size:.7rem;color:var(--secondary-text)">Sin métricas disponibles</span>'}</div>
+        </div>
+    </div>
+    <p class="ml-metricas-disclaimer">${data.disclaimer || ''}</p>`;
 }
 
 // ── Configuración global (accesible desde engranaje de cualquier módulo) ─────
@@ -1483,4 +1962,5 @@ window.seleccionarParcelaResumen  = seleccionarParcelaResumen;
 window.switchRiegoTab             = switchRiegoTab;
 window.toggleAlertasPanel         = toggleAlertasPanel;
 window.cargarMLTab                = cargarMLTab;
+window._toggleMLMetricas          = _toggleMLMetricas;
 window.abrirConfiguracion         = abrirConfiguracion;

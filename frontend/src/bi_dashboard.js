@@ -582,8 +582,12 @@ const BI = (() => {
       </div>`;
     }
 
+    const METHOD_EFF = { 'gravedad': 60, 'goteo': 90, 'aspersión': 75, 'aspersion': 75, 'microaspersión': 80, 'microaspersion': 80 };
+    const totalPct = data.reduce((s, d) => s + d.value, 0) || 100;
+    const effProm  = Math.round(data.reduce((s, d) => s + (METHOD_EFF[d.name.toLowerCase()] || 70) * (d.value / totalPct), 0));
+
     const CX = 80, CY = 80, R = 62, INNER = 38, SIZE = 160;
-    const total = data.reduce((s, d) => s + d.value, 0) || 100;
+    const total = totalPct;
     let angle = -90;
 
     const slices = data.map(d => {
@@ -614,8 +618,10 @@ const BI = (() => {
       <div class="bi-donut-wrap">
         <svg viewBox="0 0 ${SIZE} ${SIZE}" class="bi-donut-svg">
           ${slices}
-          <text x="${CX}" y="${CY+5}" text-anchor="middle"
-            font-size="12" font-weight="700" fill="#4A3B28" font-family="Segoe UI">Total</text>
+          <text x="${CX}" y="${CY-2}" text-anchor="middle"
+            font-size="14" font-weight="700" fill="#1C2B3A" font-family="Segoe UI">${effProm}%</text>
+          <text x="${CX}" y="${CY+12}" text-anchor="middle"
+            font-size="8" fill="#6B7C93" font-family="Segoe UI">eficiencia</text>
         </svg>
         <div class="bi-donut-legend">${legend}</div>
       </div>
@@ -762,7 +768,11 @@ const BI = (() => {
         : '—';
       const isOver = r.applied != null && r.lamina != null && r.applied > r.lamina * 10 * 1.15;
 
-      return `<tr class="bi-tr">
+      const rowStyle = r.status === 'pendiente'
+        ? 'background:#FFF8E1;'
+        : (r.status === 'ignorada' || isOver) ? 'background:#FFEBEE;'
+        : '';
+      return `<tr class="bi-tr" style="${rowStyle}">
         <td class="bi-td bi-td--bold">${r.parcel}</td>
         <td class="bi-td"><span class="bi-crop-tag">${r.crop}</span></td>
         <td class="bi-td bi-td--mono">${fecha}</td>
