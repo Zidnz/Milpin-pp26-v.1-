@@ -1,419 +1,341 @@
-"""Script para agregar secciones 8-11 al notebook EDA MILPÍN."""
+"""
+Script temporal: agrega secciones 14 (Panel EDA) y 15 (Radar Calidad)
+al notebook ml/experiments/eda_milpin.ipynb
+"""
 import json
-import uuid
 from pathlib import Path
 
-NB_PATH = Path(__file__).parent.parent / "backend" / "eda_milpin.ipynb"
+NB_PATH = Path(__file__).parent.parent / "ml" / "experiments" / "eda_milpin.ipynb"
 
-
-def new_md(src: str) -> dict:
-    return {"cell_type": "markdown", "id": uuid.uuid4().hex[:8],
-            "metadata": {}, "source": [src]}
-
-
-def new_code(src: str) -> dict:
-    return {"cell_type": "code", "id": uuid.uuid4().hex[:8],
-            "execution_count": None, "metadata": {},
-            "outputs": [], "source": [src]}
-
-
-# ---------------------------------------------------------------------------
-# Sección 8 — Histogramas
-# ---------------------------------------------------------------------------
-S8_MD = "---\n## 8 · Histogramas — Distribución de Variables Clave"
-
-S8_CODE = """from scipy.stats import gaussian_kde
-
-hist_groups = {
-    'Parcelas': {
-        'df': parcelas,
-        'cols':   ['area_ha', 'conductividad_electrica',
-                   'profundidad_raiz_cm', 'agua_disponible_mm'],
-        'labels': ['Superficie (ha)', 'CE (dS/m)',
-                   'Prof. raíz (cm)', 'Agua disponible (mm)'],
-        'colors': [AZUL, ROJO, VERDE, NARANJA],
-    },
-    'Historial de riego': {
-        'df': historial,
-        'cols':   ['volumen_m3_ha', 'lamina_mm', 'costo_energia_mxn'],
-        'labels': ['Volumen m³/ha (evento)', 'Lámina aplicada (mm)',
-                   'Costo energía por evento (MXN)'],
-        'colors': [AZUL, VERDE, NARANJA],
-    },
-    'Recomendaciones FAO-56': {
-        'df': recomend,
-        'cols':   ['lamina_recomendada_mm', 'eto_referencia',
-                   'etc_calculada', 'deficit_acumulado_mm'],
-        'labels': ['Lámina recomendada (mm)', 'ETo referencia',
-                   'ETc calculada', 'Déficit acumulado (mm)'],
-        'colors': [AZUL, VERDE, ROJO, NARANJA],
-    },
-}
-
-for grupo, cfg in hist_groups.items():
-    ncols = len(cfg['cols'])
-    fig, axes = plt.subplots(1, ncols, figsize=(4.5 * ncols, 4.2))
-    if ncols == 1:
-        axes = [axes]
-    fig.suptitle(f'Histogramas — {grupo}', fontsize=13, fontweight='bold')
-
-    for ax, col, lbl, color in zip(axes, cfg['cols'], cfg['labels'], cfg['colors']):
-        s = cfg['df'][col].dropna()
-        ax.hist(s, bins=25, color=color, edgecolor='white', alpha=0.80)
-        xs = np.linspace(s.min(), s.max(), 300)
-        kde = gaussian_kde(s)
-        ax_r = ax.twinx()
-        ax_r.plot(xs, kde(xs), color='black', lw=1.8, alpha=0.65)
-        ax_r.set_yticks([])
-        ax.axvline(s.mean(),   color='white',  lw=1.8, linestyle='--',
-                   label=f'Media: {s.mean():.2f}')
-        ax.axvline(s.median(), color='yellow', lw=1.8, linestyle=':',
-                   label=f'Mediana: {s.median():.2f}')
-        ax.set_title(lbl, fontsize=10)
-        ax.set_xlabel(lbl, fontsize=9)
-        ax.set_ylabel('Frecuencia')
-        ax.legend(fontsize=7)
-        ax.text(0.98, 0.96, f'Asimetría: {s.skew():.2f}',
-                transform=ax.transAxes, ha='right', va='top',
-                fontsize=8, color='gray')
-
-    plt.tight_layout()
-    plt.show()
-    print()
-"""
-
-# ---------------------------------------------------------------------------
-# Sección 9 — Heatmaps
-# ---------------------------------------------------------------------------
-S9_MD = "---\n## 9 · Heatmaps — Correlaciones y Patrones Temporales"
-
-S9_CODE = """fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-fig.suptitle('Heatmaps — MILPÍN DR-041', fontsize=14, fontweight='bold')
-
-# (a) Correlación variables edáficas de parcelas
-ax1 = axes[0]
-num_cols_parc = ['area_ha', 'conductividad_electrica',
-                 'profundidad_raiz_cm', 'capacidad_campo',
-                 'punto_marchitez', 'agua_disponible_mm']
-corr_parc = parcelas[num_cols_parc].corr()
-corr_labels_p = ['Sup.(ha)', 'CE(dS/m)', 'Prof.raíz',
-                 'Cap.campo', 'Pto.march.', 'ADT(mm)']
-sns.heatmap(corr_parc, ax=ax1, annot=True, fmt='.2f', cmap='RdBu_r',
-            center=0, vmin=-1, vmax=1, linewidths=0.5,
-            xticklabels=corr_labels_p, yticklabels=corr_labels_p,
-            annot_kws={'size': 8}, square=True,
-            cbar_kws={'shrink': 0.7})
-ax1.set_title('Correlación — Variables edáficas\\n(parcelas)', fontsize=11)
-ax1.tick_params(axis='x', rotation=40, labelsize=8)
-ax1.tick_params(axis='y', rotation=0,  labelsize=8)
-
-# (b) Volumen mensual por cultivo
-ax2 = axes[1]
-hist_m = historial.merge(parcelas[['id_parcela', 'cultivo']],
-                         on='id_parcela', how='left')
-hist_m['mes_str'] = hist_m['fecha_riego'].dt.strftime('%Y-%m')
-pivot_vol = (hist_m.groupby(['mes_str', 'cultivo'])['volumen_m3_ha']
-             .mean().unstack(fill_value=0))
-if len(pivot_vol) > 12:
-    pivot_vol = pivot_vol.tail(12)
-sns.heatmap(pivot_vol, ax=ax2, cmap='YlOrRd', annot=True, fmt='.0f',
-            linewidths=0.4, annot_kws={'size': 7},
-            cbar_kws={'shrink': 0.7, 'label': 'm³/ha'})
-ax2.set_title('Volumen medio m³/ha\\npor mes y cultivo', fontsize=11)
-ax2.set_xlabel('Cultivo'); ax2.set_ylabel('Mes')
-ax2.tick_params(axis='x', rotation=25, labelsize=9)
-ax2.tick_params(axis='y', rotation=0,  labelsize=8)
-
-# (c) Tasa de aceptación por cultivo × urgencia
-ax3 = axes[2]
-pivot_acept = (recomend.groupby(['cultivo', 'nivel_urgencia'])['aceptada']
-               .apply(lambda x: round((x == 'aceptada').mean() * 100, 1))
-               .unstack(fill_value=0))
-urg_order = [c for c in ['crítico', 'moderado', 'preventivo']
-             if c in pivot_acept.columns]
-pivot_acept = pivot_acept[urg_order]
-sns.heatmap(pivot_acept, ax=ax3, cmap='RdYlGn', annot=True, fmt='.1f',
-            vmin=0, vmax=100, linewidths=0.5,
-            annot_kws={'size': 10, 'weight': 'bold'},
-            cbar_kws={'shrink': 0.7, 'label': '% aceptadas'})
-ax3.set_title('Tasa de aceptación (%)\\npor cultivo × urgencia', fontsize=11)
-ax3.set_xlabel('Urgencia'); ax3.set_ylabel('Cultivo')
-ax3.tick_params(axis='x', rotation=15, labelsize=9)
-ax3.tick_params(axis='y', rotation=0,  labelsize=9)
-
-plt.tight_layout()
-plt.show()
-"""
-
-# ---------------------------------------------------------------------------
-# Sección 10 — Feature Engineering
-# ---------------------------------------------------------------------------
-S10_MD = (
-    "---\n"
-    "## 10 · Ingeniería de Características — Dataset para ML\n\n"
-    "Se construye un DataFrame plano a nivel `id_parcela` con features agregadas\n"
-    "de los cuatro datasets, listo para modelos supervisados.\n\n"
-    "| Target | Tipo |\n"
-    "|---|---|\n"
-    "| `vol_m3_ha_total` | Regresión (consumo hídrico) |\n"
-    "| `meta_alcanzada` | Clasificación binaria (≤ 6 000 m³/ha) |"
-)
-
-S10_CODE = """# ── Bloque 1: base de parcelas ───────────────────────────────────────────────
-feat = parcelas[[
-    'id_parcela', 'cultivo', 'area_ha', 'tipo_suelo', 'sistema_riego',
-    'conductividad_electrica', 'profundidad_raiz_cm',
-    'capacidad_campo', 'punto_marchitez', 'agua_disponible_mm'
-]].copy()
-
-feat['stress_salino']  = (feat['conductividad_electrica'] > 4).astype(int)
-feat['stress_hidrico'] = (
-    feat['agua_disponible_mm'] < feat['agua_disponible_mm'].quantile(0.25)
-).astype(int)
-feat['stress_doble'] = (feat['stress_salino'] & feat['stress_hidrico']).astype(int)
-
-feat['cap_almacen_relativa'] = (
-    (feat['capacidad_campo'] - feat['punto_marchitez']) / feat['capacidad_campo']
-).round(4)
-
-eff_map = {'goteo': 0.90, 'aspersión': 0.75, 'microaspersión': 0.80, 'gravedad': 0.55}
-feat['eficiencia_riego'] = feat['sistema_riego'].map(eff_map).fillna(0.65)
-
-# ── Bloque 2: historial de riego ─────────────────────────────────────────────
-h_feats = (
-    historial.groupby('id_parcela').agg(
-        n_eventos_riego     = ('id_riego',         'count'),
-        vol_m3_ha_total     = ('volumen_m3_ha',    'sum'),
-        vol_m3_ha_media     = ('volumen_m3_ha',    'mean'),
-        vol_m3_ha_std       = ('volumen_m3_ha',    'std'),
-        lamina_media_mm     = ('lamina_mm',        'mean'),
-        lamina_cv           = ('lamina_mm',
-                               lambda x: x.std() / x.mean() if x.mean() > 0 else 0),
-        costo_energia_total = ('costo_energia_mxn','sum'),
-        costo_energia_media = ('costo_energia_mxn','mean'),
-    ).reset_index()
-)
-h_feats['vol_m3_ha_std'] = h_feats['vol_m3_ha_std'].fillna(0)
-feat = feat.merge(h_feats, on='id_parcela', how='left')
-
-# ── Bloque 3: recomendaciones ─────────────────────────────────────────────────
-r_feats = (
-    recomend.groupby('id_parcela').agg(
-        n_recomendaciones   = ('id_recomendacion',    'count'),
-        tasa_aceptacion     = ('aceptada',
-                               lambda x: (x == 'aceptada').mean()),
-        tasa_ignorada       = ('aceptada',
-                               lambda x: (x == 'ignorada').mean()),
-        eto_media           = ('eto_referencia',      'mean'),
-        etc_media           = ('etc_calculada',       'mean'),
-        deficit_acum_medio  = ('deficit_acumulado_mm','mean'),
-        lamina_rec_media_mm = ('lamina_recomendada_mm','mean'),
-        pct_critico         = ('nivel_urgencia',
-                               lambda x: (x == 'crítico').mean()),
-        pct_moderado        = ('nivel_urgencia',
-                               lambda x: (x == 'moderado').mean()),
-    ).reset_index()
-)
-r_feats['ratio_eta_eto'] = (
-    r_feats['etc_media'] / r_feats['eto_media'].replace(0, np.nan)
-).round(4)
-feat = feat.merge(r_feats, on='id_parcela', how='left')
-
-# ── Bloque 4: costos económicos ───────────────────────────────────────────────
-c_feats = (
-    costos.groupby('id_parcela').agg(
-        roi_medio            = ('roi_pct',                'mean'),
-        margen_medio_mxn     = ('margen_contribucion_mxn','mean'),
-        ingreso_medio_mxn    = ('ingreso_estimado_mxn',   'mean'),
-        ingreso_por_m3_medio = ('ingreso_por_m3',         'mean'),
-        vol_agua_ciclo       = ('volumen_agua_total_m3',  'mean'),
-    ).reset_index()
-)
-feat = feat.merge(c_feats, on='id_parcela', how='left')
-
-# ── Bloque 5: parámetros FAO-56 del catálogo ─────────────────────────────────
-cult_join = cult[['nombre_comun', 'kc_ponderado', 'ky_total',
-                  'ciclo_total_dias']].rename(columns={'nombre_comun': 'cultivo'})
-feat = feat.merge(cult_join, on='cultivo', how='left')
-
-# ── Bloque 6: variables objetivo ─────────────────────────────────────────────
-feat['meta_alcanzada']       = (feat['vol_m3_ha_total'] <= 6000).astype(int)
-feat['ahorro_potencial_m3']  = (8000 - feat['vol_m3_ha_total']).clip(lower=0)
-feat['ahorro_potencial_mxn'] = feat['ahorro_potencial_m3'] * 1.68
-
-# ── Bloque 7: encoding de categóricas ────────────────────────────────────────
-feat_encoded = pd.get_dummies(
-    feat, columns=['cultivo', 'tipo_suelo', 'sistema_riego'],
-    prefix=['cult', 'suelo', 'riego'], drop_first=False, dtype=int
-)
-
-print(f'✓ Dataset ML base:    {feat.shape[0]} filas × {feat.shape[1]} columnas')
-print(f'✓ Dataset codificado: {feat_encoded.shape[0]} filas × {feat_encoded.shape[1]} columnas')
-print()
-print('▶ Balance target (meta_alcanzada):')
-print(feat['meta_alcanzada']
-      .value_counts(normalize=True)
-      .rename({0: 'No alcanzada (0)', 1: 'Alcanzada (1)'})
-      .map('{:.1%}'.format))
-print()
-nulls = feat.isnull().sum()
-nulls_pos = nulls[nulls > 0]
-if len(nulls_pos):
-    print('▶ Nulos en dataset ML:')
-    print(nulls_pos.to_string())
-else:
-    print('▶ Nulos en dataset ML: ninguno')
-"""
-
-# ---------------------------------------------------------------------------
-# Sección 11 — DataFrame ML: Vista
-# ---------------------------------------------------------------------------
-S11_MD = "---\n## 11 · DataFrame ML — Vista del Dataset Construido"
-
-S11_CODE = """# ── (a) Muestra estilizada ──────────────────────────────────────────────────
-cols_show = [
-    'id_parcela', 'cultivo', 'area_ha', 'conductividad_electrica',
-    'agua_disponible_mm', 'stress_salino', 'stress_doble',
-    'eficiencia_riego', 'n_eventos_riego', 'vol_m3_ha_total',
-    'tasa_aceptacion', 'pct_critico', 'roi_medio',
-    'kc_ponderado', 'ky_total',
-    'meta_alcanzada', 'ahorro_potencial_mxn'
-]
-col_alias = [
-    'ID Parcela', 'Cultivo', 'Área (ha)', 'CE (dS/m)',
-    'ADT (mm)', 'Estrés salino', 'Estrés doble',
-    'Efic. riego', 'N° eventos', 'Vol m³/ha total',
-    'Tasa aceptac.', '% Crítico', 'ROI (%)',
-    'Kc pond.', 'Ky total',
-    'Meta alcanzada', 'Ahorro pot. (MXN)'
-]
-
-muestra = feat[cols_show].head(15).copy().reset_index(drop=True)
-muestra.columns = col_alias
-
-def _hl_target(v):
-    if v == 1:
-        return 'background-color:#D5F5E3;color:#1E8449;font-weight:bold'
-    return 'background-color:#FADBD8;color:#C0392B;font-weight:bold'
-
-def _hl_stress(v):
-    return 'background-color:#FADBD8;font-weight:bold' if v == 1 else ''
-
-display(
-    muestra.style
-    .set_caption('🤖 Dataset ML — Primeras 15 filas (features + targets)')
-    .applymap(_hl_target, subset=['Meta alcanzada'])
-    .applymap(_hl_stress, subset=['Estrés salino', 'Estrés doble'])
-    .background_gradient(subset=['Vol m³/ha total'], cmap='RdYlGn_r')
-    .background_gradient(subset=['Ahorro pot. (MXN)'], cmap='Greens')
-    .background_gradient(subset=['ROI (%)'], cmap='RdYlGn')
-    .format({
-        'Área (ha)':       '{:.1f}',
-        'CE (dS/m)':       '{:.2f}',
-        'ADT (mm)':        '{:.1f}',
-        'Efic. riego':     '{:.2f}',
-        'Vol m³/ha total': '{:,.0f}',
-        'Tasa aceptac.':   '{:.0%}',
-        '% Crítico':       '{:.0%}',
-        'ROI (%)':         '{:.1f}%',
-        'Kc pond.':        '{:.3f}',
-        'Ky total':        '{:.2f}',
-        'Ahorro pot. (MXN)': '${:,.0f}',
-    })
-    .set_properties(**{'text-align': 'center', 'font-size': '10px'})
-    .set_table_styles([{'selector': 'caption',
-                        'props': [('font-size', '14px'), ('font-weight', 'bold')]}])
-    .hide(axis='index')
-)
-
-# ── (b) Estadísticas descriptivas ───────────────────────────────────────────
-desc_ml = feat[cols_show[2:]].describe().T
-desc_ml.index = col_alias[2:]
-
-display(
-    desc_ml.style
-    .set_caption('📊 Estadísticas descriptivas — Dataset ML')
-    .background_gradient(subset=['mean'], cmap='Blues')
-    .background_gradient(subset=['std'],  cmap='Oranges')
-    .format('{:.3f}')
-    .format('{:.0f}', subset=['count'])
-    .set_table_styles([{'selector': 'caption',
-                        'props': [('font-size', '14px'), ('font-weight', 'bold')]}])
-)
-
-# ── (c) Heatmap de correlación entre features ML y el target ────────────────
-num_feats_ml = [
-    'area_ha', 'conductividad_electrica', 'agua_disponible_mm',
-    'eficiencia_riego', 'cap_almacen_relativa',
-    'n_eventos_riego', 'lamina_media_mm', 'lamina_cv',
-    'tasa_aceptacion', 'deficit_acum_medio', 'pct_critico',
-    'roi_medio', 'kc_ponderado', 'ky_total',
-    'stress_salino', 'stress_doble',
-    'vol_m3_ha_total'
-]
-num_feats_ml = [c for c in num_feats_ml if c in feat.columns]
-corr_ml = feat[num_feats_ml].corr()
-
-fig, ax = plt.subplots(figsize=(14, 11))
-sns.heatmap(
-    corr_ml, ax=ax, annot=True, fmt='.2f', cmap='RdBu_r',
-    center=0, vmin=-1, vmax=1, linewidths=0.3,
-    annot_kws={'size': 7},
-    xticklabels=[c.replace('_', '\\n') for c in corr_ml.columns],
-    yticklabels=[c.replace('_', ' ') for c in corr_ml.index],
-    square=True, cbar_kws={'shrink': 0.6}
-)
-ax.set_title(
-    'Matriz de correlación — Features ML\\n'
-    '(última fila/columna = vol_m3_ha_total)',
-    fontsize=12, fontweight='bold'
-)
-ax.tick_params(axis='x', rotation=45, labelsize=8)
-ax.tick_params(axis='y', rotation=0,  labelsize=8)
-plt.tight_layout()
-plt.show()
-
-# ── (d) Ranking de correlación con el target ─────────────────────────────────
-target_corr = (
-    corr_ml['vol_m3_ha_total']
-    .drop('vol_m3_ha_total')
-    .rename('corr')
-    .reset_index()
-    .rename(columns={'index': 'Feature'})
-)
-target_corr['|corr|'] = target_corr['corr'].abs()
-target_corr['Dir.']   = target_corr['corr'].apply(lambda v: '+ (directa)' if v >= 0 else '− (inversa)')
-target_corr = target_corr.sort_values('|corr|', ascending=False).reset_index(drop=True)
-target_corr.columns = ['Feature', 'Correlación', '|Correlación|', 'Dirección']
-
-display(
-    target_corr.style
-    .set_caption('🎯 Features por correlación absoluta con vol_m3_ha_total')
-    .background_gradient(subset=['|Correlación|'], cmap='Blues')
-    .bar(subset=['Correlación'], color=[VERDE, ROJO], align='zero', vmin=-1, vmax=1)
-    .format({'Correlación': '{:+.3f}', '|Correlación|': '{:.3f}'})
-    .set_properties(**{'text-align': 'center'})
-    .set_table_styles([{'selector': 'caption',
-                        'props': [('font-size', '13px'), ('font-weight', 'bold')]}])
-    .hide(axis='index')
-)
-"""
-
-# ---------------------------------------------------------------------------
-# Escribir en el notebook
-# ---------------------------------------------------------------------------
 with open(NB_PATH, "r", encoding="utf-8") as f:
     nb = json.load(f)
 
-new_cells = [
-    new_md(S8_MD), new_code(S8_CODE),
-    new_md(S9_MD), new_code(S9_CODE),
-    new_md(S10_MD), new_code(S10_CODE),
-    new_md(S11_MD), new_code(S11_CODE),
-]
-nb["cells"].extend(new_cells)
+
+def md_cell(lines):
+    return {"cell_type": "markdown", "metadata": {}, "source": lines}
+
+
+def code_cell(lines):
+    return {"cell_type": "code", "execution_count": None,
+            "metadata": {}, "outputs": [], "source": lines}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECCIÓN 14 — Panel EDA
+# ══════════════════════════════════════════════════════════════════════════════
+MD_14 = md_cell([
+    "---\n",
+    "## 14 · Panel EDA — Distribuciones y Correlaciones\n",
+    "\n",
+    "Panel de 6 gráficas que caracterizan el comportamiento climático\n",
+    "del dataset sintético `milpin_ciclos_ml.csv` (Valle del Yaqui, 2021-2025):\n",
+    "\n",
+    "| # | Gráfica | Variable(s) |\n",
+    "|---|---------|-------------|\n",
+    "| 1 | Distribución ETo diaria por mes (violin) | `eto_acumulado_mm` |\n",
+    "| 2 | Heatmap de correlaciones climáticas | todas numéricas |\n",
+    "| 3 | Boxplot temperatura máxima por estación | `t_max_mean`, `estacion` |\n",
+    "| 4 | Serie temporal ETo 2021-2025 | `fecha_siembra`, `eto_acumulado_mm` |\n",
+    "| 5 | Dispersión T_max vs ETo | `t_max_mean`, `eto_acumulado_mm` |\n",
+    "| 6 | Distribución humedad relativa | `hr_mean` |\n",
+])
+
+CODE_14 = code_cell([
+    "# ══════════════════════════════════════════════════════════════════════════════\n",
+    "# SECCIÓN 14 — Panel EDA: Distribuciones y Correlaciones\n",
+    "# ══════════════════════════════════════════════════════════════════════════════\n",
+    "import matplotlib.pyplot as plt\n",
+    "import matplotlib.gridspec as gridspec\n",
+    "import seaborn as sns\n",
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "from pathlib import Path\n",
+    "\n",
+    "# Cargar dataset\n",
+    "DATA_PATH = Path(\"../../data/synthetic/milpin_ciclos_ml.csv\")\n",
+    "if not DATA_PATH.exists():\n",
+    "    DATA_PATH = Path(\"data/synthetic/milpin_ciclos_ml.csv\")\n",
+    "\n",
+    "df = pd.read_csv(DATA_PATH, parse_dates=[\"fecha_siembra\"], low_memory=False)\n",
+    "\n",
+    "CLIMA_COLS = [c for c in [\"eto_acumulado_mm\", \"t_max_mean\", \"t_min_mean\",\n",
+    "                           \"hr_mean\", \"precipitacion_mm\", \"viento_m_s\"]\n",
+    "              if c in df.columns]\n",
+    "\n",
+    "df[\"mes_siembra\"] = df[\"fecha_siembra\"].dt.month\n",
+    "\n",
+    "\n",
+    "def _estacion(m):\n",
+    "    if m in (12, 1, 2): return \"Invierno\"\n",
+    "    if m in (3, 4, 5):  return \"Primavera\"\n",
+    "    if m in (6, 7, 8):  return \"Verano\"\n",
+    "    return \"Otoño\"\n",
+    "\n",
+    "\n",
+    "df[\"estacion\"] = df[\"mes_siembra\"].map(_estacion)\n",
+    "ORDEN_ESTACION = [\"Invierno\", \"Primavera\", \"Verano\", \"Otoño\"]\n",
+    "\n",
+    "# Layout 2x3\n",
+    "fig = plt.figure(figsize=(20, 12))\n",
+    "fig.patch.set_facecolor(\"#0d1117\")\n",
+    "gs = gridspec.GridSpec(2, 3, figure=fig, hspace=0.45, wspace=0.35)\n",
+    "\n",
+    "ACCENT   = \"#00d4b4\"\n",
+    "ACCENT2  = \"#f97316\"\n",
+    "BG_AX    = \"#161b22\"\n",
+    "GRID_CLR = \"#30363d\"\n",
+    "TXT      = \"#e6edf3\"\n",
+    "\n",
+    "\n",
+    "def _style_ax(ax, title):\n",
+    "    ax.set_facecolor(BG_AX)\n",
+    "    ax.tick_params(colors=TXT, labelsize=9)\n",
+    "    for sp in ax.spines.values(): sp.set_edgecolor(GRID_CLR)\n",
+    "    ax.xaxis.label.set_color(TXT)\n",
+    "    ax.yaxis.label.set_color(TXT)\n",
+    "    ax.set_title(title, color=TXT, fontsize=11, fontweight=\"bold\", pad=8)\n",
+    "    ax.grid(color=GRID_CLR, linewidth=0.5, linestyle=\"--\", alpha=0.6)\n",
+    "\n",
+    "\n",
+    "# 1. ETo por mes (violin)\n",
+    "ax1 = fig.add_subplot(gs[0, 0])\n",
+    "if \"eto_acumulado_mm\" in df.columns:\n",
+    "    eto_mes = [df.loc[df[\"mes_siembra\"] == m, \"eto_acumulado_mm\"]\n",
+    "               for m in range(1, 13)]\n",
+    "    bp = ax1.violinplot(eto_mes, positions=range(1, 13),\n",
+    "                        showmedians=True, widths=0.7)\n",
+    "    for pc in bp[\"bodies\"]:\n",
+    "        pc.set_facecolor(ACCENT); pc.set_alpha(0.6)\n",
+    "    bp[\"cmedians\"].set_color(ACCENT2)\n",
+    "    ax1.set_xlabel(\"Mes\"); ax1.set_ylabel(\"ETo acum. (mm)\")\n",
+    "_style_ax(ax1, \"1 · ETo por Mes (violin)\")\n",
+    "\n",
+    "# 2. Heatmap correlaciones\n",
+    "ax2 = fig.add_subplot(gs[0, 1])\n",
+    "if len(CLIMA_COLS) >= 2:\n",
+    "    corr = df[CLIMA_COLS].corr()\n",
+    "    mask = np.triu(np.ones_like(corr, dtype=bool))\n",
+    "    cmap = sns.diverging_palette(220, 20, as_cmap=True)\n",
+    "    sns.heatmap(corr, mask=mask, cmap=cmap, center=0,\n",
+    "                annot=True, fmt=\".2f\", linewidths=0.5,\n",
+    "                linecolor=GRID_CLR, ax=ax2,\n",
+    "                annot_kws={\"size\": 8, \"color\": TXT},\n",
+    "                cbar_kws={\"shrink\": 0.8})\n",
+    "    ax2.tick_params(axis=\"x\", rotation=30)\n",
+    "_style_ax(ax2, \"2 · Correlaciones Climáticas\")\n",
+    "\n",
+    "# 3. Boxplot T_max por estación\n",
+    "ax3 = fig.add_subplot(gs[0, 2])\n",
+    "if \"t_max_mean\" in df.columns:\n",
+    "    palette = {\"Invierno\": \"#38bdf8\", \"Primavera\": \"#4ade80\",\n",
+    "               \"Verano\": ACCENT2, \"Otoño\": \"#a78bfa\"}\n",
+    "    order = [e for e in ORDEN_ESTACION if e in df[\"estacion\"].unique()]\n",
+    "    sns.boxplot(data=df, x=\"estacion\", y=\"t_max_mean\", order=order,\n",
+    "                palette=palette, linewidth=1.2, fliersize=3, ax=ax3)\n",
+    "    ax3.set_xlabel(\"\"); ax3.set_ylabel(\"T_max (°C)\")\n",
+    "    ax3.tick_params(axis=\"x\", rotation=15)\n",
+    "_style_ax(ax3, \"3 · T_max por Estación\")\n",
+    "\n",
+    "# 4. Serie temporal ETo\n",
+    "ax4 = fig.add_subplot(gs[1, 0])\n",
+    "if \"eto_acumulado_mm\" in df.columns:\n",
+    "    ts = df.groupby(\"fecha_siembra\")[\"eto_acumulado_mm\"].mean().sort_index()\n",
+    "    ts_roll = ts.rolling(30, min_periods=1).mean()\n",
+    "    ax4.fill_between(ts.index, ts.values, alpha=0.2, color=ACCENT)\n",
+    "    ax4.plot(ts.index, ts.values, color=ACCENT, linewidth=0.6, alpha=0.5)\n",
+    "    ax4.plot(ts_roll.index, ts_roll.values, color=ACCENT2,\n",
+    "             linewidth=1.8, label=\"Media móvil 30d\")\n",
+    "    ax4.legend(fontsize=8, labelcolor=TXT, facecolor=BG_AX, edgecolor=GRID_CLR)\n",
+    "    ax4.set_xlabel(\"Fecha\"); ax4.set_ylabel(\"ETo acum. (mm)\")\n",
+    "_style_ax(ax4, \"4 · Serie Temporal ETo 2021-2025\")\n",
+    "\n",
+    "# 5. Scatter T_max vs ETo\n",
+    "ax5 = fig.add_subplot(gs[1, 1])\n",
+    "if {\"t_max_mean\", \"eto_acumulado_mm\"} <= set(df.columns):\n",
+    "    sc = ax5.scatter(df[\"t_max_mean\"], df[\"eto_acumulado_mm\"],\n",
+    "                     c=df[\"mes_siembra\"], cmap=\"plasma\",\n",
+    "                     alpha=0.45, s=18, linewidths=0)\n",
+    "    cb = fig.colorbar(sc, ax=ax5, shrink=0.8)\n",
+    "    cb.set_label(\"Mes\", color=TXT, fontsize=8)\n",
+    "    cb.ax.yaxis.set_tick_params(color=TXT)\n",
+    "    plt.setp(cb.ax.yaxis.get_ticklabels(), color=TXT, fontsize=7)\n",
+    "    valid = df[[\"t_max_mean\", \"eto_acumulado_mm\"]].dropna()\n",
+    "    m_, b_ = np.polyfit(valid[\"t_max_mean\"], valid[\"eto_acumulado_mm\"], 1)\n",
+    "    x_ = np.linspace(valid[\"t_max_mean\"].min(), valid[\"t_max_mean\"].max(), 100)\n",
+    "    ax5.plot(x_, m_ * x_ + b_, color=ACCENT2, linewidth=1.5, linestyle=\"--\")\n",
+    "    ax5.set_xlabel(\"T_max (°C)\"); ax5.set_ylabel(\"ETo acum. (mm)\")\n",
+    "_style_ax(ax5, \"5 · T_max vs ETo (scatter)\")\n",
+    "\n",
+    "# 6. Distribución HR\n",
+    "ax6 = fig.add_subplot(gs[1, 2])\n",
+    "if \"hr_mean\" in df.columns:\n",
+    "    ax6.hist(df[\"hr_mean\"].dropna(), bins=40,\n",
+    "             color=ACCENT, edgecolor=BG_AX, linewidth=0.4, alpha=0.85)\n",
+    "    mu, sigma = df[\"hr_mean\"].mean(), df[\"hr_mean\"].std()\n",
+    "    ax6.axvline(mu, color=ACCENT2, linewidth=1.8, label=f\"Media: {mu:.1f}%\")\n",
+    "    ax6.axvline(mu - sigma, color=\"#94a3b8\", linewidth=1,\n",
+    "                linestyle=\":\", label=f\"\\u00b11\\u03c3: {sigma:.1f}\")\n",
+    "    ax6.axvline(mu + sigma, color=\"#94a3b8\", linewidth=1, linestyle=\":\")\n",
+    "    ax6.legend(fontsize=8, labelcolor=TXT, facecolor=BG_AX, edgecolor=GRID_CLR)\n",
+    "    ax6.set_xlabel(\"HR media (%)\"); ax6.set_ylabel(\"Frecuencia\")\n",
+    "_style_ax(ax6, \"6 · Distribución Humedad Relativa\")\n",
+    "\n",
+    "fig.suptitle(\n",
+    "    \"MILP\\u00cdN \\u00b7 Panel EDA \\u2014 Variables Clim\\u00e1ticas Valle del Yaqui 2021-2025\",\n",
+    "    color=TXT, fontsize=14, fontweight=\"bold\", y=1.01\n",
+    ")\n",
+    "plt.savefig(\"panel_eda_climatico.png\", dpi=150, bbox_inches=\"tight\",\n",
+    "            facecolor=fig.get_facecolor())\n",
+    "plt.show()\n",
+    "print(\"Panel EDA guardado en panel_eda_climatico.png\")\n",
+])
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECCIÓN 15 — Radar Calidad
+# ══════════════════════════════════════════════════════════════════════════════
+MD_15 = md_cell([
+    "---\n",
+    "## 15 · Gráfico Radar — Perfil de Calidad del Sistema\n",
+    "\n",
+    "Spider chart que compara el **estado actual** vs. el **objetivo MVP**\n",
+    "en 7 dimensiones de calidad (ISO 25010 / RNF del proyecto).\n",
+    "\n",
+    "| Dimensión | Actual | MVP | Brecha |\n",
+    "|-----------|--------|-----|--------|\n",
+    "| Rendimiento | 3 | 4 | -1 |\n",
+    "| Seguridad | 1 | 4 | **-3 ⚠ crítica** |\n",
+    "| Disponibilidad | 2 | 4 | -2 |\n",
+    "| Escalabilidad | 2 | 3 | -1 |\n",
+    "| Mantenibilidad | 3 | 4 | -1 |\n",
+    "| Usabilidad | 3 | 4 | -1 |\n",
+    "| Precisión Agronómica | 4 | 5 | -1 |\n",
+    "\n",
+    "> **Brecha crítica — Seguridad (RNF-003/004):** credenciales en texto plano\n",
+    "> (`.env` no ignorado), CORS abierto (`allow_origins=[\"*\"]`), path traversal\n",
+    "> en `voice_endpoint.py`, y ausencia de autenticación real.  \n",
+    "> Score actual: **1/5**. Objetivo MVP: **4/5**.\n",
+])
+
+CODE_15 = code_cell([
+    "# ══════════════════════════════════════════════════════════════════════════════\n",
+    "# SECCIÓN 15 — Gráfico Radar: Perfil de Calidad del Sistema\n",
+    "# ══════════════════════════════════════════════════════════════════════════════\n",
+    "import matplotlib.pyplot as plt\n",
+    "import matplotlib.patches as mpatches\n",
+    "import numpy as np\n",
+    "\n",
+    "DIMENSIONES = [\n",
+    "    \"Rendimiento\",\n",
+    "    \"Seguridad\",\n",
+    "    \"Disponibilidad\",\n",
+    "    \"Escalabilidad\",\n",
+    "    \"Mantenibilidad\",\n",
+    "    \"Usabilidad\",\n",
+    "    \"Precisión\\nAgronómica\",\n",
+    "]\n",
+    "ACTUAL   = [3, 1, 2, 2, 3, 3, 4]\n",
+    "OBJETIVO = [4, 4, 4, 3, 4, 4, 5]\n",
+    "\n",
+    "N = len(DIMENSIONES)\n",
+    "angles   = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()\n",
+    "angles  += angles[:1]\n",
+    "actual   = ACTUAL   + ACTUAL[:1]\n",
+    "objetivo = OBJETIVO + OBJETIVO[:1]\n",
+    "\n",
+    "BG       = \"#0d1117\"\n",
+    "BG_AX    = \"#161b22\"\n",
+    "GRID_CLR = \"#30363d\"\n",
+    "TXT      = \"#e6edf3\"\n",
+    "C_ACT    = \"#00d4b4\"\n",
+    "C_OBJ    = \"#f97316\"\n",
+    "C_ALERT  = \"#ef4444\"\n",
+    "\n",
+    "fig, ax = plt.subplots(figsize=(9, 9),\n",
+    "                       subplot_kw=dict(polar=True),\n",
+    "                       facecolor=BG)\n",
+    "ax.set_facecolor(BG_AX)\n",
+    "\n",
+    "# Anillos de referencia 1-5\n",
+    "for level in range(1, 6):\n",
+    "    ax.plot(angles, [level] * (N + 1), color=GRID_CLR,\n",
+    "            linewidth=0.6, linestyle=\"--\", zorder=1)\n",
+    "    ax.text(0, level + 0.08, str(level),\n",
+    "            ha=\"center\", va=\"bottom\", fontsize=7.5, color=\"#8b949e\")\n",
+    "\n",
+    "# Radios\n",
+    "for angle in angles[:-1]:\n",
+    "    ax.plot([angle, angle], [0, 5], color=GRID_CLR, linewidth=0.8, zorder=1)\n",
+    "\n",
+    "# Polígono Objetivo\n",
+    "ax.fill(angles, objetivo, color=C_OBJ, alpha=0.15, zorder=2)\n",
+    "ax.plot(angles, objetivo, color=C_OBJ, linewidth=2.2,\n",
+    "        linestyle=\"--\", label=\"Objetivo MVP\", zorder=3)\n",
+    "ax.scatter(angles[:-1], OBJETIVO, color=C_OBJ, s=60, zorder=4)\n",
+    "\n",
+    "# Polígono Actual\n",
+    "ax.fill(angles, actual, color=C_ACT, alpha=0.25, zorder=5)\n",
+    "ax.plot(angles, actual, color=C_ACT, linewidth=2.5,\n",
+    "        label=\"Estado actual\", zorder=6)\n",
+    "ax.scatter(angles[:-1], ACTUAL, color=C_ACT, s=70, zorder=7)\n",
+    "\n",
+    "# Punto crítico Seguridad\n",
+    "idx_seg = 1\n",
+    "ax.scatter([angles[idx_seg]], [ACTUAL[idx_seg]],\n",
+    "           color=C_ALERT, s=160, zorder=8,\n",
+    "           edgecolors=\"white\", linewidths=1.5)\n",
+    "ax.annotate(\n",
+    "    \"⚠ RNF-003/004\\nBrecha: -3\",\n",
+    "    xy=(angles[idx_seg], ACTUAL[idx_seg]),\n",
+    "    xytext=(angles[idx_seg] + 0.35, ACTUAL[idx_seg] + 0.7),\n",
+    "    color=C_ALERT, fontsize=8.5, fontweight=\"bold\",\n",
+    "    arrowprops=dict(arrowstyle=\"->\", color=C_ALERT, lw=1.2),\n",
+    "    zorder=9\n",
+    ")\n",
+    "\n",
+    "# Etiquetas\n",
+    "ax.set_xticks(angles[:-1])\n",
+    "ax.set_xticklabels(DIMENSIONES, color=TXT, fontsize=10.5)\n",
+    "ax.set_yticklabels([])\n",
+    "ax.set_ylim(0, 5.4)\n",
+    "ax.spines[\"polar\"].set_color(GRID_CLR)\n",
+    "\n",
+    "# Leyenda\n",
+    "alert_patch = mpatches.Patch(color=C_ALERT, label=\"Brecha crítica (Seguridad)\")\n",
+    "ax.legend(\n",
+    "    handles=[\n",
+    "        plt.Line2D([0], [0], color=C_ACT,  linewidth=2.5, label=\"Estado actual\"),\n",
+    "        plt.Line2D([0], [0], color=C_OBJ,  linewidth=2.2,\n",
+    "                   linestyle=\"--\", label=\"Objetivo MVP\"),\n",
+    "        alert_patch,\n",
+    "    ],\n",
+    "    loc=\"upper right\", bbox_to_anchor=(1.35, 1.15),\n",
+    "    facecolor=BG_AX, edgecolor=GRID_CLR, labelcolor=TXT, fontsize=10\n",
+    ")\n",
+    "\n",
+    "fig.suptitle(\n",
+    "    \"MILP\\u00cdN \\u00b7 Perfil de Calidad del Sistema\\n\"\n",
+    "    \"Estado Actual vs. Objetivo MVP  (ISO 25010, escala 1\\u20135)\",\n",
+    "    color=TXT, fontsize=13, fontweight=\"bold\", y=1.02\n",
+    ")\n",
+    "fig.text(\n",
+    "    0.5, -0.04,\n",
+    "    \"Brechas   Rendimiento: -1 | Seguridad: -3 \\u26a0 | Disponibilidad: -2 | \"\n",
+    "    \"Escalabilidad: -1 | Mantenibilidad: -1 | Usabilidad: -1 | Precisi\\u00f3n Agro: -1\",\n",
+    "    ha=\"center\", fontsize=8.5, color=\"#8b949e\", style=\"italic\"\n",
+    ")\n",
+    "\n",
+    "plt.tight_layout()\n",
+    "plt.savefig(\"radar_calidad_sistema.png\", dpi=150, bbox_inches=\"tight\",\n",
+    "            facecolor=fig.get_facecolor())\n",
+    "plt.show()\n",
+    "print(\"Radar guardado en radar_calidad_sistema.png\")\n",
+])
+
+# Agregar al notebook
+nb["cells"].extend([MD_14, CODE_14, MD_15, CODE_15])
 
 with open(NB_PATH, "w", encoding="utf-8") as f:
     json.dump(nb, f, ensure_ascii=False, indent=1)
 
-print(f"Notebook actualizado: {len(nb['cells'])} celdas totales (+{len(new_cells)} nuevas)")
+print(f"OK — notebook ahora tiene {len(nb['cells'])} celdas")
+print(f"Secciones 14 y 15 agregadas a: {NB_PATH}")

@@ -212,15 +212,16 @@ def importar_recomendaciones(cur, filas: list[dict]) -> int:
 
 
 def importar_historial_riego(cur, filas: list[dict]) -> int:
-    # NOTA: el CSV tiene 'ciclo_agricola' y 'ciclo_vol_target_m3_ha'
-    # que NO existen en el schema → se omiten intencionalmente.
+    # ciclo_agricola y ciclo_vol_target_m3_ha ahora forman parte del schema
+    # (migración 0004). Se importan directamente desde el CSV sintético.
     sql = """
         INSERT INTO historial_riego (
             id_riego, id_parcela, id_recomendacion,
-            fecha_riego, volumen_m3_ha, lamina_mm, duracion_horas,
+            fecha_riego, ciclo_agricola, ciclo_vol_target_m3_ha,
+            volumen_m3_ha, lamina_mm, duracion_horas,
             metodo_riego, origen_decision, costo_energia_mxn,
             observaciones, created_at
-        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ON CONFLICT DO NOTHING
     """
     for r in filas:
@@ -229,6 +230,8 @@ def importar_historial_riego(cur, filas: list[dict]) -> int:
             r["id_parcela"],
             _none(r.get("id_recomendacion", "")),   # vacío → NULL (riego manual)
             r["fecha_riego"],
+            _none(r.get("ciclo_agricola", "")),
+            _none(r.get("ciclo_vol_target_m3_ha", "")),
             _none(r.get("volumen_m3_ha", "")),
             _none(r.get("lamina_mm", "")),
             _none(r.get("duracion_horas", "")),
