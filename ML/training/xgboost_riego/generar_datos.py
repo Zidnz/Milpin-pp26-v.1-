@@ -192,12 +192,14 @@ def generar_dataset(
 
     # area_ha dependiente del sistema: gravedad → parcelas grandes (infraestructura
     # de canal); goteo/microaspersión → parcelas pequeñas (inversión por ha mayor).
-    # Rangos calibrados sobre parcelas.csv (promedio real: ~13.4 ha).
+    # Rangos calibrados para DR-041 Módulo 3: lotes de canal 2-25 ha.
+    # Ponderado con SISTEMAS_P → media sintética ~11 ha ≈ media real producción (~10 ha).
+    # Versión anterior (gravedad 8-80) generaba media ~34 ha, causando drift PSI=10 falso.
     AREA_RANGO = {
-        "gravedad":       (8.0,  80.0),
-        "aspersion":      (5.0,  40.0),
-        "goteo":          (3.0,  20.0),
-        "microaspersion": (4.0,  25.0),
+        "gravedad":       (2.0,  25.0),
+        "aspersion":      (2.0,  15.0),
+        "goteo":          (1.0,  10.0),
+        "microaspersion": (1.0,  12.0),
     }
     area_lo = np.array([AREA_RANGO[s][0] for s in SISTEMAS])[ri]
     area_hi = np.array([AREA_RANGO[s][1] for s in SISTEMAS])[ri]
