@@ -540,20 +540,6 @@ GET /health
 
 > `backend/models.py` es la fuente de verdad del schema en runtime. `schema.sql` está desalineado (aún documenta JSONB).
 
-### Migraciones Alembic
-
-```bash
-cd backend
-alembic upgrade head                          # aplica las 4 migraciones
-alembic revision -m "descripcion_cambio"      # crea nueva migración
-```
-
-| Migración | Descripción |
-|---|---|
-| `0001_postgis_geom_jsonb_to_geometry` | `parcelas.geom`: JSONB → `GEOMETRY(Polygon,4326)` + índice GIST |
-| `0002_usuarios_add_rol` | Columna `rol` en `usuarios` (agricultor/admin, default: agricultor) |
-| `0003_cultivos_catalogo_rendimiento` | Columnas `rendimiento_min_ton` y `rendimiento_max_ton` en `cultivos_catalogo` |
-| `0004_historial_riego_ciclo_agricola` | Columna `ciclo_agricola` en `historial_riego` |
 
 ### Cultivos precargados
 
@@ -569,41 +555,6 @@ alembic revision -m "descripcion_cambio"      # crea nueva migración
 
 ---
 
-## Machine Learning
-
-El módulo `ML/` está separado de `backend/` con una regla de imports explícita: `ML/training/` nunca importa desde `backend/`.
-
-### Modelos entrenados (`.joblib` en `ML/models/`)
-
-| Modelo | Tipo | Target |
-|---|---|---|
-| `xgb_requiere_riego` | XGBoost clasificación | ¿La parcela necesita riego hoy? |
-| `xgb_lamina_ajustada` | XGBoost regresión | Lámina de riego recomendada (mm) |
-| `xgb_riesgo_estres` | XGBoost clasificación | Nivel de estrés hídrico |
-| `iforest_model` | Isolation Forest | Detección de anomalías en historial |
-
-Todos los modelos fueron entrenados sobre datos sintéticos generados por `tools/generar_datos_sinteticos.py` y `ML/training/xgboost_riego/generar_datos.py`. Las métricas están guardadas en los archivos `.joblib` de métricas y son accesibles vía `GET /api/ml/metricas`.
-
-### Datos sintéticos (proyecto académico)
-
-Los datos que alimentan los modelos y la BD son **100% sintéticos** generados programáticamente con distribuciones plausibles para el Valle del Yaqui. Esto es intencional — es un proyecto académico y no se llevará a producción. Los archivos están en `data/synthetic/`.
-
----
-
-## Power BI
-
-El directorio `MILPIN_PowerBI/` contiene el archivo Power BI y los scripts de configuración:
-
-- `milpin_dashboard.pbix` — archivo Power BI Desktop (requiere ajustar rutas a los CSVs de `data/synthetic/`)
-- `medidas_DAX.txt` — medidas calculadas DAX (referencia)
-- `power_query_M.txt` — transformaciones Power Query (referencia)
-- `GUIA_CONFIGURACION.txt` — instrucciones paso a paso (~30-45 min)
-
-Los reportes consumen los CSVs de `data/synthetic/`. Actualizar las rutas en Power Query M para apuntar a la ruta local del repo.
-
-> **Nota:** El proyecto PBIR (`pbir/`) fue eliminado del repositorio. El dashboard en-app está implementado como `bi_dashboard.js` y `bi_operacion.js` conectados directamente a la API REST.
-
----
 
 ## Instalación y uso
 
@@ -738,6 +689,6 @@ flowchart LR
 
 <sub>Proyecto académico — Ciencia de Datos aplicada al agro · Valle del Yaqui, Sonora, México</sub>
 
-<sub>Pre-MVP · Datos sintéticos intencionalmente · PostGIS OK · 4 Migraciones OK · 108+7 Tests OK · XGBoost entrenado OK · IForest entrenado OK · 6 Routers OK · Dashboard Operacional OK</sub>
+<sub>MVP · Datos sintéticos intencionalmente · PostGIS OK · 4 Migraciones OK · 108+7 Tests OK · XGBoost entrenado OK · IForest entrenado OK · 6 Routers OK · Dashboard Operacional OK</sub>
 
 </div>
