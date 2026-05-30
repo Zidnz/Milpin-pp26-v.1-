@@ -66,12 +66,14 @@ Los 5 cultivos oficiales son: **Maíz, Frijol, Algodón, Uva, Chile.**
 
 Fase A — higiene y consolidación (hacer antes de features nuevas):
 
-1. **Credenciales filtradas.** `backend/.env` tiene password postgres
-   (`v1530066`) en texto plano y no parece estar en `.gitignore`. Rotar y
-   ignorar.
-2. **Path traversal en voz.** `backend/API/voice_endpoint.py` hace
-   `temp_path = f"temp_{audio_file.filename}"` sin sanitizar. Además no
-   hay límite de tamaño ni validación de content-type.
+1. ~~**Credenciales filtradas.**~~ **RESUELTO 2026-05-30.** `.env` nunca fue
+   commiteado (historial limpio). `.gitignore` raíz ya cubría `.env` y `.env.*`.
+   Creado `backend/.env.example` con placeholders. Pendiente: rotar Groq API key
+   (`gsk_...`) como precaución, ya que apareció en sesión de Claude Code.
+2. ~~**Path traversal en voz.**~~ **RESUELTO** (fecha desconocida). `voice_endpoint.py`
+   usa `tempfile.gettempdir()` + `uuid.uuid4().hex` para la ruta temporal; el
+   nombre del archivo del cliente nunca toca el filesystem. Además valida
+   content-type (allowlist), extensión (allowlist) y tamaño máximo (25 MB).
 3. ~~**Backend duplicado.**~~ **RESUELTO.** `frontend/main.py` eliminado del repo.
 4. **FAO-56 conectado a BD (resuelto 2026-04-25).** `riego_api.py` ahora lee
    parcela + cultivo + clima_diario por id, calcula balance hídrico, y
@@ -81,7 +83,9 @@ Fase A — higiene y consolidación (hacer antes de features nuevas):
 5. ~~**Whisper carga al import.**~~ **RESUELTO 2026-04-30.** `import whisper`
    movido dentro de `_get_whisper()`. Startup bajó de ~45s a ~2s. Whisper
    y torch solo se cargan en el primer request de audio.
-6. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist.
+6. ~~**CORS abierto.**~~ **RESUELTO** (fecha desconocida). `main.py` usa
+   `ALLOWED_ORIGINS` con lista explícita (localhost:3000/5500/5501/8080 + file://).
+   No hay wildcard. `exception_handler` también propaga el header correcto en 500s.
 7. **Sin auth.** `id_usuario` entra como UUID en body; cualquiera crea
    parcelas a nombre de cualquiera.
 8. ~~**Sin migraciones.** Introducir Alembic.~~ **RESUELTO 2026-04-30.** `backend/migrations/` + `alembic.ini` activos. Próximas migraciones: usar `alembic revision -m "descripcion"` + `alembic upgrade head`.
@@ -106,7 +110,7 @@ Separación explícita de entrenamiento, inferencia, datos y orquestación.
 milpin/
 ├── backend/                          # Sin cambios mayores
 │   ├── main.py                       # app FastAPI 2.0 con lifespan
-│   ├── .env                          # ⚠ contiene secretos, rotar
+│   ├── .env                          # en .gitignore — usar .env.example como plantilla
 │   ├── schema.sql                    # DDL + 2 vistas KPI + seed
 │   ├── init_db.py                    # seeders
 │   ├── models.py                     # modelos ORM
@@ -116,7 +120,7 @@ milpin/
 │   ├── tests/                        # 77+ tests (FAO-56 unitarios + e2e)
 │   ├── API/
 │   │   ├── riego_api.py              # endpoint FAO-56
-│   │   ├── voice_endpoint.py         # ⚠ path traversal sin sanitizar
+│   │   ├── voice_endpoint.py         # STT Whisper + text-command; sanitización OK
 │   │   ├── db_api.py
 │   │   ├── ml_api.py
 │   │   └── actuadores_api.py
@@ -152,13 +156,9 @@ milpin/
 │   ├── monitoring/
 │   │   ├── drift.py                  # PSI, KS — detección de drift
 │   │   └── eval_metrics.py           # métricas compartidas
-│   ├── pipelines/                    # Prefect flows (stubs, Fase C/D)
-│   │   ├── nasa_power_daily.py
-│   │   ├── features_materialize.py
-│   │   ├── train_eval_promote.py
-│   │   └── batch_scoring.py
-│   ├── models/                       # Solo metadata (apunta a MLflow registry)
-│   │   └── README.md
+│   ├── pipelines/
+│   │   └── train_eval_promote.py     # ref dist + promote gate (activo)
+│   │   # nasa_power_daily, features_materialize, batch_scoring eliminados (eran stubs)
 │   ├── experiments/                  # Notebooks experimentales
 │   │   ├── eda_milpin.ipynb
 │   │   ├── xgboost_v3_diversity.ipynb
