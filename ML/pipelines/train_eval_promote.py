@@ -38,9 +38,9 @@ TIPO_SUELO_ENC: dict[str, int] = {
 
 # Umbrales de promote gate para el modelo 3-model (producción actual)
 PROMOTE_GATE = {
-    "requiere_riego":  {"metric": "test_f1",  "op": ">=", "threshold": 0.80},
-    "lamina_ajustada": {"metric": "test_mae", "op": "<=", "threshold": 15.0},
-    "riesgo_estres":   {"metric": "test_mae", "op": "<=", "threshold": 0.12},
+    "clasificador": {"metric": "f1",      "op": ">=", "threshold": 0.80},
+    "lamina":       {"metric": "mae_mm",  "op": "<=", "threshold": 15.0},
+    "estres":       {"metric": "mae",     "op": "<=", "threshold": 0.12},
 }
 
 
@@ -92,13 +92,13 @@ def evaluar_promote_gate(metricas: dict) -> bool:
         label = "PASS" if ok else "FAIL"
         print(
             f"  {model_key}: {gate['metric']}={valor:.4f} "
-            f"{gate['op']} {gate['threshold']} → {label}"
+            f"{gate['op']} {gate['threshold']} -> {label}"
         )
         passed = passed and ok
     return passed
 
 
-def main(data_path: Path = DATA_DEFAULT) -> None:
+def main(data_path: Path = DATA_DEFAULT, sample: int = 5000) -> None:
     print("=== MILPÍN — train_eval_promote ===\n")
 
     if not data_path.exists():
@@ -107,8 +107,8 @@ def main(data_path: Path = DATA_DEFAULT) -> None:
             "Generarlo con: python tools/generar_datos_sinteticos.py"
         )
 
-    df = pd.read_csv(data_path)
-    print(f"Dataset : {data_path.name}  ({len(df):,} filas, {len(df.columns)} columnas)")
+    df = pd.read_csv(data_path, nrows=sample)
+    print(f"Dataset : {data_path.name}  ({len(df):,} filas leidas de {sample:,})")
 
     # Paso 1: guardar distribución de referencia para drift monitoring
     print("\n[1/2] Guardando distribución de referencia...")
@@ -129,7 +129,7 @@ def main(data_path: Path = DATA_DEFAULT) -> None:
     status = "PASS — modelo listo para producción" if passed else "FAIL — no cumple umbrales"
     print(f"\nResultado: {status}")
     if not passed:
-        print("  → Reentrenar: python ml/training/xgboost_riego/train.py")
+        print("  -> Reentrenar: python ml/training/xgboost_riego/train.py")
 
 
 if __name__ == "__main__":
@@ -138,5 +138,9 @@ if __name__ == "__main__":
         "--data", type=Path, default=DATA_DEFAULT,
         help="Path al CSV de entrenamiento (default: data/synthetic/milpin_ciclos_ml.csv)",
     )
+    parser.add_argument(
+        "--sample", type=int, default=5000,
+        help="Filas a leer del CSV para la distribución de referencia (default: 5000)",
+    )
     args = parser.parse_args()
-    main(data_path=args.data)
+    main(data_path=args.data, sample=args.sample)
