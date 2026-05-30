@@ -41,6 +41,10 @@ backend/models_ml/
 # Cache NASA POWER (regenerable vía tools/nasa_power_etl.py)
 data/raw/nasa_power/
 
+# Snapshots de drift monitoring (artefactos de runtime, regenerables)
+data/snapshots/xgb_ref_dist.joblib
+data/snapshots/xgb_prod_inputs.jsonl
+
 # Datasets grandes (>100MB, usar DVC o regenerar)
 data/synthetic/milpin_ciclos_ml.csv
 ML/milpin_ciclos_ml.csv
@@ -57,4 +61,10 @@ docs/unpacked_plan_negocios/
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
-# pytest cach
+# pytest cache
+.pytest_cache/
+.cache/
+
+# CVs personales
+RESUME~4.docx
+Resume_actualizado.docx
