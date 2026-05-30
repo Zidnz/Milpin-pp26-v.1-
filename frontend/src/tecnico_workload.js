@@ -1,14 +1,89 @@
 // tecnico_workload.js — Vista de carga de trabajo para técnicos de riego
 // Consume: GET /api/tecnico/carga-trabajo
+// Fallback: DEMO_DATA cuando el backend no está disponible.
 
 const WORKLOAD = (() => {
   const API = 'http://localhost:8000/api';
 
-  let _data = null;
+  let _data          = null;
   let _filtroUrgencia = 'todos';
+  let _modoDemo      = false;
+
+  // ── Datos demo (Valle del Yaqui · DR-041 · Módulo 3) ─────────────────────
+  const DEMO_DATA = {
+    fecha_consulta: new Date().toISOString().slice(0, 10),
+    resumen: { total: 5, critico: 2, moderado: 1, preventivo: 1, sin_recomendacion: 1 },
+    parcelas: [
+      {
+        id_parcela:            'demo-001',
+        nombre_parcela:        'La Paloma',
+        propietario:           'Ramón Valenzuela Torres',
+        cultivo:               'Maíz',
+        area_ha:               8.5,
+        sistema_riego:         'gravedad',
+        nivel_urgencia:        'critico',
+        dias_sin_riego:        14,
+        deficit_acumulado_mm:  62.4,
+        lamina_recomendada_mm: 78.0,
+        fecha_riego_sugerida:  new Date().toISOString().slice(0, 10),
+      },
+      {
+        id_parcela:            'demo-002',
+        nombre_parcela:        'El Mezquital',
+        propietario:           'Guadalupe Morales Soto',
+        cultivo:               'Chile',
+        area_ha:               4.2,
+        sistema_riego:         'goteo',
+        nivel_urgencia:        'critico',
+        dias_sin_riego:        11,
+        deficit_acumulado_mm:  48.7,
+        lamina_recomendada_mm: 55.0,
+        fecha_riego_sugerida:  new Date().toISOString().slice(0, 10),
+      },
+      {
+        id_parcela:            'demo-003',
+        nombre_parcela:        'Los Álamos',
+        propietario:           'Carlos Félix Ríos',
+        cultivo:               'Algodón',
+        area_ha:               12.0,
+        sistema_riego:         'aspersion',
+        nivel_urgencia:        'moderado',
+        dias_sin_riego:        7,
+        deficit_acumulado_mm:  28.1,
+        lamina_recomendada_mm: 34.0,
+        fecha_riego_sugerida:  (() => { const d = new Date(); d.setDate(d.getDate() + 2); return d.toISOString().slice(0, 10); })(),
+      },
+      {
+        id_parcela:            'demo-004',
+        nombre_parcela:        'El Capomo',
+        propietario:           'Ramón Valenzuela Torres',
+        cultivo:               'Frijol',
+        area_ha:               6.8,
+        sistema_riego:         'gravedad',
+        nivel_urgencia:        'preventivo',
+        dias_sin_riego:        4,
+        deficit_acumulado_mm:  12.3,
+        lamina_recomendada_mm: 18.0,
+        fecha_riego_sugerida:  (() => { const d = new Date(); d.setDate(d.getDate() + 4); return d.toISOString().slice(0, 10); })(),
+      },
+      {
+        id_parcela:            'demo-005',
+        nombre_parcela:        'Las Lomas',
+        propietario:           'María Luisa Acedo',
+        cultivo:               'Uva',
+        area_ha:               3.5,
+        sistema_riego:         'goteo',
+        nivel_urgencia:        null,
+        dias_sin_riego:        null,
+        deficit_acumulado_mm:  null,
+        lamina_recomendada_mm: null,
+        fecha_riego_sugerida:  null,
+      },
+    ],
+  };
 
   async function _get(path) {
-    const res = await fetch(`${API}${path}`);
+    const res = await fetch(`${API}${path}`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
@@ -73,11 +148,11 @@ const WORKLOAD = (() => {
             day: 'numeric', month: 'short',
           })
         : '—';
-      const dias     = p.dias_sin_riego != null ? `${p.dias_sin_riego}d sin riego` : '—';
-      const deficit  = p.deficit_acumulado_mm != null
+      const dias    = p.dias_sin_riego != null ? `${p.dias_sin_riego}d sin riego` : '—';
+      const deficit = p.deficit_acumulado_mm != null
         ? `${p.deficit_acumulado_mm.toFixed(1)} mm`
         : '—';
-      const area = p.area_ha != null ? ` · ${p.area_ha.toFixed(1)} ha` : '';
+      const area  = p.area_ha != null ? ` · ${p.area_ha.toFixed(1)} ha` : '';
       const riego = p.sistema_riego
         ? ` · ${p.sistema_riego.charAt(0).toUpperCase() + p.sistema_riego.slice(1)}`
         : '';
@@ -107,7 +182,7 @@ const WORKLOAD = (() => {
     }).join('');
   }
 
-  // ── Cargar datos desde la API ──────────────────────────────────────────────
+  // ── Cargar datos desde la API (fallback a demo) ───────────────────────────
   async function cargar() {
     const loadingEl = document.getElementById('wkload-loading');
     const listaEl   = document.getElementById('wkload-lista');
@@ -119,27 +194,26 @@ const WORKLOAD = (() => {
 
     try {
       const query = window.MILPIN_AUTH?.getParcelasQuery?.() || '';
-      _data = await _get(`/tecnico/carga-trabajo${query}`);
+      _data     = await _get(`/tecnico/carga-trabajo${query}`);
+      _modoDemo = false;
+    } catch {
+      _data     = DEMO_DATA;
+      _modoDemo = true;
+    }
 
-      if (loadingEl) loadingEl.style.display = 'none';
-      _renderResumen(_data.resumen);
-      _renderLista(_data.parcelas);
-      _sincronizarFiltros();
+    if (loadingEl) loadingEl.style.display = 'none';
+    _renderResumen(_data.resumen);
+    _renderLista(_data.parcelas);
+    _sincronizarFiltros();
 
-      if (statusEl) {
-        const d = new Date(_data.fecha_consulta + 'T12:00:00');
-        statusEl.textContent = `Actualizado: ${d.toLocaleDateString('es-MX', {
-          day: 'numeric', month: 'long', year: 'numeric',
-        })}`;
-      }
-    } catch (err) {
-      console.error('[WORKLOAD]', err);
-      if (loadingEl) loadingEl.style.display = 'none';
-      if (listaEl) {
-        listaEl.innerHTML = `<div class="wkload-empty wkload-empty--err">
-          ⚠️ No se pudo cargar. Verifica que el backend esté en localhost:8000.
-        </div>`;
-      }
+    if (statusEl) {
+      const d = new Date(_data.fecha_consulta + 'T12:00:00');
+      const fechaStr = d.toLocaleDateString('es-MX', {
+        day: 'numeric', month: 'long', year: 'numeric',
+      });
+      statusEl.textContent = _modoDemo
+        ? `Modo demo · ${fechaStr}`
+        : `Actualizado: ${fechaStr}`;
     }
   }
 
@@ -158,8 +232,8 @@ const WORKLOAD = (() => {
 
   // ── Navegar a tab Riego con la parcela seleccionada ───────────────────────
   function irAParcela(idParcela) {
+    if (_modoDemo) return;
     cambiarPestana(null, 'tab-costos');
-    // Give the tab a tick to render before updating the select
     setTimeout(() => {
       const sel = document.getElementById('select-parcela-riego');
       if (sel) {
@@ -173,3 +247,5 @@ const WORKLOAD = (() => {
 
   return { cargar, setFiltro, irAParcela };
 })();
+
+window.WORKLOAD = WORKLOAD;
