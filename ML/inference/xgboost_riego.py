@@ -22,6 +22,7 @@ Uso:
     print(pred.requiere_riego, pred.lamina_ajustada_mm, pred.riesgo_estres)
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 # ── Rutas de persistencia ─────────────────────────────────────────────────────
 # Desde ml/inference/ subimos 2 niveles (→ repo root) y luego a backend/models_ml/
 MODELS_DIR = Path(__file__).parents[2] / "backend" / "models_ml"
+PROD_LOG   = Path(__file__).parents[2] / "data" / "snapshots" / "xgb_prod_inputs.jsonl"
 
 # ── Features de entrada (orden fijo — no cambiar sin reentrenar) ──────────────
 FEATURE_NAMES = [
@@ -190,6 +192,20 @@ class XGBoostRiego:
         riesgo  = float(np.clip(self._reg_estres.predict(X)[0], 0.0, 1.0))
         urgencia = self._clasificar_urgencia(prob, riesgo, dias_sin_riego)
 
+        self._log_inputs({
+            "deficit_mm":          deficit_mm,
+            "etc_mm":              etc_mm,
+            "eto_mm":              eto_mm,
+            "kc":                  kc,
+            "dias_sin_riego":      float(dias_sin_riego),
+            "humedad_suelo_pct":   humedad_suelo_pct,
+            "capacidad_campo_pct": capacidad_campo_pct,
+            "punto_marchitez_pct": punto_marchitez_pct,
+            "profundidad_raiz_m":  profundidad_raiz_m,
+            "area_ha":             area_ha,
+            "tipo_suelo_enc":      tipo_enc,
+        })
+
         return PrediccionRiego(
             requiere_riego=requiere,
             probabilidad_riego=round(prob, 4),
@@ -201,6 +217,16 @@ class XGBoostRiego:
         )
 
     # ── Utilidades ────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _log_inputs(features: dict) -> None:
+        """Añade un registro de features al log de producción (para drift monitoring)."""
+        try:
+            PROD_LOG.parent.mkdir(parents=True, exist_ok=True)
+            with PROD_LOG.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(features) + "\n")
+        except Exception as exc:
+            logger.warning("_log_inputs: no se pudo escribir en %s — %s", PROD_LOG, exc)
 
     @staticmethod
     def _clasificar_urgencia(prob: float, riesgo: float, dias_sin_riego: int) -> str:
