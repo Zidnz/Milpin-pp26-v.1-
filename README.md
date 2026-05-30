@@ -405,12 +405,6 @@ milpin/
 └── .gitignore
 ```
 
-> **Deuda estructural pendiente:**
-> - `backend/models_ml/` — duplicado de `ML/models/`, eliminar
-> - `milpin_env/` — entorno virtual commiteado, agregar a `.gitignore` y hacer `git rm -r --cached`
-
----
-
 ## API Reference
 
 ### GIS
