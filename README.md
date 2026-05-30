@@ -105,21 +105,6 @@
 
 ---
 
-## Deuda técnica vigente
-
-1. **Sin autenticación — bloqueador MVP.** `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. La columna `rol` ya existe en BD (migración `0002`), falta el middleware de verificación.
-2. **Credenciales en `.env`.** `backend/.env` tiene la password de postgres. El archivo ya está en `.gitignore` — verificar que no haya sido commiteado históricamente con `git log -- backend/.env`.
-3. **Path traversal en voz.** `voice_endpoint.py` usa `temp_path = f"temp_{audio_file.filename}"` sin sanitizar. Sin límite de tamaño ni validación de content-type.
-4. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist con los dominios reales del frontend.
-5. **`schema.sql` desalineado.** El DDL todavía documenta la fase JSONB; el runtime ya usa GeoAlchemy2. `backend/models.py` es la fuente de verdad real del schema.
-6. **Catálogo de cultivos duplicado.** Los cultivos válidos viven como constantes en 6 archivos (`KC_TABLE`, `VALID_CULTIVOS`, `CULTIVOS_SEMILLA`, `schema.sql`, `index.html`, `generar_datos_sinteticos.py`). Debería leerse desde la tabla `cultivos_catalogo` en runtime.
-7. ~~**Archivos muertos en `backend/core/`.**~~ **RESUELTO 2026-05-28.** `xgboost_riego.py` y `anomaly_detector.py` eliminados del disco. El código real vive en `ML/inference/`.
-8. ~~**Conflict backups sin limpiar.**~~ No existen en el repo (ya estaban limpios).
-9. **Modelos `.joblib` duplicados.** Los 7 archivos en `backend/models_ml/` son copias de `ML/models/`. `ml_api.py` debería apuntar solo a `ML/models/`. Eliminar `backend/models_ml/`.
-10. **`milpin_env/` en el repo.** El entorno virtual está commiteado en la raíz. Agregarlo a `.gitignore` y hacer `git rm -r --cached milpin_env/`.
-11. **Forecast sin validación cruzada.** `eto_forecast.py` entrena Ridge Regression sin split de validación; el RMSE reportado es in-sample. Baja prioridad mientras no haya más de ~60 registros climáticos reales.
-
----
 
 ## Arquitectura del sistema
 
