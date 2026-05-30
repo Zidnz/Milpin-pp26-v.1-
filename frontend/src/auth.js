@@ -205,7 +205,10 @@ const MILPIN_AUTH = (() => {
     }
 
     async function init() {
-        currentUser = _readStoredUser();
+        const stored = _readStoredUser();
+        // Descartar sesiones offline (sin JWT): causarían 401 en endpoints protegidos
+        currentUser = stored?.access_token ? stored : null;
+        if (stored && !stored.access_token) _clearUser();
         _updateProfileUI();
 
         const select = document.getElementById("login-user-select");
