@@ -56,9 +56,20 @@ def guardar_ref_dist(df: pd.DataFrame) -> None:
     # dias_ciclo / n_riegos aproxima días entre riegos a nivel de ciclo
     dias_sin_riego = (df["dias_ciclo"] / df["n_riegos"].replace(0, 1)).values
 
+    # deficit_mm: déficit hídrico instantáneo del suelo en mm
+    # (CC - humedad_actual) × profundidad_raíz — escala operacional del inference wrapper
+    # NO usar deficit_estimado_mm (acumulado ciclo, ~1000 mm) que difiere 25× de producción
+    deficit_mm_ref = (
+        (df["capacidad_campo"] - df["humedad_suelo_promedio"]) * df["prof_raiz_m"] * 1000
+    ).values
+
+    # etc_mm: tasa ETC diaria en mm/día — escala operacional del inference wrapper
+    # NO usar etc_estimada_mm (acumulado ciclo, ~1200 mm)
+    etc_mm_ref = (df["et0_hist_mmdia"] * df["kc_medio_cultivo"]).values
+
     ref = {
-        "deficit_mm":          df["deficit_estimado_mm"].values.astype(float),
-        "etc_mm":              df["etc_estimada_mm"].values.astype(float),
+        "deficit_mm":          deficit_mm_ref.astype(float),
+        "etc_mm":              etc_mm_ref.astype(float),
         "eto_mm":              df["et0_hist_mmdia"].values.astype(float),
         "kc":                  df["kc_medio_cultivo"].values.astype(float),
         "dias_sin_riego":      dias_sin_riego.astype(float),
