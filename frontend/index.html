@@ -661,6 +661,15 @@
             <div id="ml-metricas-body" class="ml-metricas-body" style="display:none;"></div>
         </div>
 
+        <!-- ── Drift monitoring (colapsable) ── -->
+        <div class="ml-section-card ml-metricas-section">
+            <button class="ml-metricas-toggle" onclick="_toggleMLDrift()">
+                <span>Drift de features · Entrenamiento vs Producción</span>
+                <span id="ml-drift-icon" class="ml-metricas-chevron">▾</span>
+            </button>
+            <div id="ml-drift-body" class="ml-metricas-body" style="display:none;"></div>
+        </div>
+
     </div><!-- /tab-ml -->
 
     <div id="tab-ajustes" class="tab-content" style="display:none;">

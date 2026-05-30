@@ -1938,6 +1938,105 @@ function _renderMLMetricas(data, bodyEl) {
     <p class="ml-metricas-disclaimer">${data.disclaimer || ''}</p>`;
 }
 
+// ── ML · Drift Monitoring ────────────────────────────────────────────────────
+
+function _toggleMLDrift() {
+    const body = document.getElementById('ml-drift-body');
+    const icon = document.getElementById('ml-drift-icon');
+    if (!body) return;
+    const open = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    if (icon) icon.textContent = open ? '▴' : '▾';
+    if (open && !body.hasAttribute('data-loaded')) {
+        body.setAttribute('data-loaded', '1');
+        cargarMLDrift();
+    }
+}
+
+async function cargarMLDrift() {
+    const bodyEl = document.getElementById('ml-drift-body');
+    if (!bodyEl) return;
+
+    bodyEl.innerHTML = '<div class="ml-loading"><span class="bi-spinner"></span> Calculando drift…</div>';
+
+    try {
+        const res = await fetch(`${API_BASE}/ml/drift`);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        _renderMLDrift(data, bodyEl);
+    } catch (err) {
+        console.warn('[MILPIN ML Drift]', err);
+        bodyEl.innerHTML = `<div class="ml-anomaly-error">
+            ${err.message}<br>
+            <small style="opacity:.7">Ejecutar primero: python ML/pipelines/train_eval_promote.py</small>
+        </div>`;
+    }
+}
+
+function _renderMLDrift(data, bodyEl) {
+    const STATUS_COLOR = { OK: '#52b788', MONITOREAR: '#d4820a', CRITICO: '#e63946' };
+    const STATUS_BG    = { OK: 'rgba(82,183,136,.12)', MONITOREAR: 'rgba(212,130,10,.12)', CRITICO: 'rgba(230,57,70,.12)' };
+
+    const globalColor = STATUS_COLOR[data.estado_global] || '#8C7F6E';
+    const globalBg    = STATUS_BG[data.estado_global]    || 'transparent';
+
+    const summaryHtml = `
+    <div class="ml-anomaly-summary">
+        <div class="ml-anomaly-kpi${data.n_critico > 0 ? ' ml-anomaly-kpi--warn' : ''}">
+            <span class="ml-anomaly-kpi-num">${data.n_critico}</span>
+            <span class="ml-anomaly-kpi-lbl">Critico</span>
+        </div>
+        <div class="ml-anomaly-kpi">
+            <span class="ml-anomaly-kpi-num">${data.n_monitorear}</span>
+            <span class="ml-anomaly-kpi-lbl">Monitorear</span>
+        </div>
+        <div class="ml-anomaly-kpi">
+            <span class="ml-anomaly-kpi-num">${data.n_ok}</span>
+            <span class="ml-anomaly-kpi-lbl">OK</span>
+        </div>
+        <div class="ml-anomaly-kpi" style="min-width:90px">
+            <span class="ml-anomaly-kpi-num" style="color:${globalColor}">${data.estado_global}</span>
+            <span class="ml-anomaly-kpi-lbl">Estado global</span>
+        </div>
+    </div>`;
+
+    const rowsHtml = (data.features || []).map(f => {
+        const color = STATUS_COLOR[f.status] || '#8C7F6E';
+        const bg    = STATUS_BG[f.status]    || 'transparent';
+        const psi   = f.psi.toFixed(4);
+        const psiPct = Math.min(100, (f.psi / 0.3) * 100).toFixed(0);
+        const driftFlag = f.drift_ks ? 'SI' : 'no';
+
+        return `<div class="ml-anomaly-item" style="background:${bg};border-left:3px solid ${color}">
+            <div class="ml-anomaly-item-header">
+                <span class="ml-anomaly-parcela">${f.feature}</span>
+                <span class="ml-anomaly-score-chip" style="background:${color}18;color:${color}">${f.status}</span>
+                <span style="font-size:.72rem;color:var(--secondary-text)">N=${f.prod_n}</span>
+            </div>
+            <div class="ml-anomaly-score-bar-track" title="PSI ${psi}">
+                <div class="ml-anomaly-score-bar" style="width:${psiPct}%;background:${color}"></div>
+            </div>
+            <div class="ml-anomaly-metrics">
+                <span>PSI: <strong style="color:${color}">${psi}</strong></span>
+                <span>KS: ${f.ks_stat.toFixed(3)}</span>
+                <span>p: ${f.ks_p.toFixed(3)}</span>
+                <span>Drift KS: <strong>${driftFlag}</strong></span>
+            </div>
+        </div>`;
+    }).join('');
+
+    const legendHtml = `<div style="font-size:.7rem;color:var(--secondary-text);padding:10px 0 4px">
+        PSI &lt; 0.10 = OK &nbsp;·&nbsp; 0.10–0.20 = Monitorear &nbsp;·&nbsp; &gt; 0.20 = Critico (reentrenar)
+    </div>`;
+
+    bodyEl.innerHTML = summaryHtml
+        + '<div class="ml-anomaly-list">' + rowsHtml + '</div>'
+        + legendHtml;
+}
+
 // ── Configuración global (accesible desde engranaje de cualquier módulo) ─────
 function abrirConfiguracion() {
     // Cierra el drawer de alertas si estuviera abierto
@@ -1963,4 +2062,6 @@ window.switchRiegoTab             = switchRiegoTab;
 window.toggleAlertasPanel         = toggleAlertasPanel;
 window.cargarMLTab                = cargarMLTab;
 window._toggleMLMetricas          = _toggleMLMetricas;
+window._toggleMLDrift             = _toggleMLDrift;
+window.cargarMLDrift              = cargarMLDrift;
 window.abrirConfiguracion         = abrirConfiguracion;

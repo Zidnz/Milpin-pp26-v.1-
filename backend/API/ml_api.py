@@ -14,6 +14,11 @@ Endpoints:
     GET /api/ml/metricas
         Métricas de ambos modelos (XGBoost + Isolation Forest).
         Incluye disclaimer sobre datos sintéticos.
+
+    GET /api/ml/drift?min_rows=50&last_n=2000
+        Compara distribución de features de entrenamiento vs producción.
+        PSI + KS por feature. Requiere referencia generada con train_eval_promote.py
+        y al menos min_rows predicciones en el log de producción.
 """
 
 import uuid
@@ -29,6 +34,75 @@ from database import get_db
 from models import CultivoCatalogo, Parcela, Recomendacion
 
 router = APIRouter(tags=["Machine Learning"])
+
+
+# ── 4. Drift monitoring ───────────────────────────────────────────────────────
+
+@router.get("/ml/drift")
+async def ml_drift(
+    min_rows: int = Query(default=50, ge=10, description="Mínimo de predicciones requeridas"),
+    last_n:   int = Query(default=2000, ge=50, description="Usar solo las últimas N predicciones"),
+):
+    """
+    Compara distribución de features de entrenamiento vs producción.
+
+    Requiere:
+        - data/snapshots/xgb_ref_dist.joblib (generado por train_eval_promote.py)
+        - data/snapshots/xgb_prod_inputs.jsonl (log automático de predicciones)
+
+    Retorna PSI + KS test por feature con clasificación OK / MONITOREAR / CRITICO.
+    """
+    from ml.monitoring.drift_check import check_drift, REF_PATH, PROD_LOG
+    import sys
+    from pathlib import Path
+
+    # Asegurar que el repo root esté en sys.path (igual que main.py)
+    repo_root = str(Path(__file__).parents[2])
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+
+    if not REF_PATH.exists():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Referencia de entrenamiento no encontrada. "
+                "Ejecutar: python ML/pipelines/train_eval_promote.py"
+            ),
+        )
+    if not PROD_LOG.exists():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Log de producción no encontrado. "
+                "Se crea automáticamente cuando el modelo recibe predicciones."
+            ),
+        )
+
+    try:
+        results = check_drift(min_prod_rows=min_rows, last_n=last_n)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error al calcular drift: {exc}")
+
+    n_critico    = sum(1 for r in results if r["status"] == "CRITICO")
+    n_monitorear = sum(1 for r in results if r["status"] == "MONITOREAR")
+    n_ok         = sum(1 for r in results if r["status"] == "OK")
+    estado_global = "CRITICO" if n_critico > 0 else ("MONITOREAR" if n_monitorear > 0 else "OK")
+
+    return {
+        "estado_global":  estado_global,
+        "n_critico":      n_critico,
+        "n_monitorear":   n_monitorear,
+        "n_ok":           n_ok,
+        "features":       results,
+        "config": {
+            "min_rows": min_rows,
+            "last_n":   last_n,
+            "ref_path": str(REF_PATH),
+            "prod_log": str(PROD_LOG),
+        },
+    }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
