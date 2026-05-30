@@ -20,10 +20,16 @@ Uso:
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import joblib
 import numpy as np
+
+# Asegura que la raíz del repo esté en sys.path al correr el script directamente
+_REPO_ROOT = Path(__file__).parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 from ML.monitoring.drift import calcular_ks, calcular_psi
 
