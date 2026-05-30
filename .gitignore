@@ -51,13 +51,10 @@ node_modules/
 # Word / Office lock files
 ~$*
 
+# Docx desempaquetados (artefactos de edición manual)
+docs/unpacked_plan_negocios/
+
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
-# pytest cache
-.pytest_cache/
-.cache/
-
-# CVs personales
-RESUME~4.docx
-Resume_actualizado.docx
+# pytest cach
