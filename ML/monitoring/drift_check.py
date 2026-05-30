@@ -101,14 +101,14 @@ def check_drift(min_prod_rows: int = 50, last_n: int = 2000) -> list[dict]:
         status = "CRITICO" if psi > 0.2 else ("MONITOREAR" if psi > 0.1 else "OK")
 
         results.append({
-            "feature": feat,
-            "psi":      round(psi, 4),
-            "ks_stat":  round(ks["statistic"], 4),
-            "ks_p":     round(ks["p_value"], 4),
-            "drift_ks": ks["drift"],
-            "status":   status,
-            "prod_n":   len(prod_arr),
-            "ref_n":    len(ref_arr),
+            "feature":  str(feat),
+            "psi":      float(round(psi, 4)),
+            "ks_stat":  float(round(ks["statistic"], 4)),
+            "ks_p":     float(round(ks["p_value"], 4)),
+            "drift_ks": bool(ks["drift"]),
+            "status":   str(status),
+            "prod_n":   int(len(prod_arr)),
+            "ref_n":    int(len(ref_arr)),
         })
 
     return results

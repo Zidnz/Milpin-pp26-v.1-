@@ -78,8 +78,20 @@ async def ml_drift(
             ),
         )
 
+    import json
+    import numpy as np
+
+    def _numpy_to_python(obj):
+        if isinstance(obj, np.bool_):    return bool(obj)
+        if isinstance(obj, np.integer):  return int(obj)
+        if isinstance(obj, np.floating): return float(obj)
+        if isinstance(obj, np.ndarray):  return obj.tolist()
+        raise TypeError(f"No serializable: {type(obj)}")
+
     try:
         results = check_drift(min_prod_rows=min_rows, last_n=last_n)
+        # Garantizar que no queden tipos numpy en la respuesta
+        results = json.loads(json.dumps(results, default=_numpy_to_python))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:

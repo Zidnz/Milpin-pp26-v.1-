@@ -23,8 +23,8 @@ def calcular_psi(referencia: np.ndarray, produccion: np.ndarray, bins: int = 10)
     ref_pct = ref_counts / len(referencia) + 1e-6
     prod_pct = prod_counts / len(produccion) + 1e-6
 
-    psi = np.sum((prod_pct - ref_pct) * np.log(prod_pct / ref_pct))
-    return float(psi)
+    psi = float(np.sum((prod_pct - ref_pct) * np.log(prod_pct / ref_pct)))
+    return psi
 
 
 def calcular_ks(referencia: np.ndarray, produccion: np.ndarray) -> dict:
@@ -36,5 +36,5 @@ def calcular_ks(referencia: np.ndarray, produccion: np.ndarray) -> dict:
     return {
         "statistic": float(stat),
         "p_value": float(p_val),
-        "drift": p_val < 0.05,
+        "drift": bool(p_val < 0.05),
     }
