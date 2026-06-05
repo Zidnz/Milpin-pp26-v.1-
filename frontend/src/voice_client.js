@@ -316,8 +316,9 @@ function _abrirVozDropdown() {
     // Abrir arriba si no cabe abajo, abrir abajo si cabe
     const cabeAbajo = rect.bottom + gap + alturaLista < window.innerHeight;
 
-    lista.style.width  = rect.width + 'px';
-    lista.style.left   = rect.left  + 'px';
+    lista.style.position = 'fixed';
+    lista.style.width    = rect.width + 'px';
+    lista.style.left     = rect.left  + 'px';
 
     if (cabeAbajo) {
         lista.style.top    = (rect.bottom + gap) + 'px';
@@ -365,13 +366,22 @@ function poblarSelectorVoces() {
     const label  = document.getElementById('vozDropdownLabel');
     if (!lista) return;
 
-    const vocesES = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('es'));
-    if (vocesES.length === 0) return;
+    const todas  = window.speechSynthesis.getVoices();
+    if (todas.length === 0) return;
 
-    // Neurales primero en el dropdown
+    const esES   = v => v.lang.startsWith('es');
+    const vocesES    = todas.filter(esES);
+    const vocesOtras = todas.filter(v => !esES(v));
+
+    // Neurales primero dentro de cada grupo
+    const ordenarGrupo = arr => [
+        ...arr.filter(_esNeural),
+        ...arr.filter(v => !_esNeural(v)),
+    ];
+
     const ordenadas = [
-        ...vocesES.filter(_esNeural),
-        ...vocesES.filter(v => !_esNeural(v)),
+        ...ordenarGrupo(vocesES),
+        ...ordenarGrupo(vocesOtras),
     ];
 
     // Determinar voz activa: 1) guardada en localStorage, 2) vozSeleccionada actual,
@@ -394,7 +404,18 @@ function poblarSelectorVoces() {
     if (!porDefecto) porDefecto = ordenadas[0] ?? null;
 
     lista.innerHTML = '';
+
+    let seccionActual = null;
     ordenadas.forEach(voz => {
+        const seccion = esES(voz) ? 'Español' : 'Otros idiomas';
+        if (seccion !== seccionActual) {
+            seccionActual = seccion;
+            const sep = document.createElement('li');
+            sep.className = 'voz-dropdown-sep';
+            sep.textContent = seccion;
+            lista.appendChild(sep);
+        }
+
         const neural  = _esNeural(voz);
         const prefijo = neural ? '★ ' : '';
         const meta    = neural ? `Neural · ${voz.lang}` : `Estándar · ${voz.lang}`;
@@ -416,6 +437,15 @@ function poblarSelectorVoces() {
         });
         lista.appendChild(li);
     });
+
+    // Pie de nota si no hay voces neurales de español
+    const hayNeuralES = vocesES.some(_esNeural);
+    if (!hayNeuralES) {
+        const nota = document.createElement('li');
+        nota.className = 'voz-dropdown-nota';
+        nota.innerHTML = '💡 Para voces neurales (Sofia, Sabina…) abre en <strong>Microsoft Edge</strong>';
+        lista.appendChild(nota);
+    }
 
     if (porDefecto) {
         vozSeleccionada = porDefecto;
