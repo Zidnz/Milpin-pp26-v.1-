@@ -144,7 +144,7 @@ const MILPIN_AUTH = (() => {
 
         let users = [];
         try {
-            const res = await fetch(`${API_BASE}/usuarios`, { signal: AbortSignal.timeout(4000) });
+            const res = await fetch(`${API_BASE}/usuarios`, { signal: AbortSignal.timeout(20000) });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             users = await res.json();
             _offlineMode = false;
