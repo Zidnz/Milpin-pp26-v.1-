@@ -33,6 +33,7 @@ xgboost>=2.1.1
 groq>=0.9.0
 httpx==0.27.2
 requests>=2.31.0
+python-multipart>=0.0.9
 
 # Utilitarios
 pydantic==2.9.2
