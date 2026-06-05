@@ -13,6 +13,9 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="css/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <!-- DEBUG MÓVIL: quitar antes de producción final -->
+    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+    <script>eruda.init();</script>
 </head>
 <body>
 <div id="login-screen" class="login-screen" style="display:flex;">
@@ -723,11 +726,16 @@
     </div><!-- /tab-ml -->
 
     <div id="tab-ajustes" class="tab-content" style="display:none;">
-        <div class="tab-topbar tab-topbar--ajustes tab-topbar--simple tab-topbar--no-action">
+        <div class="tab-topbar tab-topbar--ajustes tab-topbar--simple">
             <div class="tab-topbar-center">
                 <span class="tab-topbar-title">Configuración</span>
                 <span class="tab-topbar-sub">Preferencias y cuenta</span>
             </div>
+            <button class="tab-topbar-action" onclick="cerrarConfiguracion()" aria-label="Cerrar configuración" title="Cerrar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
         </div>
 
         <div class="ajustes-profile-card">
@@ -1068,7 +1076,7 @@
 <script src="src/bi_dashboard.js"></script>
 <script src="src/admin_panel.js"></script>
 <script src="src/tecnico_workload.js"></script>
-<script src="src/ui_tabs.js"></script>
+<script src="src/ui_tabs.js?v=2"></script>
 <script src="src/voice_client.js"></script>
 <script>
 async function descargarDataset() {

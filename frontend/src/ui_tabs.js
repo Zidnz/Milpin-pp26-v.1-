@@ -4,9 +4,8 @@
 
 const API_BASE = "https://milpin-pp26-v1-production.up.railway.app/api";
 
-// Mapa cultivo → imagen servida por el backend en /static/imagenes/
-// El backend (FastAPI en localhost:8000) monta la carpeta imagenes/ como static.
-const _IMG_BASE = "https://milpin-pp26-v1-production.up.railway.app/static/imagenes";
+// Mapa cultivo → imagen local en frontend/imagenes/
+const _IMG_BASE = "imagenes";
 const CULTIVO_IMG = {
     "maiz":     `${_IMG_BASE}/maiz.jpeg`,
     "maíz":     `${_IMG_BASE}/maiz.jpeg`,
@@ -36,6 +35,7 @@ function _queryParcelasUsuario() {
 // Navegacion de pestanas
 function cambiarPestana(event, tabId) {
     if (event) event.preventDefault();
+    _cerrarAlertasPanel();
     document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
     document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
 
@@ -2053,7 +2053,12 @@ function _renderMLDrift(data, bodyEl) {
 }
 
 // ── Configuración global (accesible desde engranaje de cualquier módulo) ─────
+let _tabAnteriorConfig = 'tab-bi';
+
 function abrirConfiguracion() {
+    // Guardar el tab activo actual para poder volver
+    const tabActivo = document.querySelector('.tab-content[style*="block"]');
+    if (tabActivo && tabActivo.id !== 'tab-ajustes') _tabAnteriorConfig = tabActivo.id;
     // Cierra el drawer de alertas si estuviera abierto
     if (_alertasPanelAbierto) _cerrarAlertasPanel();
     // Navega a Configuración sin marcar ningún nav-item como activo
@@ -2062,6 +2067,10 @@ function abrirConfiguracion() {
     const tab = document.getElementById('tab-ajustes');
     if (tab) tab.style.display = 'block';
     cargarParcelasAjustes();
+}
+
+function cerrarConfiguracion() {
+    cambiarPestana(null, _tabAnteriorConfig);
 }
 
 // ── Exports globales explícitos ──────────────────────────────────────────────
@@ -2080,3 +2089,4 @@ window._toggleMLMetricas          = _toggleMLMetricas;
 window._toggleMLDrift             = _toggleMLDrift;
 window.cargarMLDrift              = cargarMLDrift;
 window.abrirConfiguracion         = abrirConfiguracion;
+window.cerrarConfiguracion        = cerrarConfiguracion;
