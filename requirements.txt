@@ -1,42 +1,38 @@
-# ── Backend / API ────────────────────────────────────────────────────────────
-fastapi
-uvicorn[standard]
-python-multipart
-requests
-httpx
-aiofiles
+# Producción — mismo contenido que backend/requirements.txt
+# El root requirements.txt existe solo para que Railway/Render no instalen deps pesadas.
+# Para ML training local: pip install scipy numba shap optuna seaborn
 
-# ── Base de datos ─────────────────────────────────────────────────────────────
-sqlalchemy[asyncio]
-asyncpg
-aiosqlite
-alembic
-psycopg2-binary
-GeoAlchemy2
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
 
-# ── ML / Datos ────────────────────────────────────────────────────────────────
-numpy>=2.0
-scipy>=1.13
-pandas>=2.0
-scikit-learn>=1.5
-xgboost>=2.0
-shap>=0.46
-optuna>=3.0
+# Base de datos
+sqlalchemy[asyncio]==2.0.36
+asyncpg>=0.30.0
+psycopg2-binary>=2.9.10
+aiosqlite==0.20.0
 
-# ── Visualización (notebooks) ────────────────────────────────────────────────
-matplotlib>=3.8
-seaborn>=0.13
+# Migraciones
+alembic==1.14.0
+geoalchemy2==0.17.1
 
-# ── Motor agronómico / GIS ────────────────────────────────────────────────────
-shapely>=2.0
-geopandas
+# Autenticación JWT
+python-jose[cryptography]==3.3.0
+bcrypt==4.2.1
 
-# ── Voz ──────────────────────────────────────────────────────────────────────
-openai-whisper
-imageio-ffmpeg
-gTTS
+# Variables de entorno
+python-dotenv==1.0.1
 
-# ── Utilidades ────────────────────────────────────────────────────────────────
-python-dotenv
-pydantic>=2.0
-pydantic-settings
+# ML / Agronómico
+pandas>=2.2.3
+shapely>=2.0.6
+numpy>=2.0.0
+scikit-learn>=1.4.2
+xgboost>=2.1.1
+
+# Voz
+groq>=0.9.0
+httpx==0.27.2
+
+# Utilitarios
+pydantic==2.9.2
+pydantic-settings==2.5.2
