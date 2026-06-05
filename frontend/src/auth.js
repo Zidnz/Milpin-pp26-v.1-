@@ -262,4 +262,25 @@ const MILPIN_AUTH = (() => {
     }
 
     function getToken() {
-        return currentUser?.acces
+        return currentUser?.access_token || null;
+    }
+
+    function getAuthHeader() {
+        const token = getToken();
+        return token ? { "Authorization": `Bearer ${token}` } : {};
+    }
+
+    return {
+        init,
+        login,
+        logout,
+        getCurrentUser,
+        getUserId,
+        getToken,
+        getAuthHeader,
+        getParcelasQuery,
+        isAdmin,
+    };
+})();
+
+window.MILPIN_AUTH = MILPIN_AUTH;

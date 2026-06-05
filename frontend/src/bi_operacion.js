@@ -535,4 +535,18 @@ const BIOp = (() => {
   }
 
   function _defSeries() {
-    r
+    return Array.from({length: 14}, (_, i) => -(i * 2.8 + _pr(3, i) * 4));
+  }
+
+  function _lluviaSeries() {
+    return Array.from({length: 14}, (_, i) => _pr(4, i) < 0.15 ? +(_pr(5,i)*12).toFixed(1) : 0);
+  }
+
+  function _fmt(n) {
+    return typeof n === 'number' ? n.toLocaleString('es-MX') : n;
+  }
+
+  // ── Public API ────────────────────────────────────────────────────────────
+  return { init, refresh };
+
+})();

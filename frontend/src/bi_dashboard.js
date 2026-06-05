@@ -857,4 +857,21 @@ const BI = (() => {
     },
     onPeriodoChange() {
       const s=document.getElementById('bi-filter-periodo'); if(!s) return;
-      const v=s.value; _state
+      const v=s.value; _state.selectedPeriodo=v;
+      const cd=document.getElementById('bi-custom-dates');
+      if(v==='personalizado'){ if(cd) cd.style.display='flex'; return; }
+      if(cd) cd.style.display='none';
+      if(CICLOS_PRESET[v]) {
+        if(v==='ultimos-365'){ const h=new Date();_state.fechaHasta=h.toISOString().slice(0,10);
+          const y=new Date(h);y.setFullYear(h.getFullYear()-1);_state.fechaDesde=y.toISOString().slice(0,10);
+        } else { _state.fechaDesde=CICLOS_PRESET[v].desde; _state.fechaHasta=CICLOS_PRESET[v].hasta; }
+      }
+      _fetchAndRender();
+    },
+    refresh() {
+      const av=document.querySelector('.bi-subtab--active')?.dataset.view||'operacion';
+      if(av==='analisis'){ _destroyCharts(); _state.initialized=false; _state.rawData=[]; _fetchAndRender(); }
+      else if(typeof BIOp!=='undefined') BIOp.refresh();
+    },
+  };
+})();

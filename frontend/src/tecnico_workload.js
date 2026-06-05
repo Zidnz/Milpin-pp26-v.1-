@@ -237,4 +237,15 @@ const WORKLOAD = (() => {
     setTimeout(() => {
       const sel = document.getElementById('select-parcela-riego');
       if (sel) {
-     
+        sel.value = idParcela;
+        if (typeof cargarRecomendacion === 'function') {
+          cargarRecomendacion(idParcela);
+        }
+      }
+    }, 50);
+  }
+
+  return { cargar, setFiltro, irAParcela };
+})();
+
+window.WORKLOAD = WORKLOAD;
