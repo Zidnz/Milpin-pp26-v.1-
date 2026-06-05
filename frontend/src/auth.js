@@ -58,16 +58,27 @@ const MILPIN_AUTH = (() => {
             return;
         }
         const isAdminUser = user.rol === "admin";
-        const rolLabel = isAdminUser
-            ? '<span style="background:#0F6CBD;color:#fff;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;">ADMIN</span>'
+        const initials = (user.nombre_completo || "")
+            .split(" ")
+            .filter(Boolean)
+            .slice(0, 2)
+            .map(p => p[0]?.toUpperCase() || "")
+            .join("");
+        const rolBadge = isAdminUser
+            ? '<span style="background:#0F6CBD;color:#fff;font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:20px;">ADMIN</span>'
             : "";
         const scope = isAdminUser
             ? "Acceso completo · Todas las parcelas"
             : `${user.modulo_dr041 || "DR-041"} · Usuario activo`;
         box.innerHTML = `
-            <div class="login-preview-name">${user.nombre_completo}${rolLabel}</div>
-            <div class="login-preview-email">${user.email}</div>
-            <div class="login-preview-role">${scope}</div>
+            <div class="login-user-card">
+                <div class="login-user-avatar">${initials}</div>
+                <div class="login-user-info">
+                    <div class="login-preview-name">${user.nombre_completo}${rolBadge}</div>
+                    <div class="login-preview-email">${user.email}</div>
+                    <div class="login-preview-role">${scope}</div>
+                </div>
+            </div>
         `;
     }
 

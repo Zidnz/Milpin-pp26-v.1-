@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MILPÍN MVP</title>
-    <link rel="icon" type="image/png" href="../imagenes/milpin-logo.png">
-    <link rel="apple-touch-icon" href="../imagenes/milpin-logo.png">
+    <link rel="icon" type="image/png" href="imagenes/milpin-logo.png">
+    <link rel="apple-touch-icon" href="imagenes/milpin-logo.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -17,23 +17,72 @@
 <body>
 <div id="login-screen" class="login-screen" style="display:none;">
     <div class="login-card">
-        <div class="login-pill">Acceso basado en dataset</div>
-        <h1 class="login-title">Iniciar sesión en MILPÍN</h1>
-        <p class="login-subtitle">
-            Selecciona un usuario activo del dataset existente para cargar sus parcelas,
-            recomendaciones y KPIs.
-        </p>
-        <form id="login-form" class="login-form">
-            <label class="login-label" for="login-user-select">Usuario</label>
-            <select id="login-user-select" class="login-select" required>
-                <option value="">Selecciona un usuario del dataset</option>
-            </select>
-            <div id="login-user-preview" class="login-user-preview"></div>
-            <button id="login-submit-btn" type="submit" class="login-submit-btn">
-                Entrar con este usuario
-            </button>
-            <div id="login-status" class="login-status"></div>
-        </form>
+
+        <!-- Columna izquierda: información de la plataforma -->
+        <div class="login-col-info">
+            <img src="imagenes/logo-simple.png" alt="MILPÍN" class="login-logo">
+            <h1 class="login-info-title">Optimización de riego con IA</h1>
+            <p class="login-info-desc">
+                Plataforma inteligente para el manejo eficiente del agua en el Valle del Yaqui.
+                Reduce el consumo hasta 25% con recomendaciones FAO-56.
+            </p>
+            <ul class="login-benefits">
+                <li class="login-benefit-item">
+                    <span class="login-benefit-icon">
+                        <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+                                  stroke="#A8DDB5" stroke-width="2" stroke-linecap="round"
+                                  stroke-linejoin="round" fill="rgba(168,221,181,0.15)"/>
+                        </svg>
+                    </span>
+                    <span>Seguro y confiable</span>
+                </li>
+                <li class="login-benefit-item">
+                    <span class="login-benefit-icon">
+                        <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+                            <circle cx="12" cy="12" r="9" stroke="#A8DDB5" stroke-width="2"
+                                    fill="rgba(168,221,181,0.15)"/>
+                            <path d="M9 12l2 2 4-4" stroke="#A8DDB5" stroke-width="2"
+                                  stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span>Recomendaciones inteligentes</span>
+                </li>
+                <li class="login-benefit-item">
+                    <span class="login-benefit-icon">
+                        <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"
+                                  stroke="#A8DDB5" stroke-width="2" stroke-linecap="round"
+                                  fill="rgba(168,221,181,0.15)"/>
+                        </svg>
+                    </span>
+                    <span>Diseñado para agricultura de precisión</span>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Columna derecha: formulario de acceso -->
+        <div class="login-col-form">
+            <img src="imagenes/logo-simple.png" alt="MILPÍN" class="login-logo login-logo--mobile">
+            <div class="login-pill">Acceso basado en dataset</div>
+            <h2 class="login-title">Iniciar sesión en MILPÍN</h2>
+            <p class="login-subtitle">
+                Selecciona un usuario activo del dataset existente para cargar sus parcelas,
+                recomendaciones y KPIs.
+            </p>
+            <form id="login-form" class="login-form">
+                <label class="login-label" for="login-user-select">Usuario</label>
+                <select id="login-user-select" class="login-select" required>
+                    <option value="">Selecciona un usuario del dataset</option>
+                </select>
+                <div id="login-user-preview" class="login-user-preview"></div>
+                <button id="login-submit-btn" type="submit" class="login-submit-btn">
+                    Entrar con este usuario
+                </button>
+                <div id="login-status" class="login-status"></div>
+            </form>
+        </div>
+
     </div>
 </div>
 
