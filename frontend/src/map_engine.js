@@ -439,8 +439,20 @@ async function inicializarMapa() {
         }).addTo(map);
     }
 
-    // ── Panel de capas: conectar controles HTML externos ─────────────
-    _wirePanelCapas();
+    // ── Control de capas (dentro del mapa) ───────────────────────────
+    const baseMaps = {
+        "Satélite (Esri)": _baseSatelite,
+        "Topográfico":     _baseTopo
+    };
+    const overlays = {};
+    if (capaLotes)   overlays["Parcelas (NDVI)"]     = capaLotes;
+    if (capaRios)    overlays["Red Hidrográfica"]    = capaRios;
+    if (capaCanales) overlays["Canales DR-041"]      = capaCanales;
+    if (capaPozos)   overlays["Pozos de Extracción"] = capaPozos;
+    overlays["Análisis (K-Means)"] = capaAnalisis;
+
+    L.control.layers(baseMaps, overlays, { collapsed: true }).addTo(map);
+    L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
     // ── Bridge: botón "Ver recomendación" dentro del popup ────────────
     window._irRiego = function(idParcela) {
@@ -522,42 +534,6 @@ function _renderLeyendaDOM(parcelas) {
             </div>`).join('')}
         </div>
         ${total > 0 ? `<div class="map-ndvi-total">Total: ${total} parcelas</div>` : ''}`;
-}
-
-function _wirePanelCapas() {
-    // Basemap toggle
-    document.querySelectorAll('.map-basemap-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.map-basemap-btn').forEach(b => b.classList.remove('map-basemap-btn--active'));
-            this.classList.add('map-basemap-btn--active');
-            if (this.dataset.base === 'satelite') {
-                if (map.hasLayer(_baseTopo)) map.removeLayer(_baseTopo);
-                _baseSatelite.addTo(map);
-            } else {
-                if (map.hasLayer(_baseSatelite)) map.removeLayer(_baseSatelite);
-                _baseTopo.addTo(map);
-            }
-        });
-    });
-
-    // Overlay checkboxes
-    const overlayMap = {
-        'lyr-parcelas': () => capaLotes,
-        'lyr-rios':     () => capaRios,
-        'lyr-canales':  () => capaCanales,
-        'lyr-pozos':    () => capaPozos,
-        'lyr-analisis': () => capaAnalisis,
-    };
-    Object.entries(overlayMap).forEach(([id, getLayer]) => {
-        const cb = document.getElementById(id);
-        if (!cb) return;
-        cb.addEventListener('change', function() {
-            const layer = getLayer();
-            if (!layer) return;
-            if (this.checked) map.addLayer(layer);
-            else              map.removeLayer(layer);
-        });
-    });
 }
 
 // ── Panel de detalle de parcela (bajo el mapa) ────────────────────────

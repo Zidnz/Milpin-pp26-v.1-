@@ -5261,6 +5261,10 @@ body #main-container {
     flex: 1 1 100%;
 }
 
+/* Tarjeta NDVI unificada: oculta el título generado por JS */
+.map-ndvi-unified #map-leyenda-ndvi .map-widget-title { display: none; }
+.map-ndvi-unified #map-leyenda-ndvi .map-ndvi-bar     { margin-top: 8px; }
+
 .map-widget-title {
     font-size: 0.72rem;
     font-weight: 700;

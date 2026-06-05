@@ -247,54 +247,23 @@
 
         <div id="map" style="width: 100%; border-radius: 15px; border: 2px solid var(--agri-green);"></div>
         <div id="parcela-detalle-card" style="display:none;"></div>
-        <div class="map-ndvi-header-card">
-            <div class="map-ndvi-header-title">Monitor Satelital NDVI · Valle del Yaqui · Municipio de Cajeme (DR-041)</div>
-            <div class="map-ndvi-header-bar">
-                <span class="map-ndvi-header-lbl">Crítico</span>
-                <div class="map-ndvi-header-gradient"></div>
-                <span class="map-ndvi-header-lbl">Excelente</span>
-            </div>
-            <div class="map-ndvi-header-hint">Haz click en una parcela para ver el detalle agronómico</div>
-        </div>
-
-        <!-- ── Widgets del mapa (debajo del NDVI) ── -->
+        <!-- ── Widgets del mapa (debajo del mapa) ── -->
         <div class="map-widgets-panel">
+
+            <!-- Monitor NDVI + Leyenda detallada unificados -->
+            <div class="map-widget-card map-widget-card--half map-ndvi-unified">
+                <div class="map-ndvi-header-title">Monitor Satelital NDVI · Valle del Yaqui · DR-041</div>
+                <div class="map-ndvi-header-bar">
+                    <span class="map-ndvi-header-lbl">Crítico</span>
+                    <div class="map-ndvi-header-gradient"></div>
+                    <span class="map-ndvi-header-lbl">Excelente</span>
+                </div>
+                <div id="map-leyenda-ndvi"></div>
+                <div class="map-ndvi-header-hint">Haz click en una parcela para ver el detalle agronómico</div>
+            </div>
 
             <!-- Resumen DR-041 -->
             <div id="map-badge-resumen" class="map-widget-card map-widget-card--half"></div>
-
-            <!-- Leyenda NDVI detallada -->
-            <div id="map-leyenda-ndvi" class="map-widget-card map-widget-card--half"></div>
-
-            <!-- Selector de capas -->
-            <div class="map-widget-card map-widget-card--full">
-                <div class="map-widget-title">Capas del mapa</div>
-                <div class="map-layers-body">
-                    <div class="map-layers-section">
-                        <div class="map-layers-label">Mapa base</div>
-                        <div class="map-basemap-group">
-                            <button class="map-basemap-btn map-basemap-btn--active" data-base="satelite">
-                                <svg viewBox="0 0 24 24" fill="none" width="13" height="13"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="currentColor" stroke-width="1.5"/></svg>
-                                Satélite
-                            </button>
-                            <button class="map-basemap-btn" data-base="topo">
-                                <svg viewBox="0 0 24 24" fill="none" width="13" height="13"><path d="M3 17l6-8 4 5 3-3 5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                Topográfico
-                            </button>
-                        </div>
-                    </div>
-                    <div class="map-layers-section">
-                        <div class="map-layers-label">Capas visibles</div>
-                        <div class="map-layers-grid">
-                            <label class="map-layer-row"><input type="checkbox" id="lyr-parcelas" checked><span>Parcelas NDVI</span></label>
-                            <label class="map-layer-row"><input type="checkbox" id="lyr-rios" checked><span>Red hidrográfica</span></label>
-                            <label class="map-layer-row"><input type="checkbox" id="lyr-canales" checked><span>Canales DR-041</span></label>
-                            <label class="map-layer-row"><input type="checkbox" id="lyr-pozos" checked><span>Pozos</span></label>
-                            <label class="map-layer-row"><input type="checkbox" id="lyr-analisis"><span>Análisis K-Means</span></label>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
         </div>
     </div>
