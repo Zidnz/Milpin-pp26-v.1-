@@ -105,21 +105,6 @@
 
 ---
 
-## Deuda técnica vigente
-
-1. **Sin autenticación — bloqueador MVP.** `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. La columna `rol` ya existe en BD (migración `0002`), falta el middleware de verificación.
-2. **Credenciales en `.env`.** `backend/.env` tiene la password de postgres. El archivo ya está en `.gitignore` — verificar que no haya sido commiteado históricamente con `git log -- backend/.env`.
-3. **Path traversal en voz.** `voice_endpoint.py` usa `temp_path = f"temp_{audio_file.filename}"` sin sanitizar. Sin límite de tamaño ni validación de content-type.
-4. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist con los dominios reales del frontend.
-5. **`schema.sql` desalineado.** El DDL todavía documenta la fase JSONB; el runtime ya usa GeoAlchemy2. `backend/models.py` es la fuente de verdad real del schema.
-6. **Catálogo de cultivos duplicado.** Los cultivos válidos viven como constantes en 6 archivos (`KC_TABLE`, `VALID_CULTIVOS`, `CULTIVOS_SEMILLA`, `schema.sql`, `index.html`, `generar_datos_sinteticos.py`). Debería leerse desde la tabla `cultivos_catalogo` en runtime.
-7. ~~**Archivos muertos en `backend/core/`.**~~ **RESUELTO 2026-05-28.** `xgboost_riego.py` y `anomaly_detector.py` eliminados del disco. El código real vive en `ML/inference/`.
-8. ~~**Conflict backups sin limpiar.**~~ No existen en el repo (ya estaban limpios).
-9. **Modelos `.joblib` duplicados.** Los 7 archivos en `backend/models_ml/` son copias de `ML/models/`. `ml_api.py` debería apuntar solo a `ML/models/`. Eliminar `backend/models_ml/`.
-10. **`milpin_env/` en el repo.** El entorno virtual está commiteado en la raíz. Agregarlo a `.gitignore` y hacer `git rm -r --cached milpin_env/`.
-11. **Forecast sin validación cruzada.** `eto_forecast.py` entrena Ridge Regression sin split de validación; el RMSE reportado es in-sample. Baja prioridad mientras no haya más de ~60 registros climáticos reales.
-
----
 
 ## Arquitectura del sistema
 
@@ -420,12 +405,6 @@ milpin/
 └── .gitignore
 ```
 
-> **Deuda estructural pendiente:**
-> - `backend/models_ml/` — duplicado de `ML/models/`, eliminar
-> - `milpin_env/` — entorno virtual commiteado, agregar a `.gitignore` y hacer `git rm -r --cached`
-
----
-
 ## API Reference
 
 ### GIS
@@ -561,20 +540,6 @@ GET /health
 
 > `backend/models.py` es la fuente de verdad del schema en runtime. `schema.sql` está desalineado (aún documenta JSONB).
 
-### Migraciones Alembic
-
-```bash
-cd backend
-alembic upgrade head                          # aplica las 4 migraciones
-alembic revision -m "descripcion_cambio"      # crea nueva migración
-```
-
-| Migración | Descripción |
-|---|---|
-| `0001_postgis_geom_jsonb_to_geometry` | `parcelas.geom`: JSONB → `GEOMETRY(Polygon,4326)` + índice GIST |
-| `0002_usuarios_add_rol` | Columna `rol` en `usuarios` (agricultor/admin, default: agricultor) |
-| `0003_cultivos_catalogo_rendimiento` | Columnas `rendimiento_min_ton` y `rendimiento_max_ton` en `cultivos_catalogo` |
-| `0004_historial_riego_ciclo_agricola` | Columna `ciclo_agricola` en `historial_riego` |
 
 ### Cultivos precargados
 
@@ -590,41 +555,6 @@ alembic revision -m "descripcion_cambio"      # crea nueva migración
 
 ---
 
-## Machine Learning
-
-El módulo `ML/` está separado de `backend/` con una regla de imports explícita: `ML/training/` nunca importa desde `backend/`.
-
-### Modelos entrenados (`.joblib` en `ML/models/`)
-
-| Modelo | Tipo | Target |
-|---|---|---|
-| `xgb_requiere_riego` | XGBoost clasificación | ¿La parcela necesita riego hoy? |
-| `xgb_lamina_ajustada` | XGBoost regresión | Lámina de riego recomendada (mm) |
-| `xgb_riesgo_estres` | XGBoost clasificación | Nivel de estrés hídrico |
-| `iforest_model` | Isolation Forest | Detección de anomalías en historial |
-
-Todos los modelos fueron entrenados sobre datos sintéticos generados por `tools/generar_datos_sinteticos.py` y `ML/training/xgboost_riego/generar_datos.py`. Las métricas están guardadas en los archivos `.joblib` de métricas y son accesibles vía `GET /api/ml/metricas`.
-
-### Datos sintéticos (proyecto académico)
-
-Los datos que alimentan los modelos y la BD son **100% sintéticos** generados programáticamente con distribuciones plausibles para el Valle del Yaqui. Esto es intencional — es un proyecto académico y no se llevará a producción. Los archivos están en `data/synthetic/`.
-
----
-
-## Power BI
-
-El directorio `MILPIN_PowerBI/` contiene el archivo Power BI y los scripts de configuración:
-
-- `milpin_dashboard.pbix` — archivo Power BI Desktop (requiere ajustar rutas a los CSVs de `data/synthetic/`)
-- `medidas_DAX.txt` — medidas calculadas DAX (referencia)
-- `power_query_M.txt` — transformaciones Power Query (referencia)
-- `GUIA_CONFIGURACION.txt` — instrucciones paso a paso (~30-45 min)
-
-Los reportes consumen los CSVs de `data/synthetic/`. Actualizar las rutas en Power Query M para apuntar a la ruta local del repo.
-
-> **Nota:** El proyecto PBIR (`pbir/`) fue eliminado del repositorio. El dashboard en-app está implementado como `bi_dashboard.js` y `bi_operacion.js` conectados directamente a la API REST.
-
----
 
 ## Instalación y uso
 
@@ -759,6 +689,6 @@ flowchart LR
 
 <sub>Proyecto académico — Ciencia de Datos aplicada al agro · Valle del Yaqui, Sonora, México</sub>
 
-<sub>Pre-MVP · Datos sintéticos intencionalmente · PostGIS OK · 4 Migraciones OK · 108+7 Tests OK · XGBoost entrenado OK · IForest entrenado OK · 6 Routers OK · Dashboard Operacional OK</sub>
+<sub>MVP · Datos sintéticos intencionalmente · PostGIS OK · 4 Migraciones OK · 108+7 Tests OK · XGBoost entrenado OK · IForest entrenado OK · 6 Routers OK · Dashboard Operacional OK</sub>
 
 </div>

@@ -1,0 +1,64 @@
+# MILPÍN — Infraestructura de desarrollo
+# Levanta: PostgreSQL+PostGIS, MLflow, Prefect, Grafana
+# Uso: docker compose up -d
+
+version: "3.9"
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.4
+    container_name: milpin_postgres
+    environment:
+      POSTGRES_DB: milpin
+      POSTGRES_USER: milpin_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../backend/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: milpin_mlflow
+    command: >
+      mlflow server
+        --backend-store-uri postgresql+psycopg2://milpin_user:${POSTGRES_PASSWORD:-changeme}@postgres:5432/milpin
+        --default-artifact-root s3://milpin-mlflow/
+        --host 0.0.0.0
+        --port 5001
+    ports:
+      - "5001:5001"
+    depends_on:
+      - postgres
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+
+  minio:
+    image: minio/minio:RELEASE.2024-04-06T05-26-02Z
+    container_name: milpin_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: milpin_grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+
+volumes:
+  postgres_data:
+  minio_data:
+  grafana_data:
