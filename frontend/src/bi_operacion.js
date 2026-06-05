@@ -3,7 +3,7 @@
 
 const BIOp = (() => {
 
-  const API          = 'https://milpin-backend.onrender.com/api';
+  const API          = 'https://milpin-dss.onrender.com/api';
   const TIMEOUT      = 12000;
   const CICLO_LABEL  = 'OI 2025-26';
   const BASELINE_M3  = 8000;
@@ -535,18 +535,4 @@ const BIOp = (() => {
   }
 
   function _defSeries() {
-    return Array.from({length: 14}, (_, i) => -(i * 2.8 + _pr(3, i) * 4));
-  }
-
-  function _lluviaSeries() {
-    return Array.from({length: 14}, (_, i) => _pr(4, i) < 0.15 ? +(_pr(5,i)*12).toFixed(1) : 0);
-  }
-
-  function _fmt(n) {
-    return typeof n === 'number' ? n.toLocaleString('es-MX') : n;
-  }
-
-  // ── Public API ────────────────────────────────────────────────────────────
-  return { init, refresh };
-
-})();
+    r

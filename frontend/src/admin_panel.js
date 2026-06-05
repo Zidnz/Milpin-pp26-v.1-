@@ -3,7 +3,7 @@
 // Consume: GET /api/parcelas (sin filtro → todas), GET /api/usuarios
 
 const ADMIN = (() => {
-  const API = 'https://milpin-backend.onrender.com/api';
+  const API = 'https://milpin-dss.onrender.com/api';
 
   // ── Estado ──────────────────────────────────────────────────────────────────
   let _parcelas  = [];

@@ -3,7 +3,7 @@
 // Fallback: DEMO_DATA cuando el backend no está disponible.
 
 const WORKLOAD = (() => {
-  const API = 'https://milpin-backend.onrender.com/api';
+  const API = 'https://milpin-dss.onrender.com/api';
 
   let _data          = null;
   let _filtroUrgencia = 'todos';
@@ -237,15 +237,4 @@ const WORKLOAD = (() => {
     setTimeout(() => {
       const sel = document.getElementById('select-parcela-riego');
       if (sel) {
-        sel.value = idParcela;
-        if (typeof cargarRecomendacion === 'function') {
-          cargarRecomendacion(idParcela);
-        }
-      }
-    }, 50);
-  }
-
-  return { cargar, setFiltro, irAParcela };
-})();
-
-window.WORKLOAD = WORKLOAD;
+     

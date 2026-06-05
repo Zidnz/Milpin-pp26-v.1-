@@ -1,5 +1,5 @@
 const MILPIN_AUTH = (() => {
-    const API_BASE = "https://milpin-backend.onrender.com/api";
+    const API_BASE = "https://milpin-dss.onrender.com/api";
     const STORAGE_KEY = "milpin.currentUser";
 
     let currentUser = null;
@@ -262,25 +262,4 @@ const MILPIN_AUTH = (() => {
     }
 
     function getToken() {
-        return currentUser?.access_token || null;
-    }
-
-    function getAuthHeader() {
-        const token = getToken();
-        return token ? { "Authorization": `Bearer ${token}` } : {};
-    }
-
-    return {
-        init,
-        login,
-        logout,
-        getCurrentUser,
-        getUserId,
-        getToken,
-        getAuthHeader,
-        getParcelasQuery,
-        isAdmin,
-    };
-})();
-
-window.MILPIN_AUTH = MILPIN_AUTH;
+        return currentUser?.acces
