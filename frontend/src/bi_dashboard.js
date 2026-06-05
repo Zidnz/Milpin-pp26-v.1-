@@ -766,16 +766,42 @@ const BI = (() => {
   }
 
   // ── Anomalías ML ─────────────────────────────────────────────────────────────
+  const _svgRadar = `<svg viewBox="0 0 24 24" fill="none" width="16" height="16" style="flex-shrink:0">
+    <circle cx="12" cy="12" r="2" fill="currentColor"/>
+    <path d="M12 2a10 10 0 0 1 0 20A10 10 0 0 1 12 2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="3 3"/>
+    <path d="M12 6a6 6 0 0 1 0 12A6 6 0 0 1 12 6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="2 2"/>
+    <path d="M20 12h-3M7 12H4M12 4v3M12 20v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`;
+
+  function _anomSeverity(score) {
+    if (score <= -0.35) return { cls: 'alta',  label: 'Alta',  color: '#e63946' };
+    if (score <= -0.15) return { cls: 'media', label: 'Media', color: '#FB8C00' };
+    return                     { cls: 'leve',  label: 'Leve',  color: '#d4b000' };
+  }
+
   function _htmlAnomaliasCardSkeleton() {
     return `<div class="bi-anomalias-card" id="bi-anomalias-card" style="margin-top:14px;">
       <div class="bi-anomalias-header">
-        <span class="bi-anomalias-titulo">Detección de Anomalías · Isolation Forest</span>
-        <span class="bi-anomalias-badge" id="bi-anom-badge">…</span>
+        <div class="bi-anomalias-header-left">
+          <span class="bi-anomalias-icon">${_svgRadar}</span>
+          <div>
+            <div class="bi-anomalias-titulo">Detección de Anomalías</div>
+            <div class="bi-anomalias-subtitulo">Isolation Forest · ciclos parcela × ciclo agrícola</div>
+          </div>
+        </div>
+        <span class="bi-anomalias-badge" id="bi-anom-badge">
+          <span class="bi-spinner bi-spinner--sm"></span>
+        </span>
       </div>
-      <div id="bi-anomalias-body"><div class="bi-anomalias-loading">⏳ Analizando ciclos de riego…</div></div>
+      <div id="bi-anomalias-body">
+        <div class="bi-anomalias-loading">
+          <span class="bi-spinner"></span>
+          <span>Analizando ciclos de riego…</span>
+        </div>
+      </div>
       <div class="bi-anomalias-disclaimer">
-        Modelo entrenado con datos sintéticos · P=0.586 · R=0.466 · F1=0.519.
-        No usar para decisiones operativas sin validación con datos reales del DR-041.
+        <svg viewBox="0 0 24 24" fill="none" width="11" height="11" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Modelo entrenado con datos sintéticos · P=0.586 · R=0.466 · F1=0.519. No usar para decisiones operativas sin validación con datos reales del DR-041.</span>
       </div>
     </div>`;
   }
@@ -788,22 +814,57 @@ const BI = (() => {
       const res = await fetch(`${API}/ml/anomalias?solo_anomalias=true&limit=8`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const anoms=data.resultados||[]; const tot=data.total_anomalias||0;
-      if (badge) { badge.textContent=tot===0?'Sin anomalías':`${tot}/${data.total_pares_analizados||0} (${data.pct_anomalias||0}%)`;
-        badge.className=`bi-anomalias-badge${tot===0?' bi-anomalias-badge--ok':''}`; }
-      if (!anoms.length) { body.innerHTML=`<div class="bi-anomalias-loading" style="color:var(--primary-green);">✓ Ningún ciclo presenta anomalías.</div>`; return; }
-      body.innerHTML=`<div class="bi-anomalias-lista">${anoms.map(a=>`
-        <div class="bi-anom-fila">
-          <div class="bi-anom-izq">
-            <span class="bi-anom-id">${a.id_parcela.slice(0,8)}&hellip;</span>
-            <span class="bi-anom-ciclo">${a.ciclo_agricola} &middot; ${a.n_eventos} riegos</span>
+      const anoms = data.resultados || [];
+      const tot   = data.total_anomalias || 0;
+      const total = data.total_pares_analizados || 0;
+      const pct   = data.pct_anomalias || 0;
+
+      if (badge) {
+        if (tot === 0) {
+          badge.innerHTML = '✓ Sin anomalías';
+          badge.className = 'bi-anomalias-badge bi-anomalias-badge--ok';
+        } else {
+          badge.innerHTML = `${tot}<span class="bi-anom-badge-sep">/</span>${total} <span class="bi-anom-badge-pct">${pct}%</span>`;
+          badge.className = 'bi-anomalias-badge';
+        }
+      }
+
+      if (!anoms.length) {
+        body.innerHTML = `<div class="bi-anomalias-empty">
+          <svg viewBox="0 0 24 24" fill="none" width="28" height="28"><path d="M9 12l2 2 4-4" stroke="var(--primary-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="var(--primary-green)" stroke-width="1.5"/></svg>
+          <span>Ningún ciclo presenta anomalías detectadas.</span>
+        </div>`;
+        return;
+      }
+
+      body.innerHTML = `<div class="bi-anomalias-lista">${anoms.map(a => {
+        const sev   = _anomSeverity(a.anomaly_score);
+        const score = a.anomaly_score.toFixed(3);
+        const id    = a.id_parcela.slice(0, 8);
+        const feat  = a.feature_principal;
+        return `<div class="bi-anom-fila bi-anom-fila--${sev.cls}">
+          <div class="bi-anom-accent"></div>
+          <div class="bi-anom-content">
+            <div class="bi-anom-top">
+              <div class="bi-anom-info">
+                <span class="bi-anom-id">${id}&hellip;</span>
+                <span class="bi-anom-ciclo">${a.ciclo_agricola} &middot; ${a.n_eventos} riegos</span>
+              </div>
+              <span class="bi-anom-sev-badge bi-anom-sev--${sev.cls}">${sev.label}</span>
+            </div>
+            <div class="bi-anom-bottom">
+              <span class="bi-anom-feature-tag">${feat}</span>
+              <span class="bi-anom-score-pill" style="color:${sev.color}">IF ${score}</span>
+            </div>
           </div>
-          <span class="bi-anom-feature">${a.feature_principal.split(' — ')[0]}</span>
-          <span class="bi-anom-score">${a.anomaly_score.toFixed(3)}</span>
-        </div>`).join('')}</div>`;
+        </div>`;
+      }).join('')}</div>`;
     } catch (_e) {
-      if (body) body.innerHTML=`<div class="bi-anomalias-loading">Sin conexión con endpoint ML.</div>`;
-      if (badge) badge.textContent='Sin conexión';
+      if (body) body.innerHTML = `<div class="bi-anomalias-loading bi-anomalias-loading--err">
+        <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="9" stroke="#e63946" stroke-width="1.5"/><path d="M12 8v4M12 16h.01" stroke="#e63946" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Sin conexión con el endpoint ML.</span>
+      </div>`;
+      if (badge) { badge.innerHTML = 'Sin conexión'; badge.className = 'bi-anomalias-badge'; }
     }
   }
 

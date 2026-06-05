@@ -4341,6 +4341,7 @@ body #main-container {
     margin: 0 16px 16px;
 }
 
+/* ── Header ── */
 .bi-anomalias-header {
     display: flex;
     align-items: center;
@@ -4349,20 +4350,52 @@ body #main-container {
     gap: 8px;
 }
 
-.bi-anomalias-titulo {
-    font-size: 0.92rem;
-    font-weight: 700;
-    color: var(--primary-text);
+.bi-anomalias-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
 }
 
-.bi-anomalias-badge {
-    font-size: 0.7rem;
+.bi-anomalias-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(230, 57, 70, 0.08);
+    color: #e63946;
+    flex-shrink: 0;
+}
+
+.bi-anomalias-titulo {
+    font-size: 0.9rem;
     font-weight: 700;
-    padding: 3px 9px;
+    color: var(--primary-text);
+    line-height: 1.2;
+}
+
+.bi-anomalias-subtitulo {
+    font-size: 0.67rem;
+    color: var(--secondary-text);
+    margin-top: 1px;
+}
+
+/* ── Badge de conteo ── */
+.bi-anomalias-badge {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 4px 10px;
     border-radius: 20px;
     background: rgba(230, 57, 70, 0.10);
     color: #e63946;
     border: 1px solid rgba(230, 57, 70, 0.22);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .bi-anomalias-badge--ok {
@@ -4371,28 +4404,65 @@ body #main-container {
     border-color: rgba(123, 179, 149, 0.25);
 }
 
+.bi-anom-badge-sep {
+    opacity: 0.5;
+    font-weight: 400;
+}
+
+.bi-anom-badge-pct {
+    opacity: 0.75;
+    font-weight: 500;
+}
+
+/* ── Lista de anomalías ── */
 .bi-anomalias-lista {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 7px;
 }
 
+/* ── Fila de anomalía ── */
 .bi-anom-fila {
+    display: flex;
+    align-items: stretch;
+    border-radius: 10px;
+    border: 1px solid var(--border-card);
+    background: var(--accent-bg);
+    overflow: hidden;
+    transition: background 0.15s;
+}
+.bi-anom-fila:hover { background: rgba(255,255,255,0.03); }
+
+.bi-anom-accent {
+    width: 3px;
+    flex-shrink: 0;
+    border-radius: 0;
+}
+.bi-anom-fila--alta  .bi-anom-accent { background: #e63946; }
+.bi-anom-fila--media .bi-anom-accent { background: #FB8C00; }
+.bi-anom-fila--leve  .bi-anom-accent { background: #d4b000; }
+
+.bi-anom-content {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* ── Fila superior: id + ciclo + badge severidad ── */
+.bi-anom-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 9px 12px;
-    background: var(--accent-bg);
-    border-radius: 10px;
-    border: 1px solid var(--border-card);
     gap: 8px;
 }
 
-.bi-anom-izq {
+.bi-anom-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    flex: 1;
+    gap: 1px;
     min-width: 0;
 }
 
@@ -4403,28 +4473,100 @@ body #main-container {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.02em;
 }
 
 .bi-anom-ciclo {
-    font-size: 0.68rem;
+    font-size: 0.67rem;
     color: var(--secondary-text);
 }
 
-.bi-anom-feature {
-    font-size: 0.66rem;
-    color: #e63946;
-    line-height: 1.3;
-    flex: 1.5;
+.bi-anom-sev-badge {
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.bi-anom-sev--alta  { background: rgba(230,57,70,0.12);  color: #e63946; border: 1px solid rgba(230,57,70,0.22); }
+.bi-anom-sev--media { background: rgba(251,140,0,0.12);  color: #FB8C00; border: 1px solid rgba(251,140,0,0.22); }
+.bi-anom-sev--leve  { background: rgba(212,176,0,0.12);  color: #a08800; border: 1px solid rgba(212,176,0,0.22); }
+
+/* ── Fila inferior: feature + score ── */
+.bi-anom-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.bi-anom-feature-tag {
+    font-size: 0.68rem;
+    color: var(--secondary-text);
+    line-height: 1.4;
+    flex: 1;
     min-width: 0;
 }
 
-.bi-anom-score {
-    font-size: 0.78rem;
+.bi-anom-score-pill {
+    font-size: 0.7rem;
     font-weight: 700;
-    color: var(--primary-text);
     white-space: nowrap;
+    flex-shrink: 0;
+    font-family: 'Courier New', monospace;
 }
 
+/* ── Estado vacío / error / carga ── */
+.bi-anomalias-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 0 12px;
+    color: var(--primary-green);
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.bi-anomalias-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--secondary-text);
+    font-size: 0.82rem;
+    padding: 18px 0;
+}
+
+.bi-anomalias-loading--err {
+    color: #e63946;
+}
+
+/* ── Disclaimer ── */
+.bi-anomalias-disclaimer {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    font-size: 0.64rem;
+    color: var(--secondary-text);
+    margin-top: 12px;
+    line-height: 1.5;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-card);
+}
+
+/* ── Spinner pequeño para el badge ── */
+.bi-spinner--sm {
+    width: 10px;
+    height: 10px;
+    border-width: 1.5px;
+}
+
+/* ── Botón ver más (se mantiene por compatibilidad) ── */
 .bi-anomalias-ver-mas {
     display: block;
     width: 100%;
@@ -4442,20 +4584,6 @@ body #main-container {
 }
 .bi-anomalias-ver-mas:hover {
     background: var(--accent-bg);
-}
-
-.bi-anomalias-disclaimer {
-    font-size: 0.66rem;
-    color: var(--secondary-text);
-    margin-top: 10px;
-    line-height: 1.5;
-}
-
-.bi-anomalias-loading {
-    text-align: center;
-    color: var(--secondary-text);
-    font-size: 0.82rem;
-    padding: 16px 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════
