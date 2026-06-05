@@ -339,6 +339,7 @@ def run_fao56_forward(
             capacidad_campo_pct=cc_pct,
             punto_marchitez_pct=pmp_pct,
             profundidad_raiz_m=prof_raiz_m,
+            sistema_riego=getattr(parcela, "sistema_riego", None) or "gravedad",
         )
 
         if fc.get("metodo") == "fallback_media14d":

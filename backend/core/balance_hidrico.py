@@ -26,6 +26,21 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
+# Eficiencia de aplicación por sistema de riego
+# Fuente: FAO-56 §6.2 + valores típicos para DR-041 / Valle del Yaqui
+#   gravedad      : 0.65 — surcos y tablares; pérdidas por escurrimiento y percolación
+#   aspersion     : 0.80 — pivotes centrales; pérdidas por evaporación en viento
+#   microaspersion: 0.82 — frutales (uva, chile); menor radio de mojado que aspersión
+#   goteo         : 0.90 — subsuperficial/superficial; pérdidas mínimas
+# ---------------------------------------------------------------------------
+EFICIENCIA_RIEGO: dict[str, float] = {
+    "gravedad":       0.65,
+    "aspersion":      0.80,
+    "microaspersion": 0.82,
+    "goteo":          0.90,
+}
+
+# ---------------------------------------------------------------------------
 # Tablas FAO-56: Coeficientes de cultivo (Kc) por etapa fenológica
 # Fuente: FAO-56, Tabla 12 (valores típicos para clima semiárido)
 # Estructura: {cultivo: {etapas_dias: (ini, des, med, fin), kc: (kc_ini, kc_med, kc_fin)}}
@@ -608,6 +623,7 @@ def calcular_balance_hidrico(
     capacidad_campo_pct: float,
     punto_marchitez_pct: float,
     profundidad_raiz_m: float = 0.6,
+    sistema_riego: str = "gravedad",
 ) -> dict:
     """Calcula el balance hídrico diario del suelo y determina la necesidad de riego.
 
@@ -623,10 +639,14 @@ def calcular_balance_hidrico(
         capacidad_campo_pct: capacidad de campo del suelo (%)
         punto_marchitez_pct: punto de marchitez permanente (%)
         profundidad_raiz_m: profundidad efectiva de raíces (m). Default: 0.6m
+        sistema_riego: uno de 'gravedad', 'aspersion', 'microaspersion', 'goteo'.
+            Determina la eficiencia de aplicación usada para convertir lámina neta
+            a lámina bruta. Valores de referencia en EFICIENCIA_RIEGO. Default: 'gravedad'.
 
     Retorna:
         dict con: lamina_neta_mm, lamina_bruta_mm, volumen_m3_ha,
-                  requiere_riego, deficit_mm, humedad_resultante_pct
+                  requiere_riego, deficit_mm, humedad_resultante_pct,
+                  eficiencia_aplicada (fracción 0-1 usada en el cálculo)
     """
     # Agua disponible total (ADT) en la zona radicular
     # ADT = (CC - PMP) * profundidad_raiz * 10  [mm]
@@ -653,9 +673,13 @@ def calcular_balance_hidrico(
     # Lámina neta de riego: agua necesaria para llevar el suelo a CC
     lamina_neta_mm = max(0.0, (capacidad_campo_pct - humedad_actual_pct) * profundidad_raiz_m * 10.0)
 
-    # Lámina bruta: considera eficiencia de aplicación del 75% (riego por surcos/aspersión)
-    eficiencia_riego = 0.75
-    lamina_bruta_mm = lamina_neta_mm / eficiencia_riego
+    # Lámina bruta: divide la lámina neta por la eficiencia del sistema de riego.
+    # Eficiencias de referencia en EFICIENCIA_RIEGO (goteo ~0.90, gravedad ~0.65).
+    # Si llega un valor desconocido se usa 0.75 como fallback conservador.
+    eficiencia_aplicada = EFICIENCIA_RIEGO.get(
+        (sistema_riego or "gravedad").lower().strip(), 0.75
+    )
+    lamina_bruta_mm = lamina_neta_mm / eficiencia_aplicada
 
     # Volumen por hectárea: 1 mm = 10 m³/ha
     volumen_m3_ha = lamina_bruta_mm * 10.0
@@ -670,6 +694,7 @@ def calcular_balance_hidrico(
         "requiere_riego": requiere_riego,
         "deficit_mm": round(deficit_mm, 2),
         "humedad_resultante_pct": round(humedad_resultante, 2),
+        "eficiencia_aplicada": eficiencia_aplicada,
     }
 
 

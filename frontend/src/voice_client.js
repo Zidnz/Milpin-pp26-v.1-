@@ -72,6 +72,8 @@ let vozSeleccionada = null;
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let reconociendoVoz = false;
+let _sttReintentos = 0;
+const _STT_MAX_REINTENTOS = 2;
 
 document.addEventListener('DOMContentLoaded', () => {
     const btnMilpin = document.getElementById('milpinBtn');
@@ -92,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         recognition.onresult = async (event) => {
+            _sttReintentos = 0;
             const transcripcion = event.results[0][0].transcript.trim();
             const confianza     = (event.results[0][0].confidence * 100).toFixed(0);
             console.log(`[MILPÍN STT] Transcrito: "${transcripcion}" (confianza: ${confianza}%)`);
@@ -103,11 +106,22 @@ document.addEventListener('DOMContentLoaded', () => {
             reconociendoVoz = false;
             if (btnMilpin) btnMilpin.classList.remove('listening');
             console.error("[MILPÍN STT] Error:", event.error);
+
+            if (event.error === 'network' && _sttReintentos < _STT_MAX_REINTENTOS) {
+                _sttReintentos++;
+                const delay = _sttReintentos * 1200; // 1.2s, 2.4s — más margen para Chrome
+                console.log(`[MILPÍN STT] Reintentando (${_sttReintentos}/${_STT_MAX_REINTENTOS}) en ${delay}ms...`);
+                if (statusText) statusText.innerText = "Reintentando...";
+                setTimeout(() => recognition.start(), delay);
+                return;
+            }
+
+            _sttReintentos = 0;
             const mensajes = {
-                'no-speech'      : "No escuché nada. Intenta de nuevo.",
-                'audio-capture'  : "No se detectó micrófono.",
-                'not-allowed'    : "Permiso de micrófono denegado.",
-                'network'        : "Sin conexión. Web Speech API requiere internet.",
+                'no-speech'    : "No escuché nada. Intenta de nuevo.",
+                'audio-capture': "No se detectó micrófono.",
+                'not-allowed'  : "Permiso de micrófono denegado.",
+                'network'      : "Sin conexión con el servicio de voz. Verifica internet.",
             };
             const msg = mensajes[event.error] || `Error de reconocimiento: ${event.error}`;
             if (statusText) statusText.innerText = msg;
@@ -138,21 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
         window.speechSynthesis.onvoiceschanged = poblarSelectorVoces;
     }
 
-    // Dropdown custom de voces — toggle
-    const dropdownTrigger = document.getElementById('vozDropdownTrigger');
-    const dropdownList    = document.getElementById('vozDropdownList');
-    if (dropdownTrigger && dropdownList) {
-        dropdownTrigger.addEventListener('click', () => {
-            const open = dropdownList.classList.toggle('open');
-            dropdownTrigger.classList.toggle('open', open);
-        });
-        document.addEventListener('click', (e) => {
-            if (!document.getElementById('vozDropdown')?.contains(e.target)) {
-                dropdownList.classList.remove('open');
-                dropdownTrigger.classList.remove('open');
-            }
-        });
-    }
+    // Dropdown de voces — inicializar
+    _initVozDropdown();
 
     // Botón probar voz
     const btnProbarVoz = document.getElementById('btnProbarVoz');
@@ -221,21 +222,87 @@ function alternarGrabacion() {
         console.error("[MILPÍN] Web Speech API no disponible.");
         return;
     }
-    // Desbloquear audio en el momento del clic para que el TTS funcione
-    // cuando llegue la respuesta (Chrome requiere gesto de usuario activo)
-    _desbloquearAudio();
-
     if (!reconociendoVoz) {
+        _sttReintentos = 0;
         recognition.start();
     } else {
-        // Segundo clic: detener antes de que el silencio lo haga automáticamente
         recognition.stop();
     }
 }
 
 // ── Selector y configuración de voces TTS ───────────────────────────
 
+// ── Dropdown de selección de voz ────────────────────────────────────
+// La lista se mueve a <body> con position:fixed para evitar clipping
+// por cualquier contenedor padre con overflow:hidden/auto.
+
+function _initVozDropdown() {
+    const trigger = document.getElementById('vozDropdownTrigger');
+    const lista   = document.getElementById('vozDropdownList');
+    if (!trigger || !lista) return;
+
+    // Reubicar la lista como hijo directo de <body>
+    document.body.appendChild(lista);
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = lista.classList.contains('open');
+        if (isOpen) {
+            _cerrarVozDropdown();
+        } else {
+            _abrirVozDropdown();
+        }
+    });
+
+    // Cerrar al hacer click fuera
+    document.addEventListener('click', (e) => {
+        if (!trigger.contains(e.target) && !lista.contains(e.target)) {
+            _cerrarVozDropdown();
+        }
+    });
+
+    // Cerrar al hacer scroll (reposicionar sería complejo, mejor cerrar)
+    window.addEventListener('scroll', _cerrarVozDropdown, true);
+}
+
+function _abrirVozDropdown() {
+    const trigger = document.getElementById('vozDropdownTrigger');
+    const lista   = document.getElementById('vozDropdownList');
+    if (!trigger || !lista) return;
+
+    const rect  = trigger.getBoundingClientRect();
+    const gap   = 6;
+    const alturaLista = Math.min(280, lista.scrollHeight || 280);
+
+    // Abrir arriba si no cabe abajo, abrir abajo si cabe
+    const cabeAbajo = rect.bottom + gap + alturaLista < window.innerHeight;
+
+    lista.style.width  = rect.width + 'px';
+    lista.style.left   = rect.left  + 'px';
+
+    if (cabeAbajo) {
+        lista.style.top    = (rect.bottom + gap) + 'px';
+        lista.style.bottom = 'auto';
+    } else {
+        lista.style.bottom = (window.innerHeight - rect.top + gap) + 'px';
+        lista.style.top    = 'auto';
+    }
+
+    lista.classList.add('open');
+    trigger.classList.add('open');
+}
+
+function _cerrarVozDropdown() {
+    const trigger = document.getElementById('vozDropdownTrigger');
+    const lista   = document.getElementById('vozDropdownList');
+    lista?.classList.remove('open');
+    trigger?.classList.remove('open');
+}
+
+// Voces neurales (Online) primero — más naturales. Locales como fallback.
 const PRIORIDAD_VOCES = [
+    'Microsoft Sofia Online (Natural)',
+    'Microsoft Sofia',
     'Microsoft Sabina Online (Natural)',
     'Microsoft Renata Online (Natural)',
     'Microsoft Elvira Online (Natural)',
@@ -262,30 +329,50 @@ function poblarSelectorVoces() {
     const vocesES = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('es'));
     if (vocesES.length === 0) return;
 
+    // Neurales primero en el dropdown
     const ordenadas = [
         ...vocesES.filter(_esNeural),
         ...vocesES.filter(v => !_esNeural(v)),
     ];
 
-    let porDefecto = null;
-    for (const nombre of PRIORIDAD_VOCES) {
-        porDefecto = ordenadas.find(v => v.name.toLowerCase().includes(nombre.toLowerCase()));
-        if (porDefecto) break;
+    // Determinar voz activa: 1) guardada en localStorage, 2) vozSeleccionada actual,
+    // 3) lista de prioridad, 4) primera disponible.
+    const vozGuardada = localStorage.getItem('milpin_voz');
+    let porDefecto = vozGuardada
+        ? ordenadas.find(v => v.name === vozGuardada) ?? null
+        : null;
+
+    if (!porDefecto && vozSeleccionada) {
+        porDefecto = ordenadas.find(v => v.name === vozSeleccionada.name) ?? null;
     }
-    if (!porDefecto) porDefecto = ordenadas[0] || null;
+
+    if (!porDefecto) {
+        for (const nombre of PRIORIDAD_VOCES) {
+            porDefecto = ordenadas.find(v => v.name.toLowerCase().includes(nombre.toLowerCase()));
+            if (porDefecto) break;
+        }
+    }
+    if (!porDefecto) porDefecto = ordenadas[0] ?? null;
 
     lista.innerHTML = '';
     ordenadas.forEach(voz => {
+        const neural  = _esNeural(voz);
+        const prefijo = neural ? '★ ' : '';
+        const meta    = neural ? `Neural · ${voz.lang}` : `Estándar · ${voz.lang}`;
+
         const li = document.createElement('li');
         li.className = 'voz-dropdown-item' + (voz === porDefecto ? ' selected' : '');
-        li.textContent = (_esNeural(voz) ? '★ ' : '') + voz.name + ' · ' + voz.lang;
+        li.setAttribute('role', 'option');
+        li.innerHTML = `<span class="voz-item-nombre">${prefijo}${voz.name}</span>
+                        <span class="voz-item-meta">${meta}</span>`;
+
         li.addEventListener('click', () => {
             vozSeleccionada = voz;
-            if (label) label.textContent = li.textContent;
+            localStorage.setItem('milpin_voz', voz.name);
+            if (label) label.textContent = prefijo + voz.name;
             lista.querySelectorAll('.voz-dropdown-item').forEach(i => i.classList.remove('selected'));
             li.classList.add('selected');
-            lista.classList.remove('open');
-            document.getElementById('vozDropdownTrigger')?.classList.remove('open');
+            _cerrarVozDropdown();
             console.log(`[MILPÍN TTS] Voz cambiada a: ${voz.name}`);
         });
         lista.appendChild(li);
@@ -293,8 +380,9 @@ function poblarSelectorVoces() {
 
     if (porDefecto) {
         vozSeleccionada = porDefecto;
-        if (label) label.textContent = (_esNeural(porDefecto) ? '★ ' : '') + porDefecto.name + ' · ' + porDefecto.lang;
-        console.log(`[MILPÍN TTS] Voz por defecto: ${porDefecto.name}`);
+        const prefijoDef = _esNeural(porDefecto) ? '★ ' : '';
+        if (label) label.textContent = prefijoDef + porDefecto.name;
+        console.log(`[MILPÍN TTS] Voz activa: ${porDefecto.name}${vozGuardada ? ' (restaurada)' : ' (por defecto)'}`);
     }
 }
 
@@ -318,6 +406,7 @@ setInterval(() => {
 
 function hablar(texto) {
     if (!texto || !window.speechSynthesis) return;
+    _desbloquearAudio();
     window.speechSynthesis.cancel();
 
     // Delay tras cancel() — Chrome necesita un tick para liberar el sintetizador
@@ -335,6 +424,8 @@ function hablar(texto) {
         utterance.onend   = () => console.log('[MILPÍN TTS] Reproducción completa.');
 
         utterance.onerror = (e) => {
+            // 'interrupted' significa que cancel() lo cortó intencionalmente — no es fallo real.
+            if (e.error === 'interrupted') return;
             console.warn(`[MILPÍN TTS] Fallo con voz "${vozSeleccionada?.name}": ${e.error}. Usando voz local.`);
             const fallback = new SpeechSynthesisUtterance(texto);
             // Buscar primera voz local española (sin "Online" en el nombre)
@@ -351,19 +442,13 @@ function hablar(texto) {
 }
 
 // ── Selección de parcela por nombre (para intents de riego con nombre) ──────
-/**
- * Busca en #select-parcela-riego una opción cuyo texto contenga `nombre`
- * (match parcial, case-insensitive). Si el select está vacío, espera a que
- * _cargarParcelasEnSelect lo pueble desde la API antes de buscar.
- *
- * @param {string} nombre - Nombre o fragmento del nombre dicho por el usuario.
- * @returns {Promise<string|null>} id_parcela (UUID) si hay match, null si no.
- */
+// Busca en #select-parcela-riego una opción cuyo texto contenga `nombre`
+// (match parcial, case-insensitive). Si el select está vacío, espera a que
+// _cargarParcelasEnSelect lo pueble desde la API antes de buscar.
 async function _seleccionarParcelaPorNombre(nombre) {
     const sel = document.getElementById('select-parcela-riego');
     if (!sel) return null;
 
-    // Asegurar que las opciones estén cargadas antes de buscar
     if (sel.options.length <= 1 && typeof _cargarParcelasEnSelect === 'function') {
         await _cargarParcelasEnSelect('select-parcela-riego');
     }
@@ -378,6 +463,36 @@ async function _seleccionarParcelaPorNombre(nombre) {
     }
 
     console.warn(`[MILPÍN] No se encontró parcela con nombre: "${nombre}"`);
+    return null;
+}
+
+// Resuelve la parcela a usar para cualquier intent que la necesite.
+// Prioridad:
+//   1. Nombre mencionado por el usuario (match parcial en el select).
+//   2. Parcela activa en el módulo de riego (_parcelaRiegoActual).
+//   3. "Lote Alg-024" como parcela por defecto de demo.
+// Siempre actualiza el select de riego. Devuelve el UUID o null si no hay ninguna.
+async function _resolverParcela(nombreSugerido) {
+    const sel = document.getElementById('select-parcela-riego');
+    if (sel && sel.options.length <= 1 && typeof _cargarParcelasEnSelect === 'function') {
+        await _cargarParcelasEnSelect('select-parcela-riego');
+    }
+
+    if (nombreSugerido) {
+        const id = await _seleccionarParcelaPorNombre(nombreSugerido);
+        if (id) return id;
+        console.warn(`[MILPÍN] Nombre "${nombreSugerido}" no encontrado en BD, usando Lote Alg-024.`);
+    }
+
+    if (_parcelaRiegoActual) return _parcelaRiegoActual;
+
+    // Fallback fijo: Lote Alg-024
+    const id = await _seleccionarParcelaPorNombre('Alg-024');
+    if (id) {
+        console.log('[MILPÍN] Parcela por defecto: Lote Alg-024');
+        return id;
+    }
+
     return null;
 }
 
@@ -410,38 +525,67 @@ function procesarRespuestaIA(data) {
             }
             break;
 
-        case "ejecutar_analisis":
-            if (typeof cambiarPestana === 'function') {
-                cambiarPestana(null, data.target || 'tab-mapas');
-            }
-            // Dar tiempo al DOM para renderizar el mapa antes de ejecutar
-            setTimeout(() => {
-                if (data.analisis === "logistica" && typeof ejecutarAnalisisSIG === 'function') {
-                    ejecutarAnalisisSIG();
+        case "registrar_riego_manual": {
+            const p = data.parameters || {};
+            if (typeof cambiarPestana === 'function') cambiarPestana(null, 'tab-costos');
+            setTimeout(async () => {
+                const parcelaId = await _resolverParcela(p.nombre_parcela ?? null);
+                if (!parcelaId) {
+                    hablar('No encontré la parcela. Selecciónala manualmente en el módulo de riego.');
+                    return;
+                }
+                if (typeof cargarRecomendacion === 'function') {
+                    await cargarRecomendacion(parcelaId);
+                }
+                // Asegurarse de estar en la sub-tab de recomendaciones
+                if (typeof switchRiegoTab === 'function') switchRiegoTab('recomendaciones');
+                // Abrir el formulario si está cerrado
+                const form = document.getElementById('riego-manual-form');
+                if (form && form.style.display === 'none' && typeof toggleRiegoManual === 'function') {
+                    toggleRiegoManual();
+                }
+                // Pre-llenar los campos conocidos
+                if (p.fecha) {
+                    const fechaEl = document.getElementById('manual-fecha');
+                    if (fechaEl) fechaEl.value = p.fecha;
+                }
+                if (p.lamina_mm) {
+                    const laminaEl = document.getElementById('manual-lamina');
+                    if (laminaEl) laminaEl.value = p.lamina_mm;
+                }
+                if (p.metodo) {
+                    const metodoEl = document.getElementById('manual-metodo');
+                    if (metodoEl) metodoEl.value = p.metodo;
+                }
+                // Si llegaron todos los datos requeridos, guardar automáticamente
+                if (p.lamina_mm && p.metodo && typeof registrarRiegoManual === 'function') {
+                    await registrarRiegoManual();
                 }
             }, 600);
+            break;
+        }
+
+        case "abrir_alertas":
+            if (typeof toggleAlertasPanel === 'function') {
+                toggleAlertasPanel();
+            }
             break;
 
         case "confirmar_riego":
         case "ignorar_riego": {
             const decision = data.intent === "confirmar_riego" ? 'aceptada' : 'ignorada';
-            const nombreParcelaConf = data.parameters?.nombre_parcela ?? null;
             if (typeof cambiarPestana === 'function') cambiarPestana(null, 'tab-costos');
-            // IIFE async: necesitamos await para la selección de parcela y carga de rec.
             setTimeout(async () => {
-                if (nombreParcelaConf) {
-                    const parcelaId = await _seleccionarParcelaPorNombre(nombreParcelaConf);
-                    if (!parcelaId) {
-                        hablar(`No encontré una parcela con ese nombre. Selecciónala manualmente en el módulo de riego.`);
-                        return;
-                    }
-                    // Esperar a que la recomendación cargue (popula _recActualId)
-                    if (typeof cargarRecomendacion === 'function') {
-                        await cargarRecomendacion(parcelaId);
-                    }
+                const parcelaId = await _resolverParcela(data.parameters?.nombre_parcela ?? null);
+                if (!parcelaId) {
+                    hablar('No encontré la parcela. Selecciónala manualmente en el módulo de riego.');
+                    return;
+                }
+                if (typeof cargarRecomendacion === 'function') {
+                    await cargarRecomendacion(parcelaId);
                 }
                 if (!_recActualId) {
-                    hablar("No hay recomendación activa para esta parcela. Calcula una nueva primero.");
+                    hablar('No hay recomendación activa para esta parcela. Calcula una nueva primero.');
                     return;
                 }
                 if (typeof confirmarRiego === 'function') confirmarRiego(decision);
@@ -450,19 +594,15 @@ function procesarRespuestaIA(data) {
         }
 
         case "calcular_riego": {
-            const nombreParcelaCalc = data.parameters?.nombre_parcela ?? null;
             if (typeof cambiarPestana === 'function') cambiarPestana(null, 'tab-costos');
             setTimeout(async () => {
-                if (nombreParcelaCalc) {
-                    const parcelaId = await _seleccionarParcelaPorNombre(nombreParcelaCalc);
-                    if (!parcelaId) {
-                        hablar(`No encontré una parcela con ese nombre. Selecciónala manualmente.`);
-                        return;
-                    }
-                    // Cargar estado de la parcela antes de calcular
-                    if (typeof cargarRecomendacion === 'function') {
-                        await cargarRecomendacion(parcelaId);
-                    }
+                const parcelaId = await _resolverParcela(data.parameters?.nombre_parcela ?? null);
+                if (!parcelaId) {
+                    hablar('No encontré la parcela. Selecciónala manualmente en el módulo de riego.');
+                    return;
+                }
+                if (typeof cargarRecomendacion === 'function') {
+                    await cargarRecomendacion(parcelaId);
                 }
                 const dias = data.parameters?.dias_siembra;
                 if (dias) {

@@ -16,6 +16,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import JSON, Text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from security import create_access_token
 
 _TEST_DB_URL = "sqlite+aiosqlite://"
 os.environ["DATABASE_URL"] = _TEST_DB_URL
@@ -90,10 +91,7 @@ async def db_session(test_engine):
         yield session
 
 
-@pytest_asyncio.fixture(scope="function")
-async def client(test_engine):
-    factory = async_sessionmaker(test_engine, expire_on_commit=False)
-
+def _make_db_override(factory):
     async def _override_get_db():
         async with factory() as session:
             try:
@@ -102,9 +100,34 @@ async def client(test_engine):
             except Exception:
                 await session.rollback()
                 raise
+    return _override_get_db
 
-    app.dependency_overrides[get_db] = _override_get_db
+
+@pytest_asyncio.fixture(scope="function")
+async def client(test_engine):
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    app.dependency_overrides[get_db] = _make_db_override(factory)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def auth_client(test_engine, seeded):
+    """Cliente HTTP con JWT del usuario del fixture seeded.
+
+    Usar en tests que ejercen endpoints protegidos (POST /parcelas,
+    PATCH /recomendaciones/{id}/feedback, etc.).
+    """
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    token = create_access_token(seeded["id_usuario"], "agricultor")
+    headers = {"Authorization": f"Bearer {token}"}
+    app.dependency_overrides[get_db] = _make_db_override(factory)
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+        headers=headers,
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()
 

@@ -1,5 +1,5 @@
 """
-ml/training/xgboost_riego/generar_datos.py — Generador de datos sintéticos v3
+ml/training/xgboost_riego/generar_datos.py — Generador de datos sintéticos v4
 
 Genera milpin_ciclos_ml.csv: una fila por ciclo agrícola completo.
 Fuente canónica para entrenar los modelos XGBoost de planeación de riego
@@ -128,6 +128,9 @@ def generar_dataset(
     CULTIVOS = ["Maíz", "Frijol", "Algodón", "Uva", "Chile"]
     SUELOS   = ["franco", "franco-arcilloso", "franco-arenoso", "arcilloso"]
     SISTEMAS = ["gravedad", "aspersion", "goteo", "microaspersion"]
+    # Pesos derivados de data/synthetic/parcelas.csv (49/14/5/12 de 80 parcelas).
+    # Refleja la realidad del DR-041 donde gravedad domina el área cultivada.
+    SISTEMAS_P = [0.6125, 0.1750, 0.0625, 0.1500]
     REGIONES = list(REGIONES_CONFIG.keys())
     FARMERS  = list(FARMER_TYPES.keys())
 
@@ -144,15 +147,20 @@ def generar_dataset(
         "franco-arenoso":   dict(cc=0.24, pmp=0.12, ks_mmh=30),
         "arcilloso":        dict(cc=0.42, pmp=0.22, ks_mmh=3),
     }
+    # Eficiencias sincronizadas con EFICIENCIA_RIEGO en balance_hidrico.py.
+    # v3 usaba gravedad=0.50; corregido a 0.65 para eliminar sesgo entre
+    # entrenamiento e inferencia (el modelo aprendía volúmenes ~23% mayores
+    # para parcelas de gravedad respecto a lo que calcula la API en prod).
     EFIC = {
-        "gravedad": 0.50, "aspersion": 0.75,
-        "goteo": 0.90, "microaspersion": 0.85,
+        "gravedad": 0.65, "aspersion": 0.80,
+        "goteo": 0.90, "microaspersion": 0.82,
     }
 
     # ── Sampling vectorizado con índices enteros ──────────────────────────
     ci = rng.integers(0, len(CULTIVOS), n)
     si = rng.integers(0, len(SUELOS),   n)
-    ri = rng.integers(0, len(SISTEMAS), n)
+    # Muestreo ponderado: refleja distribución real DR-041 (gravedad dominante).
+    ri = rng.choice(len(SISTEMAS), n, p=SISTEMAS_P)
     gi = rng.integers(0, len(REGIONES), n)
     fi = rng.integers(0, len(FARMERS),  n)
 
@@ -182,7 +190,18 @@ def generar_dataset(
     f_sd   = np.array([FARMER_TYPES[f]["over_irr_sd"] for f in FARMERS])[fi]
     f_miss = np.array([FARMER_TYPES[f]["p_miss"]      for f in FARMERS])[fi]
 
-    area_ha    = rng.uniform(5.0, 80.0, n).round(2)
+    # area_ha dependiente del sistema: gravedad → parcelas grandes (infraestructura
+    # de canal); goteo/microaspersión → parcelas pequeñas (inversión por ha mayor).
+    # Rangos calibrados sobre parcelas.csv (promedio real: ~13.4 ha).
+    AREA_RANGO = {
+        "gravedad":       (8.0,  80.0),
+        "aspersion":      (5.0,  40.0),
+        "goteo":          (3.0,  20.0),
+        "microaspersion": (4.0,  25.0),
+    }
+    area_lo = np.array([AREA_RANGO[s][0] for s in SISTEMAS])[ri]
+    area_hi = np.array([AREA_RANGO[s][1] for s in SISTEMAS])[ri]
+    area_ha = (area_lo + rng.random(n) * (area_hi - area_lo)).round(2)
     doy        = rng.integers(1, 365, n)
     dias_ciclo = (dmin + rng.random(n) * (dmax - dmin)).astype(int)
     prof_raiz  = rng.uniform(0.45, 0.70, n).round(3)

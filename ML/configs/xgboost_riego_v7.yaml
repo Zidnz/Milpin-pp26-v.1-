@@ -1,0 +1,195 @@
+# ══════════════════════════════════════════════════════════════════════════
+# MILPÍN AgTech — XGBoost v7 (causal, anti-leakage, monotonic-constrained)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# CAMBIOS RESPECTO A v6:
+#
+#   FEATURES ELIMINADAS (multicolinealidad / leakage proxy):
+#     - capacidad_campo     → absorbida en agua_disponible_mm
+#     - punto_marchitez     → absorbida en agua_disponible_mm
+#     - prof_raiz_m         → absorbida en agua_disponible_mm
+#     - sistema_riego       → reemplazada por eficiencia_sistema (continua)
+#     - etc_estimada_mm     → derivable de et0_hist × kc_medio × dias_ciclo
+#     - ratio_demanda_suelo → derivable de etc_estimada / agua_disponible
+#
+#   FEATURES AÑADIDAS:
+#     - tipo_agricultor     → factor comportamental causal (ruido realista v7)
+#     - ks_salinidad_calc   → efecto salinidad FAO-33 (interpretable)
+#     - et0_cv_hist         → variabilidad climática esperada del ciclo
+#
+#   MONOTONIC CONSTRAINTS (físicamente obligatorios):
+#     +1  deficit_estimado_mm   → más déficit = más riego necesario
+#     +1  et0_hist_mmdia        → más evapotranspiración = más riego
+#     +1  percolacion_frac      → más percolación = más pérdida = más riego
+#     -1  eficiencia_sistema    → sistema más eficiente = menos agua necesaria
+#     -1  lluvia_hist_mm        → más lluvia = menos riego necesario
+#     -1  aporte_capilar_mm     → más ascenso capilar = menos riego externo
+#
+#   CAUSALIDAD VERIFICADA (SHAP + PDP):
+#     eficiencia_sistema ↑ → volumen_agua ↓  (SHAP debe ser negativo)
+#     deficit_estimado ↑   → volumen_agua ↑  (SHAP debe ser positivo)
+# ══════════════════════════════════════════════════════════════════════════
+
+m1_agua_v7:
+  task: regression
+  target: volumen_agua_total_m3_ha
+  version: "7.0"
+
+  # ── Features causalmente limpias (18 vs 24 en v6) ──────────────────────
+  features:
+    # Categóricas — variables independientes al inicio del ciclo
+    - cultivo
+    - tipo_suelo
+    - region
+    - tipo_agricultor          # NUEVO: factor comportamental
+
+    # Características de parcela — propiedades físicas inmutables
+    - area_ha
+    - dias_ciclo
+    - doy_inicio               # estacionalidad de siembra
+    - agua_disponible_mm       # CONSOLIDADA: reemplaza cc + pmp + prof_raiz_m
+    - salinidad_ec_dsm
+    - aporte_capilar_mm
+    - percolacion_frac
+    - elev_parcela_m
+    - año_norm
+
+    # Clima histórico — estimable al inicio con NASA POWER / promedios IMTA
+    - kc_medio_cultivo
+    - et0_hist_mmdia
+    - lluvia_hist_mm
+    - et0_cv_hist              # NUEVO: coeficiente de variación estacional
+
+    # Features hidráulicas derivadas (mínimo necesario, sin redundancia)
+    - deficit_estimado_mm      # principal driver hidráulico — MONOTONO +1
+    - eficiencia_sistema       # multiplicador de eficiencia — MONOTONO -1
+    - ks_salinidad_calc        # stress FAO-33 calculado — 0 a 1
+
+  # ── Nota de leakage — NO incluir en features de M1 ─────────────────────
+  # Los siguientes campos están en el CSV para diagnóstico (M3 retrospectivo)
+  # pero NO son knowable al inicio del ciclo:
+  #   et0_promedio_mmdia  → ET₀ real promedio del ciclo completo
+  #   lluvia_total_mm     → lluvia acumulada real
+  #   etc_total_mm        → ETc integrada real
+  #   n_riegos            → número de riegos aplicados (es el outcome)
+  #   deficit_hidrico_frac → fracción de estrés hídrico ocurrida
+  #   humedad_suelo_promedio → promedio de lo ocurrido
+  #   demanda_neta_mm     → ETc real - lluvia real (leakage)
+  #   agua_neta_req_m3ha  → demanda_neta × 10 (leakage)
+  #   vol_teorico_m3ha    → agua_neta / eficiencia (leakage)
+  #   riego_bruto_mm      → vol_teorico / 10 (leakage)
+  #   deficit_agua_mm     → déficit real acumulado (leakage)
+
+  # ── Monotonic constraints (índice 0-based sobre lista features) ─────────
+  # Solo se mapean las features con signo físico claro e inequívoco
+  # +1 = monótona creciente, -1 = monótona decreciente, 0 = sin constraint
+  monotone_constraints:
+    deficit_estimado_mm: +1
+    et0_hist_mmdia: +1
+    percolacion_frac: +1
+    eficiencia_sistema: -1
+    lluvia_hist_mm: -1
+    aporte_capilar_mm: -1
+
+  # ── Hiperparámetros v7 (re-tuneados para datos con ruido aumentado) ─────
+  params:
+    n_estimators: 2500
+    max_depth: 5
+    learning_rate: 0.04
+    subsample: 0.80
+    colsample_bytree: 0.75
+    colsample_bylevel: 0.85
+    min_child_weight: 5
+    reg_alpha: 0.15
+    reg_lambda: 1.50
+    gamma: 0.05
+    early_stopping_rounds: 75
+    random_state: 42
+    n_jobs: -1
+
+  promote_gate:
+    max_mae_m3_ha: 900        # tolerancia ligeramente mayor por ruido adicional
+    min_r2: 0.80
+    max_causal_violations: 0   # NUEVO: cero violaciones SHAP permitidas
+    min_monotone_compliance: 1.0  # 100% de constraints respetadas en PDP
+
+# ══════════════════════════════════════════════════════════════════════════
+# M2 — Rendimiento agrícola v7 (misma lógica de pruning)
+# ══════════════════════════════════════════════════════════════════════════
+
+m2_rendimiento_v7:
+  task: regression
+  target: rendimiento_real_ton_ha
+  version: "7.0"
+
+  features:
+    - cultivo
+    - tipo_suelo
+    - region
+    - tipo_agricultor
+    - area_ha
+    - dias_ciclo
+    - doy_inicio
+    - agua_disponible_mm
+    - salinidad_ec_dsm
+    - aporte_capilar_mm
+    - elev_parcela_m
+    - año_norm
+    - kc_medio_cultivo
+    - et0_hist_mmdia
+    - lluvia_hist_mm
+    - deficit_estimado_mm
+    - eficiencia_sistema
+    - ks_salinidad_calc
+
+  monotone_constraints:
+    deficit_estimado_mm: -1   # más déficit → menos rendimiento
+    ks_salinidad_calc: +1     # más estrés hídrico → menos rendimiento
+    lluvia_hist_mm: +1        # más lluvia → mayor potencial de rendimiento
+    salinidad_ec_dsm: -1      # más salinidad → menos rendimiento (FAO-33)
+
+  params:
+    n_estimators: 2500
+    max_depth: 4
+    learning_rate: 0.035
+    subsample: 0.80
+    colsample_bytree: 0.75
+    min_child_weight: 6
+    reg_alpha: 0.08
+    reg_lambda: 1.80
+    gamma: 0.05
+    early_stopping_rounds: 75
+    random_state: 42
+    n_jobs: -1
+
+  promote_gate:
+    max_mae_ton_ha: 0.90
+    min_r2: 0.76
+    max_causal_violations: 0
+    min_monotone_compliance: 1.0
+
+# ══════════════════════════════════════════════════════════════════════════
+# Configuración del generador de datos v7
+# ══════════════════════════════════════════════════════════════════════════
+
+data_v7:
+  noise_modules:
+    clima:
+      enso_seasonal_phase: true   # ENSO con fase mensual, no solo anual
+      heatwave_autocorrelation: true  # olas de calor persistentes
+      extreme_rain_pareto: true   # lluvia extrema con cola Pareto
+    irrigation:
+      partial_failure_prob: 0.08  # P(falla parcial por evento)
+      efficiency_degradation: true  # eficiencia no estacionaria
+      pressure_cv: 0.12           # variación de presión (CV)
+    sensors:
+      gaussian_noise_sd: 0.03     # ruido gaussiano proporcional
+      drift_max: 0.05             # drift máximo por ciclo
+      missing_rate: 0.04          # % valores faltantes sintéticos
+      temporal_lag_days: [0, 3]   # delay en medición (días)
+    farmer:
+      compliance_rate: [0.60, 1.0]  # rango de cumplimiento
+      delay_days: [0, 7]            # retraso de aplicación
+    soil:
+      spatial_cv: 0.15            # heterogeneidad espacial (CV)
+      infiltration_cv: 0.18       # variación de infiltración

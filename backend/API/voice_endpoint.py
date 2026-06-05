@@ -1,12 +1,13 @@
+import os
+import tempfile
 import uuid
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
-import shutil
-import os
 
 from core.llm_orchestrator import interpretar_comando_voz, interpretar_texto
 from database import get_db
@@ -14,20 +15,79 @@ from models import Recomendacion, CultivoCatalogo
 
 router = APIRouter()
 
+# ── Seguridad: validación de uploads de audio ─────────────────────────────────
+
+# Content-types aceptados. "application/octet-stream" lo mandan algunos
+# navegadores móviles para blobs de audio grabados con MediaRecorder.
+_AUDIO_CONTENT_TYPES: set[str] = {
+    "audio/wav", "audio/wave", "audio/x-wav",
+    "audio/mpeg", "audio/mp3",
+    "audio/ogg", "audio/webm",
+    "audio/mp4", "audio/x-m4a", "audio/m4a",
+    "audio/flac", "audio/opus",
+    "application/octet-stream",
+}
+
+# Extensiones válidas para el archivo temporal (Whisper las usa para decodificar).
+_AUDIO_EXTENSIONS: set[str] = {
+    ".wav", ".mp3", ".ogg", ".webm", ".m4a", ".flac", ".opus",
+}
+
+# 25 MB — suficiente para ~15 min en MP3 128 kbps, razonable para un comando de voz.
+_MAX_AUDIO_BYTES: int = 25 * 1024 * 1024
+
 
 # ── Endpoint original: audio → Whisper STT → LLM ─────────────────────────────
 # Sigue activo como fallback para navegadores sin Web Speech API support.
 @router.post("/voice-command")
 async def receive_voice(audio_file: UploadFile = File(...)):
-    temp_path = f"temp_{audio_file.filename}"
+    # 1. Validar content-type
+    ct = (audio_file.content_type or "").lower().split(";")[0].strip()
+    if ct not in _AUDIO_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                f"Tipo de archivo no soportado: '{ct}'. "
+                "Solo se aceptan archivos de audio (wav, mp3, ogg, webm, m4a, flac)."
+            ),
+        )
 
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(audio_file.file, buffer)
+    # 2. Extraer extensión del nombre original y validarla contra el allowlist.
+    #    El nombre original se usa SOLO para obtener la extensión — nunca para
+    #    construir rutas de sistema de archivos (previene path traversal).
+    original_name = audio_file.filename or ""
+    ext = Path(original_name).suffix.lower()
+    if ext not in _AUDIO_EXTENSIONS:
+        ext = ".wav"  # fallback seguro; Whisper lo maneja bien
 
-    resultado = interpretar_comando_voz(temp_path)
+    # 3. Ruta temporal completamente controlada: directorio del SO + UUID.
+    #    El nombre del archivo del cliente no toca el filesystem en ningún momento.
+    temp_path = os.path.join(
+        tempfile.gettempdir(),
+        f"milpin_audio_{uuid.uuid4().hex}{ext}",
+    )
 
-    if os.path.exists(temp_path):
-        os.remove(temp_path)
+    try:
+        # 4. Leer con límite de tamaño (previene agotamiento de disco)
+        contenido = await audio_file.read(_MAX_AUDIO_BYTES + 1)
+        if len(contenido) > _MAX_AUDIO_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"Archivo demasiado grande. "
+                    f"Máximo permitido: {_MAX_AUDIO_BYTES // (1024 * 1024)} MB."
+                ),
+            )
+
+        with open(temp_path, "wb") as f:
+            f.write(contenido)
+
+        resultado = interpretar_comando_voz(temp_path)
+
+    finally:
+        # 5. Limpiar siempre, incluso si Whisper lanza una excepción
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
     return resultado
 

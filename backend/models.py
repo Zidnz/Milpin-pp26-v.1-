@@ -77,6 +77,11 @@ class Usuario(Base):
         server_default="agricultor",
         comment="Rol del usuario: 'agricultor' (solo sus parcelas) o 'admin' (todas las parcelas)"
     )
+    hashed_password: Mapped[Optional[str]] = mapped_column(
+        String(200),
+        nullable=True,
+        comment="bcrypt hash. NULL = usuario sin contraseña (debe usar /auth/register)."
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -380,6 +385,16 @@ class HistorialRiego(Base):
 
     # Datos del evento
     fecha_riego: Mapped[date] = mapped_column(Date, nullable=False)
+    ciclo_agricola: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        comment="Ciclo agrícola DR-041: OI-YYYY (oct–mar) o PV-YYYY (abr–sep). "
+                "Autocalculado por el backend desde fecha_riego.",
+    )
+    ciclo_vol_target_m3_ha: Mapped[Optional[float]] = mapped_column(
+        Numeric(10, 2),
+        comment="Volumen objetivo MILPÍN: 6,000 m³/ha/ciclo "
+                "(KPI: reducir 25% vs. baseline DR-041 de 8,000 m³/ha/ciclo).",
+    )
     volumen_m3_ha: Mapped[Optional[float]] = mapped_column(
         Numeric(10, 2),
         comment="Volumen en m³/ha. KPI vs. baseline 8,000 m³/ha/ciclo DR-041"

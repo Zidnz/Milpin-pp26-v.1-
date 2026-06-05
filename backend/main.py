@@ -55,6 +55,7 @@ from fastapi.staticfiles import StaticFiles
 from API.actuadores_api import router as actuadores_router
 from API.db_api import router as db_router
 from API.ml_api import router as ml_router
+from API.operacion_api import router as operacion_router
 from API.riego_api import router as riego_router
 from API.voice_endpoint import router as voice_router
 from database import create_all_tables
@@ -151,6 +152,9 @@ app.include_router(actuadores_router, prefix="/api")
 
 # Machine Learning: XGBoost predicción + Isolation Forest anomalías
 app.include_router(ml_router, prefix="/api")
+
+# Vista operacional: triage + pulso climático
+app.include_router(operacion_router, prefix="/api")
 
 # ── Health check ──────────────────────────────────────────────────────────────
 @app.get("/health", tags=["Sistema"])

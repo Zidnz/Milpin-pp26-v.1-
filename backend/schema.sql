@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     telefono         VARCHAR(20),
     modulo_dr041     VARCHAR(50),
     activo           BOOLEAN      NOT NULL DEFAULT TRUE,
+    rol              VARCHAR(20)  NOT NULL DEFAULT 'agricultor',
+    hashed_password  VARCHAR(200),
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
 
     CONSTRAINT uq_usuarios_email UNIQUE (email)
@@ -218,20 +220,22 @@ CREATE TABLE IF NOT EXISTS historial_riego (
         REFERENCES recomendaciones(id_recomendacion) ON DELETE SET NULL,
 
     -- Datos del evento de riego
-    fecha_riego       DATE         NOT NULL,
-    volumen_m3_ha     NUMERIC(10,2),
-    lamina_mm         NUMERIC(8,2),
-    duracion_horas    NUMERIC(6,2),
-    metodo_riego      VARCHAR(30)
+    fecha_riego              DATE         NOT NULL,
+    ciclo_agricola           VARCHAR(20),           -- OI-YYYY / PV-YYYY (autocalculado)
+    ciclo_vol_target_m3_ha   NUMERIC(10,2),         -- objetivo MILPÍN: 6,000 m³/ha/ciclo
+    volumen_m3_ha            NUMERIC(10,2),
+    lamina_mm                NUMERIC(8,2),
+    duracion_horas           NUMERIC(6,2),
+    metodo_riego             VARCHAR(30)
         CONSTRAINT ck_riego_metodo
         CHECK (metodo_riego IN ('gravedad', 'goteo', 'aspersion', 'microaspersion')),
-    origen_decision   VARCHAR(20)
+    origen_decision          VARCHAR(20)
         CONSTRAINT ck_riego_origen
         CHECK (origen_decision IN ('sistema', 'manual', 'voz')),
-    costo_energia_mxn NUMERIC(10,2),
-    observaciones     TEXT,
+    costo_energia_mxn        NUMERIC(10,2),
+    observaciones            TEXT,
 
-    created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_at               TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 COMMENT ON TABLE  historial_riego               IS 'Eventos de riego ejecutados. KPI: volumen_m3_ha vs. baseline 8,000 m3/ha/ciclo DR-041.';

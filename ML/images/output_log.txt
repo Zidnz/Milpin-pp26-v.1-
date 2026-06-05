@@ -1,0 +1,208 @@
+✓ IMAGES_DIR  → C:\Users\madri\Downloads\pp26(Omar)\ML\images
+✓ matplotlib  → auto-save en show() + redirigir savefig()
+✓ pandas      → auto-save DataFrames (CSV + HTML)
+✓ stdout      → output_log.txt
+XGBoost 3.2.0 · numpy 2.4.4
+N_SAMPLES=1,000,000 · SEED=42 · OPTUNA_TRIALS=40
+Configuraciones v3 cargadas: 5 regiones · 4 arquetipos · Kc 4-etapas · salinidad FAO-33
+generar_datos_v3 lista — 10 módulos de complejidad, 100% vectorizada
+Generados 1,000,000 ciclos en 4.5s
+Columnas: 34 · Memoria: 524.5 MB
+
+Distribución volumen_agua_total_m3_ha por cultivo:
+  ✓ [tabla] tabla_001.csv  (5 filas × 4 cols)
+  ✓ [auto-imagen] distribución_consumo_hídrico_por_cultivo__n_1_000.png
+Features numéricas: 53 (v2: 9 + v3: 7 + v4: 10 + base: 27)
+Train: 720,000 | Val: 80,000 | Test: 200,000
+Features: 58
+Test en rango operacional (6,000–10,000 m³/ha): 56,441 (28.2%)
+Muestras con peso 3× en train: 203,294 (28.2%)
+Funciones de evaluación listas.
+Entrenamiento: 186.3s | Best iter: 1999
+────────────────────────────────────────────────────────────
+  GLOBAL — todos los cultivos
+  Global  → MAE:     47.3  RMSE:     87.5  R²:0.9998
+  Operac. → MAE:     27.0  RMSE:     41.9  R²:0.9987
+  Error monetario (RMSE×tarifa): $147 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 2.1%  →  Ahorro neto: 97.9%
+────────────────────────────────────────────────────────────
+
+RMSE por rango — modelo global:
+Optuna 40 trials × 5 cultivos — optimizando RMSE_op
+────────────────────────────────────────────────────────────
+  Maíz       → RMSE_op: 54 m³/ha | depth=7 lr=0.0406 [296s]
+  Frijol     → RMSE_op: 45 m³/ha | depth=6 lr=0.0261 [249s]
+  Algodón    → RMSE_op: 61 m³/ha | depth=7 lr=0.0262 [246s]
+  Uva        → RMSE_op: 53 m³/ha | depth=7 lr=0.0258 [294s]
+  Chile      → RMSE_op: 40 m³/ha | depth=7 lr=0.0226 [341s]
+Maíz (n_test=40,011 | best_iter=378 | 15.3s)
+────────────────────────────────────────────────────────────
+    Maíz
+  Global  → MAE:     45.6  RMSE:     85.3  R²:0.9998
+  Operac. → MAE:     25.0  RMSE:     40.0  R²:0.9988
+  Error monetario (RMSE×tarifa): $143 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 2.0%  →  Ahorro neto: 98.0%
+────────────────────────────────────────────────────────────
+Frijol (n_test=40,022 | best_iter=1237 | 46.7s)
+────────────────────────────────────────────────────────────
+    Frijol
+  Global  → MAE:     34.6  RMSE:     76.6  R²:0.9997
+  Operac. → MAE:     21.0  RMSE:     35.8  R²:0.9990
+  Error monetario (RMSE×tarifa): $129 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 1.8%  →  Ahorro neto: 98.2%
+────────────────────────────────────────────────────────────
+Algodón (n_test=40,281 | best_iter=647 | 23.1s)
+────────────────────────────────────────────────────────────
+    Algodón
+  Global  → MAE:     47.4  RMSE:     90.6  R²:0.9998
+  Operac. → MAE:     28.4  RMSE:     42.0  R²:0.9986
+  Error monetario (RMSE×tarifa): $152 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 2.1%  →  Ahorro neto: 97.9%
+────────────────────────────────────────────────────────────
+Uva (n_test=39,992 | best_iter=518 | 20.3s)
+────────────────────────────────────────────────────────────
+    Uva
+  Global  → MAE:     44.3  RMSE:     85.0  R²:0.9998
+  Operac. → MAE:     23.7  RMSE:     40.8  R²:0.9987
+  Error monetario (RMSE×tarifa): $143 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 2.0%  →  Ahorro neto: 98.0%
+────────────────────────────────────────────────────────────
+Chile (n_test=39,694 | best_iter=1461 | 49.2s)
+────────────────────────────────────────────────────────────
+    Chile
+  Global  → MAE:     34.7  RMSE:     75.0  R²:0.9998
+  Operac. → MAE:     19.2  RMSE:     32.9  R²:0.9992
+  Error monetario (RMSE×tarifa): $126 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 1.6%  →  Ahorro neto: 98.4%
+────────────────────────────────────────────────────────────
+
+============================================================
+ENSAMBLE POR CULTIVO — resultado combinado
+============================================================
+────────────────────────────────────────────────────────────
+  ENSAMBLE por cultivo
+  Global  → MAE:     41.4  RMSE:     82.8  R²:0.9998
+  Operac. → MAE:     22.7  RMSE:     37.8  R²:0.9989
+  Error monetario (RMSE×tarifa): $139 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 1.9%  →  Ahorro neto: 98.1%
+────────────────────────────────────────────────────────────
+Entrenamiento: 143.3s | Best iter: 1499
+────────────────────────────────────────────────────────────
+  LOG-TRANSFORM global
+  Global  → MAE:     53.4  RMSE:     98.0  R²:0.9998
+  Operac. → MAE:     27.1  RMSE:     41.9  R²:0.9987
+  Error monetario (RMSE×tarifa): $165 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 2.1%  →  Ahorro neto: 97.9%
+────────────────────────────────────────────────────────────
+Calculando SHAP — modelo global...
+  ✓ [imagen] shap_global.png
+Calculando SHAP — modelo Maíz (per-crop)...
+  ✓ [imagen] shap_maíz.png
+  ✓ [imagen] rmse_por_rango_comparativa.png
+  ✓ [imagen] residuales_por_cultivo.png
+  ✓ [imagen] learning_curves_v4.png
+  ✓ [imagen] feature_importance_global.png
+TABLA COMPARATIVA FINAL
+  ✓ [tabla] tabla_002.csv  (8 filas × 5 cols)
+  ✓ [imagen] milpin_dashboard_v4.png
+[OK] milpin_dashboard_v4.png guardado
+=================================================================
+  Mejor modelo por RMSE operacional: Ensamble cultivos
+  RMSE global:           83 m³/ha
+  RMSE operacional:      38 m³/ha
+  R²:                    0.9998
+  Ahorro neto:           98.1%
+=================================================================
+
+Archivos generados:
+  · milpin_dashboard_v4.png
+  · rmse_por_rango_comparativa.png
+  · residuales_por_cultivo.png
+  · learning_curves_v4.png
+  · feature_importance_global.png
+  · shap_global.png
+Modelo A — 58 features  (baseline completo, incluye ambas sospechosas)
+Modelo B — 57 features  (sin ratio_real_teorico)
+Modelo C — 56 features  (sin ratio_real_teorico ni vol_teorico_m3ha)
+
+Features excluidas en B: ['ratio_real_teorico']
+Features excluidas en C: ['vol_teorico_m3ha', 'ratio_real_teorico']
+
+[A — todas las features]  best_iter=1999  (154.9s)
+────────────────────────────────────────────────────────────
+  A — todas las features
+  Global  → MAE:     47.3  RMSE:     87.5  R²:0.9998
+  Operac. → MAE:     27.0  RMSE:     41.9  R²:0.9987
+  Error monetario (RMSE×tarifa): $147 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 2.1%  →  Ahorro neto: 97.9%
+────────────────────────────────────────────────────────────
+
+[B — sin ratio_real_teorico]  best_iter=299  (32.1s)
+────────────────────────────────────────────────────────────
+  B — sin ratio_real_teorico
+  Global  → MAE:    646.9  RMSE:   1075.5  R²:0.9721
+  Operac. → MAE:    461.6  RMSE:    732.7  R²:0.5937
+  Error monetario (RMSE×tarifa): $1,807 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 36.6%  →  Ahorro neto: 63.4%
+────────────────────────────────────────────────────────────
+
+[C — sin ratio_real_teorico ni vol_teorico_m3ha]  best_iter=496  (45.8s)
+────────────────────────────────────────────────────────────
+  C — sin ratio_real_teorico ni vol_teorico_m3ha
+  Global  → MAE:    659.1  RMSE:   1083.1  R²:0.9717
+  Operac. → MAE:    467.5  RMSE:    737.7  R²:0.5881
+  Error monetario (RMSE×tarifa): $1,820 MXN/ha/ciclo
+  Ratio RMSE_op / Δobj: 36.9%  →  Ahorro neto: 63.1%
+────────────────────────────────────────────────────────────
+  ✓ [imagen] shap_leakage_comparison.png
+[OK] shap_leakage_comparison.png guardado
+TABLA COMPARATIVA — VALIDACIÓN LEAKAGE
+  ✓ [imagen] leakage_metricas_comparativa.png
+[OK] leakage_metricas_comparativa.png guardado
+
+=================================================================
+VEREDICTO DE LEAKAGE
+=================================================================
+  A → B  (quitar ratio_real_teorico):    ΔRMSE_op = +690.8 m³/ha
+  B → C  (quitar vol_teorico_m3ha):       ΔRMSE_op = +5.0 m³/ha
+  A → C  (quitar ambas):                  ΔRMSE_op = +695.8 m³/ha
+
+  ⚠ LEAKAGE CONFIRMADO: el modelo A está inflado artificialmente.
+    Modelo C es el único válido para reportar a stakeholders.
+
+  Modelo recomendado para producción: C  (RMSE_op = 737.7 m³/ha)
+=================================================================
+Curva de aprendizaje...
+  n=  50,000: RMSE_global=1106  RMSE_op=915  R2=0.970  t=1.1s
+  n= 100,000: RMSE_global=1099  RMSE_op=904  R2=0.970  t=1.7s
+  n= 250,000: RMSE_global=1098  RMSE_op=900  R2=0.970  t=4.3s
+  n= 500,000: RMSE_global=1096  RMSE_op=901  R2=0.971  t=9.9s
+  n= 900,000: RMSE_global=1095  RMSE_op=901  R2=0.971  t=15.3s
+  size  rmse_global  rmse_op  r2  time_s
+ 50000       1106.4    914.7 1.0     1.1
+100000       1098.8    904.3 1.0     1.7
+250000       1097.6    899.7 1.0     4.3
+500000       1096.1    901.0 1.0     9.9
+900000       1094.9    901.3 1.0    15.3
+  ✓ [imagen] v4_learning_curve.png
+Mejora 500k -> 900k: 0.3 RMSE_op
+Conclusion: usar 900,000 muestras es el punto optimo.
+Pares con correlacion > 0.90: 4
+  vol_teorico_m3ha             <-> agua_neta_req_m3ha          : r=1.000
+  demanda_neta_mm              <-> deficit_agua_mm             : r=1.000
+  demanda_neta_mm              <-> etc_total_mm                : r=0.987
+  deficit_agua_mm              <-> etc_total_mm                : r=0.987
+  ✓ [imagen] v4_corr_pca.png
+Componentes para 95% varianza: 1/14 (7%)
+Interpretacion: si n95 << n, hay alta multicolinealidad/redundancia.
+Baselines dinamicos v4:
+         baseline_m3ha  objetivo_m3ha  op_min_q25  op_max_q75
+cultivo                                                      
+Algodón        15109.0        11332.0     10396.0     21073.0
+Chile           8313.0         6235.0      5614.0     11733.0
+Frijol          7258.0         5444.0      4860.0     10388.0
+Maíz           11185.0         8389.0      7335.0     15896.0
+Uva            10317.0         7738.0      6760.0     14969.0
+Global baseline: 10,026  objetivo: 7,520
+Global rango op: [6,472 - 14,922]
+Funcion calc_weights_dynamic_v4 definida.

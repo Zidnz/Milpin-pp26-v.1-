@@ -15,11 +15,11 @@ Endpoints:
 """
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.balance_hidrico import (
@@ -166,6 +166,194 @@ def _clasificar_urgencia(requiere_riego: bool, deficit_mm: float) -> str:
     return "preventivo"
 
 
+# ── Constantes de calidad de datos ────────────────────────────────────────────
+
+# Mínimo de registros clima_diario para confiar en Penman-Monteith.
+# Por debajo de este umbral se fuerza Hargreaves + flag de incertidumbre alta.
+N_DIAS_CLIMA_MINIMO = 14
+
+# Límites absolutos agroclimáticos para el Valle del Yaqui (Sonora, ~27°N, ~40 m.s.n.m.)
+# Fuera de estos rangos se asume anomalía que invalida FAO-56 sin revisión humana.
+TEMP_BOUNDS_YAQUI = {
+    "t_max_abs_max": 47.0,  # °C — máximo histórico registrado en la región
+    "t_max_abs_min": 5.0,   # °C — frío inusual para el valle
+    "t_min_abs_min": -2.0,  # °C — riesgo de helada
+    "t_min_abs_max": 32.0,  # °C — noche excesivamente cálida
+    "margen_ventana_30d": 5.0,  # °C — desviación aceptable sobre la ventana de 30 días
+}
+
+
+# ── Helpers de calidad de datos ────────────────────────────────────────────────
+
+async def _count_registros_clima(
+    db: AsyncSession, id_parcela: uuid.UUID
+) -> int:
+    """Cuenta cuántos registros de clima_diario existen para la parcela."""
+    result = await db.execute(
+        select(func.count())
+        .select_from(ClimaDiario)
+        .where(ClimaDiario.id_parcela == id_parcela)
+    )
+    return result.scalar() or 0
+
+
+async def _detectar_anomalia_temperatura(
+    db: AsyncSession,
+    id_parcela: uuid.UUID,
+    t_max: float,
+    t_min: float,
+    fecha_ref: date,
+) -> Optional[str]:
+    """Detecta si t_max/t_min son anómalos para la parcela y fecha dada.
+
+    Dos niveles de chequeo:
+        1. Límites absolutos para el Valle del Yaqui (TEMP_BOUNDS_YAQUI).
+        2. Ventana dinámica: compara contra el rango observado en los últimos
+           30 días con un margen de ±5 °C (requiere ≥7 registros previos).
+
+    Retorna un string descriptivo si hay anomalía, None si todo es normal.
+    """
+    # 1. Límites absolutos
+    if t_max > TEMP_BOUNDS_YAQUI["t_max_abs_max"]:
+        return (
+            f"T_max {t_max:.1f}°C supera el máximo histórico de la región "
+            f"({TEMP_BOUNDS_YAQUI['t_max_abs_max']}°C)"
+        )
+    if t_max < TEMP_BOUNDS_YAQUI["t_max_abs_min"]:
+        return f"T_max {t_max:.1f}°C inusualmente baja para el Valle del Yaqui"
+    if t_min < TEMP_BOUNDS_YAQUI["t_min_abs_min"]:
+        return f"T_min {t_min:.1f}°C indica riesgo de helada"
+    if t_min > TEMP_BOUNDS_YAQUI["t_min_abs_max"]:
+        return f"T_min {t_min:.1f}°C inusualmente alta (posible error de sensor)"
+
+    # 2. Ventana dinámica: últimos 30 días
+    fecha_inicio = fecha_ref - timedelta(days=30)
+    res = await db.execute(
+        select(
+            func.min(ClimaDiario.t_max).label("tmax_min"),
+            func.max(ClimaDiario.t_max).label("tmax_max"),
+            func.min(ClimaDiario.t_min).label("tmin_min"),
+            func.max(ClimaDiario.t_min).label("tmin_max"),
+            func.count().label("n"),
+        ).where(
+            ClimaDiario.id_parcela == id_parcela,
+            ClimaDiario.fecha >= fecha_inicio,
+            ClimaDiario.fecha < fecha_ref,
+            ClimaDiario.t_max.is_not(None),
+        )
+    )
+    stats = res.first()
+
+    if stats and stats.n >= 7:
+        m = TEMP_BOUNDS_YAQUI["margen_ventana_30d"]
+        if t_max > float(stats.tmax_max) + m:
+            return (
+                f"T_max {t_max:.1f}°C supera en >{m}°C el rango de los "
+                f"últimos 30 días (máx histórico local: {float(stats.tmax_max):.1f}°C)"
+            )
+        if t_max < float(stats.tmax_min) - m:
+            return (
+                f"T_max {t_max:.1f}°C está >{m}°C por debajo del rango de "
+                f"los últimos 30 días (mín local: {float(stats.tmax_min):.1f}°C)"
+            )
+
+    return None
+
+
+def _determinar_fase_fenologica(cultivo, dias_siembra: int) -> str:
+    """Retorna la etapa fenológica activa según días desde siembra.
+
+    Etapas FAO-56: inicial → desarrollo → media → final.
+    """
+    if dias_siembra <= 0:
+        return "pre_siembra"
+    ini = cultivo.dias_etapa_inicial
+    des = cultivo.dias_etapa_desarrollo
+    med = cultivo.dias_etapa_media
+    fin = cultivo.dias_etapa_final
+    if dias_siembra <= ini:
+        return "inicial"
+    elif dias_siembra <= ini + des:
+        return "desarrollo"
+    elif dias_siembra <= ini + des + med:
+        return "media"
+    elif dias_siembra <= ini + des + med + fin:
+        return "final"
+    return "fuera_ciclo"
+
+
+def _nivel_incertidumbre(
+    metodo_eto: str,
+    tiene_historial: bool,
+    n_registros_clima: int,
+    anomalia_temp: Optional[str],
+    dias_desfase: int,
+) -> str:
+    """Clasifica el nivel de incertidumbre de la recomendación en tres niveles.
+
+    alta  → no confiar en la cifra sin validación humana.
+    media → cifra orientativa; revisar si el contexto cambia.
+    baja  → datos completos y coherentes; confianza razonable.
+    """
+    if anomalia_temp or not tiene_historial:
+        return "alta"
+    if metodo_eto == "hargreaves" or n_registros_clima < N_DIAS_CLIMA_MINIMO:
+        return "alta"
+    if dias_desfase > 3:
+        return "media"
+    return "baja"
+
+
+def _construir_mensaje_incertidumbre(
+    nivel: str,
+    lamina_mm: Optional[float],
+    cultivo_nombre: str,
+    tiene_historial: bool,
+    metodo_eto: str,
+    anomalia_temp: Optional[str],
+    dias_desfase: int,
+) -> str:
+    """Genera el mensaje de incertidumbre en lenguaje natural para el agricultor.
+
+    El tono es directo pero sin tecnicismos: explica *por qué* hay duda y
+    qué condición concreta haría necesario revisar antes de regar.
+    (OECD 2019; UNESCO 2021: comunicar límites sin generar rechazo ni garantía.)
+    """
+    lstr = f"{lamina_mm:.1f}" if lamina_mm is not None else "—"
+
+    if not tiene_historial:
+        return (
+            f"Estimación orientativa de {lstr} mm para {cultivo_nombre}. "
+            "No hay historial de riego registrado en esta parcela — "
+            "un técnico debe validar esta recomendación antes de aplicarla."
+        )
+    if anomalia_temp:
+        return (
+            f"Dato climático inusual detectado: {anomalia_temp}. "
+            f"La estimación de {lstr} mm puede no ser confiable. "
+            "Verifica las condiciones actuales con el técnico antes de regar."
+        )
+    if metodo_eto == "hargreaves":
+        return (
+            f"Con los datos que tengo hoy, mi mejor estimación es {lstr} mm "
+            f"de lámina para {cultivo_nombre}. "
+            "Se usó Hargreaves como respaldo por datos climáticos incompletos — "
+            "si llueve o cambian las condiciones, revisa antes de regar."
+        )
+    if dias_desfase > 3:
+        return (
+            f"Con los datos que tengo hoy, mi mejor estimación es {lstr} mm "
+            f"de lámina para {cultivo_nombre}. "
+            f"El dato climático tiene {dias_desfase} días de desfase — "
+            "si ha llovido o el clima cambió, revisa antes de aplicar."
+        )
+    return (
+        f"Con los datos que tengo hoy, mi mejor estimación es {lstr} mm "
+        f"de lámina para {cultivo_nombre}. "
+        "Si llueve o cambia el pronóstico, revisa antes de aplicar el riego."
+    )
+
+
 # ── Endpoint principal: lee de BD, calcula, persiste ──────────────────────────
 
 @router.get("/balance_hidrico", tags=["Motor FAO-56"])
@@ -248,6 +436,9 @@ async def get_balance_hidrico(
             f"Comando: cd backend && python -m tools.nasa_power_etl --parcela {parcela_id}",
         )
 
+    # ── Fase 2: conteo de registros disponibles (umbral calidad) ─────────────
+    n_registros_clima = await _count_registros_clima(db, parcela_id)
+
     # dia_del_ano calculado sobre la fecha real del dato (consistencia FAO-56).
     fecha_clima_usada = clima.fecha
     dias_desfase = (fecha - fecha_clima_usada).days
@@ -263,14 +454,29 @@ async def get_balance_hidrico(
 
     precipitacion = float(clima.lluvia or 0.0)
 
-    if clima.et0 is not None:
+    # ── Fase 2: detección de anomalía de temperatura ──────────────────────────
+    anomalia_temp: Optional[str] = None
+    if clima.t_max is not None and clima.t_min is not None:
+        anomalia_temp = await _detectar_anomalia_temperatura(
+            db, parcela_id,
+            float(clima.t_max), float(clima.t_min),
+            fecha_clima_usada,
+        )
+
+    # ── Fase 2: forzar Hargreaves si hay <N_DIAS_CLIMA_MINIMO registros ───────
+    forzar_hargreaves = n_registros_clima < N_DIAS_CLIMA_MINIMO
+
+    if clima.et0 is not None and not forzar_hargreaves:
         # ETo pre-calculada por el ETL de NASA POWER — evita recalcular
         eto = float(clima.et0)
         metodo_eto = "et0_precalculado"
-    elif all(
-        v is not None for v in [
-            clima.t_max, clima.t_min, clima.humedad_rel, clima.viento, clima.radiacion,
-        ]
+    elif (
+        not forzar_hargreaves
+        and all(
+            v is not None for v in [
+                clima.t_max, clima.t_min, clima.humedad_rel, clima.viento, clima.radiacion,
+            ]
+        )
     ):
         # Datos crudos completos → Penman-Monteith en vivo
         eto = calcular_eto_penman_monteith(
@@ -282,11 +488,16 @@ async def get_balance_hidrico(
             dia_del_ano=dia_del_ano,
         )
     elif clima.t_max is not None and clima.t_min is not None:
-        # Datos parciales → Hargreaves fallback
+        # Datos parciales o serie corta → Hargreaves fallback
         metodo_eto = "hargreaves"
+        motivo_hargreaves = (
+            f"datos insuficientes ({n_registros_clima} registros < mínimo {N_DIAS_CLIMA_MINIMO})"
+            if forzar_hargreaves
+            else f"datos incompletos en {fecha_clima_usada} (faltan HR, viento o radiación)"
+        )
         advertencia = (
-            f"clima_diario para {fecha_clima_usada} tiene datos incompletos "
-            "(faltan HR, viento o radiación). Se usó Hargreaves como respaldo."
+            f"Se usó Hargreaves como respaldo: {motivo_hargreaves}. "
+            "Recomendación orientativa."
         )
         eto = calcular_eto_hargreaves(
             tmax=float(clima.t_max),
@@ -327,6 +538,7 @@ async def get_balance_hidrico(
         capacidad_campo_pct=cc_pct,
         punto_marchitez_pct=pmp_pct,
         profundidad_raiz_m=prof_raiz_m,
+        sistema_riego=parcela.sistema_riego or "gravedad",
     )
 
     costo = calcular_costo_riego(volumen_m3=balance["volumen_m3_ha"])
@@ -335,7 +547,40 @@ async def get_balance_hidrico(
     dias_sin = await _dias_sin_riego(db, parcela.id_parcela, fecha)
     nivel_urgencia = _clasificar_urgencia(balance["requiere_riego"], balance["deficit_mm"])
 
+    # -- 5b. Fase fenológica + calidad de datos --------------------------------
+    fase_fenologica = _determinar_fase_fenologica(cultivo, dias_siembra)
+
+    tiene_historial = propagacion_meta.get("metodo") != "fallback_midpoint"
+
+    # Fase 2: bloqueo suave cuando no hay historial de riego
+    # No lanzamos 422 para no romper el flujo — la recomendación se persiste
+    # pero el frontend recibe requiere_validacion_humana=True.
+    requiere_validacion_humana = (
+        not tiene_historial
+        or anomalia_temp is not None
+    )
+
+    nivel_incertidumbre = _nivel_incertidumbre(
+        metodo_eto=metodo_eto,
+        tiene_historial=tiene_historial,
+        n_registros_clima=n_registros_clima,
+        anomalia_temp=anomalia_temp,
+        dias_desfase=dias_desfase,
+    )
+
+    mensaje_incertidumbre = _construir_mensaje_incertidumbre(
+        nivel=nivel_incertidumbre,
+        lamina_mm=balance["lamina_bruta_mm"],
+        cultivo_nombre=cultivo.nombre_comun,
+        tiene_historial=tiene_historial,
+        metodo_eto=metodo_eto,
+        anomalia_temp=anomalia_temp,
+        dias_desfase=dias_desfase,
+    )
+
     # -- 6. Persistir recomendacion --------------------------------------------
+    # parametros_json: snapshot completo de inputs + metadatos de trazabilidad
+    # (Kroll et al. 2017; Batini & Scannapieco 2016)
     recomendacion = Recomendacion(
         id_recomendacion=uuid.uuid4(),
         id_parcela=parcela.id_parcela,
@@ -350,18 +595,44 @@ async def get_balance_hidrico(
         algoritmo_version="fao56-mvp-v1.0",
         aceptada="pendiente",
         parametros_json={
+            # ── Identificación del cálculo ────────────────────────────────────
             "fecha": fecha.isoformat(),
+            "fecha_clima_usada": fecha_clima_usada.isoformat(),
+            "dias_desfase_clima": dias_desfase,
+            # ── Estado del cultivo ────────────────────────────────────────────
+            "cultivo": cultivo.nombre_comun,
+            "parcela": parcela.nombre_parcela,
             "dias_siembra": dias_siembra,
+            "fase_fenologica": fase_fenologica,
             "kc": round(kc, 3),
+            # ── Modelo ETo ────────────────────────────────────────────────────
             "metodo_eto": metodo_eto,
-            "humedad_actual_pct": round(humedad_actual_pct, 2),
+            "n_registros_clima_disponibles": n_registros_clima,
+            # ── Inputs climáticos crudos (snapshot del registro usado) ────────
+            "clima_t_max": float(clima.t_max) if clima.t_max is not None else None,
+            "clima_t_min": float(clima.t_min) if clima.t_min is not None else None,
+            "clima_humedad_rel": float(clima.humedad_rel) if clima.humedad_rel is not None else None,
+            "clima_viento_ms": float(clima.viento) if clima.viento is not None else None,
+            "clima_radiacion_mj": float(clima.radiacion) if clima.radiacion is not None else None,
+            "clima_et0_precalculado": float(clima.et0) if clima.et0 is not None else None,
+            # ── Parámetros edáficos ───────────────────────────────────────────
             "cc_pct": round(cc_pct, 2),
             "pmp_pct": round(pmp_pct, 2),
             "prof_raiz_m": prof_raiz_m,
-            "precipitacion_mm": precipitacion,
-            "cultivo": cultivo.nombre_comun,
-            "parcela": parcela.nombre_parcela,
+            "humedad_actual_pct": round(humedad_actual_pct, 2),
             "humedad_metodo": propagacion_meta.get("metodo", "desconocido"),
+            "precipitacion_mm": precipitacion,
+            # ── Parámetros calculados intermedios ─────────────────────────────
+            "eto_calculado_mm": round(eto, 3),
+            "etc_calculado_mm": round(etc, 3),
+            "deficit_mm": round(balance["deficit_mm"], 2),
+            # ── Calidad de datos y trazabilidad ───────────────────────────────
+            "anomalia_temperatura": anomalia_temp,
+            "tiene_historial_riego": tiene_historial,
+            "requiere_validacion_humana": requiere_validacion_humana,
+            "nivel_incertidumbre": nivel_incertidumbre,
+            # ── Propagación hídrica completa ──────────────────────────────────
+            "propagacion_hidrica": propagacion_meta,
         },
     )
     db.add(recomendacion)
@@ -380,10 +651,19 @@ async def get_balance_hidrico(
         "eto_mm": round(eto, 2),
         "kc": round(kc, 3),
         "etc_mm": round(etc, 2),
+        "fase_fenologica": fase_fenologica,
         "balance": balance,
         "costo": costo,
         "dias_sin_riego": dias_sin,
         "nivel_urgencia": nivel_urgencia,
+        # ── Fase 2: calidad de datos ──────────────────────────────────────────
+        "n_registros_clima": n_registros_clima,
+        "anomalia_temperatura": anomalia_temp,
+        "tiene_historial_riego": tiene_historial,
+        "requiere_validacion_humana": requiere_validacion_humana,
+        # ── Fase 3: comunicación de incertidumbre ─────────────────────────────
+        "nivel_incertidumbre": nivel_incertidumbre,
+        "mensaje_incertidumbre": mensaje_incertidumbre,
         "persistido": True,
         "propagacion_hidrica": propagacion_meta,
     }
@@ -411,6 +691,7 @@ async def get_balance_hidrico_manual(
     capacidad_campo_pct: float = 34.0,
     punto_marchitez_pct: float = 18.0,
     profundidad_raiz_m: float = 0.60,
+    sistema_riego: str = "gravedad",
 ):
     """Calcula el balance hidrico recibiendo todos los parametros por query string.
 
@@ -455,6 +736,7 @@ async def get_balance_hidrico_manual(
         capacidad_campo_pct=capacidad_campo_pct,
         punto_marchitez_pct=punto_marchitez_pct,
         profundidad_raiz_m=profundidad_raiz_m,
+        sistema_riego=sistema_riego,
     )
 
     costo = calcular_costo_riego(volumen_m3=balance["volumen_m3_ha"])

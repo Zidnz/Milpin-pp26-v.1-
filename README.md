@@ -1,6 +1,6 @@
 <div align="center">
 <img src="imagenes/icono.jpeg" alt="MILPÍN Logo" width="120" style="border-radius:50%"/>
-<h1>🌾 MILPÍN AgTech</h1>
+<h1>MILPÍN AgTech</h1>
 <h3>Sistema Inteligente de Optimización de Riego — Valle del Yaqui, DR-041</h3>
 <p>
   <img src="https://img.shields.io/badge/estado-pre--MVP-orange?style=for-the-badge"/>
@@ -17,8 +17,8 @@
 </p>
 <p>
   <img src="https://img.shields.io/badge/tests-108%20backend%20%2B%207%20ML-4CAF50?style=for-the-badge&logo=pytest&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Alembic-3%20migraciones-blueviolet?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Power%20BI-integrado-F2C811?style=for-the-badge&logo=powerbi&logoColor=black"/>
+  <img src="https://img.shields.io/badge/Alembic-4%20migraciones-blueviolet?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/routers-6%20FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white"/>
 </p>
 <blockquote>
 <strong>Meta principal:</strong> Reducir el consumo hídrico de <code>8,000 m³/ha/ciclo</code> a <code>6,000 m³/ha/ciclo</code> — un ahorro del <strong>25%</strong> equivalente a ~$1.68 MXN/m³ (tarifa CFE 9-CU, bombeo 80 m).
@@ -27,7 +27,7 @@
 
 ---
 
-> **⚠️ Proyecto académico — datos sintéticos intencionalmente.**
+> **ADVERTENCIA: Proyecto académico — datos sintéticos intencionalmente.**
 > MILPÍN es un sistema de apoyo a decisiones desarrollado como proyecto de ciencia de datos aplicada.
 > **No se llevará a producción.** Todos los datos de parcelas, usuarios, clima e historial son sintéticos
 > y generados por los scripts de `tools/` y `ML/training/`. El motor agronómico FAO-56 es real y preciso;
@@ -63,20 +63,20 @@
 
 ---
 
-## 📊 Estado del proyecto
+## Estado del proyecto
 
 **Fase actual: Pre-MVP — bloqueador único: autenticación**
 
-### ✔ Implementado y funcionando
+### Implementado y funcionando
 
 | Componente | Detalle | Fecha |
 |---|---|---|
-| Backend FastAPI 2.0 | Lifespan, **5 routers**, SQLAlchemy 2.0 async | — |
+| Backend FastAPI 2.0 | Lifespan, **6 routers**, SQLAlchemy 2.0 async | — |
 | PostgreSQL 15 + **PostGIS 3.6** | `parcelas.geom` es `GEOMETRY(Polygon,4326)` con índice GIST. Migrado desde JSONB vía Alembic. | 2026-04-30 |
 | 7 modelos ORM, 14+ endpoints CRUD | 2 vistas KPI, seeders, `schema.sql` | — |
 | `GET /api/parcelas/geojson` | GeoJSON FeatureCollection listo para Leaflet, servido desde PostGIS | 2026-04-30 |
 | Motor agronómico FAO-56 | Penman-Monteith (`balance_hidrico.py`), Hargreaves como fallback. Lee parcela + cultivo + clima de BD, persiste en `recomendaciones`. | — |
-| **3 migraciones Alembic activas** | `0001` JSONB→geometry, `0002` columna `rol` en usuarios, `0003` rangos de rendimiento en cultivos | 2026-04-30 / 2026-05-16 |
+| **4 migraciones Alembic activas** | `0001` JSONB→geometry, `0002` columna `rol` en usuarios, `0003` rangos de rendimiento en cultivos, `0004` columna `ciclo_agricola` en `historial_riego` | 2026-04-30 / 2026-05-16 |
 | **108 tests backend** | 51 unitarios FAO-56 + 32 e2e SQLite + 11 ML + 14 actuadores. Ejecutar con `pytest backend/tests/`. | 2026-05-06+ |
 | **7 tests ML** | drift, preprocessor, promote_gate en `ML/tests/` | 2026-05-16 |
 | **Loop recomendación→feedback** | `PATCH /recomendaciones/{id}/feedback` auto-inserta en `historial_riego` cuando `aceptada` es `"aceptada"` o `"modificada"`. Verificado con `TestFeedbackLoop` (7 casos). | 2026-05-01 |
@@ -88,37 +88,23 @@
 | **ml_api.py** | 3 endpoints: `GET /api/ml/prediccion/{id}`, `/api/ml/anomalias`, `/api/ml/metricas`. Fallback a CSV sintético si BD < 50 registros. | 2026-05-16 |
 | **actuadores_api.py** | 5 endpoints para control de actuadores físicos de riego. | 2026-05-16 |
 | **Módulo ML separado** | `ML/` con training, inference, configs YAML, monitoring, pipelines, experiments, feature_store. | 2026-05-16 |
-| **Power BI** | Proyecto `.pbip` en `pbir/`, medidas DAX y Power Query M en `MILPIN_PowerBI/`. Conectado a CSVs sintéticos. | — |
+| **Power BI** | Medidas DAX y Power Query M en `MILPIN_PowerBI/`. Conectado a CSVs sintéticos. Proyecto PBIR eliminado del repo; dashboards en-app vía `bi_dashboard.js` + `bi_operacion.js`. | — |
+| **Vista de carga de trabajo técnica** | `GET /api/tecnico/carga-trabajo` agrega parcelas activas con última recomendación pendiente, ordenadas por urgencia. Frontend: `tecnico_workload.js`. | 2026-05-18 |
+| **Dashboard operacional v2** | `bi_operacion.js` — vista de operación con pulso climático. `GET /api/operacion/triage` (lista priorizada FAO-56) y `GET /api/parcelas/{id}/clima` (serie climática W6). Router: `operacion_api.py`. | 2026-05-19 |
 | Pipeline de voz | Whisper STT carga lazy (startup ~2 s) → Ollama `llama3.2:latest` → Web Speech API TTS | 2026-04-30 |
 | Clustering K-Means | scikit-learn 1.5, zonas de manejo y logística | — |
 | Frontend GIS | Vanilla JS + Leaflet 1.9.4, capas Esri + OpenTopoMap + límites Cajeme. `map_engine.js` carga desde PostGIS (fallback: `lotes.geojson`). | — |
 
-### ◻ Pendiente para MVP
+### Pendiente para MVP
 
 | Ítem | Descripción |
 |---|---|
 | **Autenticación** | `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. Bloqueador principal. Migración `0002` ya agrega columna `rol` (agricultor/admin). |
 | CORS restringido | `allow_origins=["*"]` — reemplazar por allowlist. |
 | Seguridad en voz | Path traversal en `voice_endpoint.py` (`temp_{audio_file.filename}` sin sanitizar), sin límite de tamaño ni validación de content-type. |
-| Limpieza de archivos obsoletos | `backend/core/xgboost_riego.py` y `anomaly_detector.py` ahora levantan `ImportError` (Fase B completada). Eliminar con `git rm`. Ver abajo. |
 
 ---
 
-## 🔧 Deuda técnica vigente
-
-1. **Sin autenticación — bloqueador MVP.** `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. La columna `rol` ya existe en BD (migración `0002`), falta el middleware de verificación.
-2. **Credenciales en `.env`.** `backend/.env` tiene la password de postgres. El archivo ya está en `.gitignore` — verificar que no haya sido commiteado históricamente con `git log -- backend/.env`.
-3. **Path traversal en voz.** `voice_endpoint.py` usa `temp_path = f"temp_{audio_file.filename}"` sin sanitizar. Sin límite de tamaño ni validación de content-type.
-4. **CORS abierto.** `allow_origins=["*"]` — reemplazar por allowlist con los dominios reales del frontend.
-5. **`schema.sql` desalineado.** El DDL todavía documenta la fase JSONB; el runtime ya usa GeoAlchemy2. `backend/models.py` es la fuente de verdad real del schema.
-6. **Catálogo de cultivos duplicado.** Los cultivos válidos viven como constantes en 6 archivos (`KC_TABLE`, `VALID_CULTIVOS`, `CULTIVOS_SEMILLA`, `schema.sql`, `index.html`, `generar_datos_sinteticos.py`). Debería leerse desde la tabla `cultivos_catalogo` en runtime.
-7. **Archivos muertos en `backend/core/`.** `xgboost_riego.py` y `anomaly_detector.py` ahora levantan `ImportError` (la migración a `ML/inference/` completó Fase B). Eliminar con `git rm backend/core/xgboost_riego.py backend/core/anomaly_detector.py`.
-8. **Conflict backups sin limpiar.** Hay 4 archivos `.conflict_backup` en `backend/` (artefactos de merge). Eliminar con `git rm --force *.conflict_backup`.
-9. **Modelos `.joblib` duplicados.** Los 7 archivos en `backend/models_ml/` son copias de `ML/models/`. `ml_api.py` debería apuntar solo a `ML/models/`. Eliminar `backend/models_ml/`.
-10. **`milpin_env/` en el repo.** El entorno virtual está commiteado en la raíz. Agregarlo a `.gitignore` y hacer `git rm -r --cached milpin_env/`.
-11. **Forecast sin validación cruzada.** `eto_forecast.py` entrena Ridge Regression sin split de validación; el RMSE reportado es in-sample. Baja prioridad mientras no haya más de ~60 registros climáticos reales.
-
----
 
 ## Arquitectura del sistema
 
@@ -137,7 +123,7 @@ flowchart TB
         end
     end
 
-    subgraph BACKEND["BACKEND (FastAPI — 5 routers)"]
+    subgraph BACKEND["BACKEND (FastAPI — 6 routers)"]
         direction TB
         subgraph APIS["APIs"]
             DB_API["db_api.py — CRUD 14 endpoints"]
@@ -145,6 +131,7 @@ flowchart TB
             ML_API["ml_api.py — XGBoost + IForest + métricas"]
             ACT_API["actuadores_api.py — control físico"]
             VOICE_EP["voice_endpoint.py — STT pipeline"]
+            OPER_API["operacion_api.py — triage FAO-56 + pulso climático"]
         end
         subgraph CORE["core/"]
             BH["balance_hidrico.py — FAO-56"]
@@ -194,7 +181,7 @@ flowchart TB
 | **SQLAlchemy** | 2.0.36 | ORM asíncrono |
 | **asyncpg** | 0.30.0 | Driver PostgreSQL async |
 | **aiosqlite** | 0.20.0 | Driver SQLite async (fallback dev / tests) |
-| **Alembic** | latest | Migraciones de schema (3 activas) |
+| **Alembic** | latest | Migraciones de schema (4 activas) |
 | **GeoAlchemy2** | latest | Tipos PostGIS en ORM |
 | **Uvicorn** | 0.30.6 | Servidor ASGI |
 | **OpenAI Whisper** | 20240930 | STT local — carga **lazy** |
@@ -222,35 +209,34 @@ flowchart TB
 
 ---
 
-## 📁 Estructura del proyecto
+## Estructura del proyecto
 
 ```text
 milpin/
 ├── backend/
-│   ├── main.py                    # FastAPI 2.0 con lifespan, CORS, 5 routers
+│   ├── main.py                    # FastAPI 2.0 con lifespan, CORS, 6 routers
 │   ├── database.py                # Engine async, IS_SQLITE flag para fallback dev
 │   ├── models.py                  # 7 modelos ORM — fuente de verdad del schema
-│   ├── schema.sql                 # DDL + 2 vistas KPI + seed  ⚠ desalineado con models.py
+│   ├── schema.sql                 # DDL + 2 vistas KPI + seed  [WARN] desalineado con models.py
 │   ├── init_db.py                 # seeders (--reset, --check)
 │   ├── settings.py
 │   ├── alembic.ini
 │   ├── pytest.ini
 │   ├── requirements.txt
-│   ├── .env                       # ⚠ contiene secretos — rotar, verificar gitignore
+│   ├── .env                       # [WARN] contiene secretos — rotar, verificar gitignore
 │   ├── API/
 │   │   ├── db_api.py              # CRUD: 14 endpoints + forecast parcela
 │   │   ├── riego_api.py           # FAO-56 + /parcelas/geojson + balance hídrico
 │   │   ├── ml_api.py              # XGBoost predicción + Isolation Forest anomalías + métricas
 │   │   ├── actuadores_api.py      # Control de actuadores físicos de riego
-│   │   └── voice_endpoint.py      # ⚠ path traversal sin sanitizar
+│   │   ├── operacion_api.py       # Triage FAO-56 priorizado + serie climática W6
+│   │   └── voice_endpoint.py      # [WARN] path traversal sin sanitizar
 │   ├── core/
 │   │   ├── balance_hidrico.py     # FAO-56 Penman-Monteith + KC_TABLE + propagar_balance_hidrico()
 │   │   ├── eto_forecast.py        # Ridge Regression forecast ETo 7 días
 │   │   ├── llm_orchestrator.py    # VALID_CULTIVOS + Ollama/Groq client
-│   │   ├── actuador_control.py    # Lógica de control de actuadores
-│   │   ├── xgboost_riego.py       # ⚠ ELIMINAR — levanta ImportError, reemplazado por ML/inference/
-│   │   └── anomaly_detector.py    # ⚠ ELIMINAR — levanta ImportError, reemplazado por ML/inference/
-│   ├── models_ml/                 # ⚠ DUPLICADO — mismo contenido que ML/models/. Eliminar.
+│   │   └── actuador_control.py    # Lógica de control de actuadores
+│   ├── models_ml/                 # [WARN] DUPLICADO — mismo contenido que ML/models/. Eliminar.
 │   │   └── *.joblib               # 7 archivos de modelos entrenados
 │   ├── migrations/
 │   │   ├── env.py
@@ -280,7 +266,12 @@ milpin/
 │   │   │   ├── train.py           # Entrenamiento XGBoost
 │   │   │   ├── eval.py            # Evaluación
 │   │   │   ├── promote.py         # Promote gate con umbrales YAML
-│   │   │   └── generar_datos.py   # Generación de datos sintéticos ML
+│   │   │   ├── generar_datos.py   # Generación de datos sintéticos ML
+│   │   │   ├── v7_train.py        # Entrenamiento v7 (anti-leakage)
+│   │   │   ├── v7_generar_datos.py
+│   │   │   ├── v7_benchmark.py
+│   │   │   ├── v7_causal_validation.py
+│   │   │   └── v7_leakage_detector.py
 │   │   ├── isolation_forest/
 │   │   │   └── train.py
 │   │   └── eto_ridge/
@@ -293,18 +284,25 @@ milpin/
 │   │   ├── iforest_model.joblib
 │   │   ├── iforest_scaler.joblib
 │   │   └── iforest_metricas.joblib
-│   ├── experiments/
+│   ├── experiments/               # Notebooks de exploración y análisis
 │   │   ├── eda_milpin.ipynb
-│   │   ├── xgboost_v3_diversity.ipynb
-│   │   └── anomaly_detector.ipynb
-│   ├── eda_milpin.ipynb
-│   ├── eda_parcelas_usuarios_cultivos.ipynb
-│   ├── milpin_xgboost_prediccion.ipynb
-│   ├── anomaly_detector.ipynb
-│   ├── generar_ciclos_ml.py
-│   ├── milpin_ciclos_ml.csv       # Dataset ML principal (sintético)
+│   │   ├── eda_parcelas_usuarios_cultivos.ipynb
+│   │   ├── anomaly_detector.ipynb
+│   │   ├── balance_hidrico_visualizacion.ipynb
+│   │   ├── distribucion_consumo_agua.ipynb
+│   │   ├── eda_kpi_powerbi.ipynb
+│   │   ├── eda_powerbi_verificacion.ipynb
+│   │   ├── fao56_visualizacion.ipynb
+│   │   ├── milpin_datos_sinteticos_auditoria.ipynb
+│   │   ├── milpin_xgboost_prediccion_v3.ipynb
+│   │   ├── milpin_xgboost_v4.ipynb … v7.ipynb
+│   │   ├── generar_ciclos_ml.py
+│   │   └── ImagenesML/            # Gráficas generadas por notebooks
+│   ├── images/                    # Imágenes exportadas (SHAP, learning curves, etc.)
+│   ├── patch_notebooks.py
 │   ├── configs/
 │   │   ├── xgboost_riego.yaml
+│   │   ├── xgboost_riego_v7.yaml
 │   │   ├── isolation_forest.yaml
 │   │   └── eto_ridge.yaml
 │   ├── monitoring/
@@ -337,7 +335,7 @@ milpin/
 │   │   ├── milpin_ciclos_ml.csv   # Dataset ML principal
 │   │   ├── anomalias_labels.csv   # Labels para evaluación Isolation Forest
 │   │   └── anomaly_report.csv     # Reporte de anomalías detectadas
-│   ├── raw/                       # Cache NASA POWER (vacío en dev)
+│   ├── raw/nasa_power/            # Cache NASA POWER (~75 archivos JSON por parcela)
 │   └── snapshots/                 # Parquets Feature Store (vacío en dev)
 │
 ├── frontend/
@@ -347,6 +345,8 @@ milpin/
 │   │   ├── map_engine.js          # Leaflet + GeoJSON desde PostGIS
 │   │   ├── ui_tabs.js             # Lógica de tabs
 │   │   ├── bi_dashboard.js        # Dashboard BI conectado a API real
+│   │   ├── bi_operacion.js        # Dashboard operacional v2 (triage + pulso climático)
+│   │   ├── tecnico_workload.js    # Vista de carga de trabajo técnica
 │   │   ├── voice_client.js        # Web Speech API + fallback Whisper
 │   │   ├── auth.js                # Lógica de autenticación (en desarrollo)
 │   │   └── admin_panel.js         # Panel admin (en desarrollo)
@@ -366,7 +366,7 @@ milpin/
 │   ├── recuperar_cache_nasa.py     # Recuperación de caché NASA POWER
 │   └── add_eda_sections.py         # Utilidad para notebooks EDA
 │
-├── docs/                          # Documentación técnica
+├── docs/                          # Documentación técnica y académica
 │   ├── ARCHITECTURE.md
 │   ├── AGRONOMY.md                # FAO-56/33 referenciado
 │   ├── MLOPS.md
@@ -376,16 +376,12 @@ milpin/
 │   ├── runbooks/
 │   │   ├── nasa_power_falla.md
 │   │   └── drift_alerta.md
-│   └── *.docx                     # Documentos académicos de entrega
+│   └── *.docx / *.pdf             # Documentos académicos de entrega (v2–v4)
 │
-├── pbir/                          # Proyecto Power BI (formato PBIR)
-│   ├── milpin-bi.pbip
-│   ├── milpin.Report/
-│   ├── milpin.SemanticModel/
-│   ├── vivo.Report/
-│   └── vivo.SemanticModel/
+├── manifests/                     # Manifiestos de despliegue (Kubernetes/Docker)
 │
-├── MILPIN_PowerBI/                # Scripts para configurar Power BI manualmente
+├── MILPIN_PowerBI/                # Scripts y archivo Power BI
+│   ├── milpin_dashboard.pbix      # Archivo Power BI (requiere ajustar rutas de CSVs)
 │   ├── medidas_DAX.txt
 │   ├── power_query_M.txt
 │   └── GUIA_CONFIGURACION.txt
@@ -400,17 +396,14 @@ milpin/
 │
 ├── CLAUDE.md                      # Instrucciones para Claude Code
 ├── AGENTS.md
+├── MILPIN_PlanNegocios_Revisado.docx
+├── MILPIN_Requerimientos_Negocio.docx
+├── MILPIN_Tecnico_v6.docx
+├── MILPIN_Vision_Solucion.docx
+├── generar_doc_ml.py
 ├── requirements.txt               # Requirements raíz (redundante con backend/)
 └── .gitignore
 ```
-
-> **Archivos a limpiar (deuda):**
-> - `backend/core/xgboost_riego.py` y `anomaly_detector.py` — levantan `ImportError`, eliminar con `git rm`
-> - `backend/models_ml/` — duplicado de `ML/models/`, eliminar
-> - `backend/core/*.conflict_backup`, `backend/*.conflict_backup` — artefactos de merge
-> - `milpin_env/` — entorno virtual commiteado, agregar a `.gitignore` y hacer `git rm -r --cached`
-
----
 
 ## API Reference
 
@@ -480,6 +473,22 @@ POST /api/actuadores/programar
 
 ---
 
+### Operación
+
+```http
+GET /api/operacion/triage
+```
+
+Lista priorizada de parcelas ordenadas por urgencia FAO-56 (`critico` → `moderado` → `preventivo`). Incluye días desde último riego, balance hídrico actual y recomendación pendiente. Consumido por `bi_operacion.js`.
+
+```http
+GET /api/parcelas/{id}/clima
+```
+
+Pulso climático W6: serie climática de los últimos 6 días para la parcela (ETo, T_max, precipitación). Fallback si no hay registros: vacío con flag `sin_datos`.
+
+---
+
 ### Comandos de Voz
 
 ```http
@@ -489,7 +498,7 @@ POST /api/voice-command   # FALLBACK — audio WebM → Whisper STT → LLM
 
 **Intents soportados:** `navegar`, `ejecutar_analisis`, `llenar_prescripcion`, `consultar`, `saludo`, `desconocido`.
 
-> **⚠ Seguridad:** `voice-command` no sanitiza el nombre del archivo (path traversal). Deuda técnica #3.
+> **ADVERTENCIA - Seguridad:** `voice-command` no sanitiza el nombre del archivo (path traversal). Deuda técnica #3.
 
 ---
 
@@ -531,19 +540,6 @@ GET /health
 
 > `backend/models.py` es la fuente de verdad del schema en runtime. `schema.sql` está desalineado (aún documenta JSONB).
 
-### Migraciones Alembic
-
-```bash
-cd backend
-alembic upgrade head                          # aplica las 3 migraciones
-alembic revision -m "descripcion_cambio"      # crea nueva migración
-```
-
-| Migración | Descripción |
-|---|---|
-| `0001_postgis_geom_jsonb_to_geometry` | `parcelas.geom`: JSONB → `GEOMETRY(Polygon,4326)` + índice GIST |
-| `0002_usuarios_add_rol` | Columna `rol` en `usuarios` (agricultor/admin, default: agricultor) |
-| `0003_cultivos_catalogo_rendimiento` | Columnas `rendimiento_min_ton` y `rendimiento_max_ton` en `cultivos_catalogo` |
 
 ### Cultivos precargados
 
@@ -559,43 +555,6 @@ alembic revision -m "descripcion_cambio"      # crea nueva migración
 
 ---
 
-## 🤖 Machine Learning
-
-El módulo `ML/` está separado de `backend/` con una regla de imports explícita: `ML/training/` nunca importa desde `backend/`.
-
-### Modelos entrenados (`.joblib` en `ML/models/`)
-
-| Modelo | Tipo | Target |
-|---|---|---|
-| `xgb_requiere_riego` | XGBoost clasificación | ¿La parcela necesita riego hoy? |
-| `xgb_lamina_ajustada` | XGBoost regresión | Lámina de riego recomendada (mm) |
-| `xgb_riesgo_estres` | XGBoost clasificación | Nivel de estrés hídrico |
-| `iforest_model` | Isolation Forest | Detección de anomalías en historial |
-
-Todos los modelos fueron entrenados sobre datos sintéticos generados por `tools/generar_datos_sinteticos.py` y `ML/training/xgboost_riego/generar_datos.py`. Las métricas están guardadas en los archivos `.joblib` de métricas y son accesibles vía `GET /api/ml/metricas`.
-
-### Datos sintéticos (proyecto académico)
-
-Los datos que alimentan los modelos y la BD son **100% sintéticos** generados programáticamente con distribuciones plausibles para el Valle del Yaqui. Esto es intencional — es un proyecto académico y no se llevará a producción. Los archivos están en `data/synthetic/`.
-
----
-
-## 📊 Power BI
-
-El directorio `pbir/` contiene el proyecto Power BI en formato PBIR (Power BI Enhanced Report). Hay dos reportes:
-
-- **milpin**: Dashboard principal de MILPÍN
-- **vivo**: Reporte de análisis en tiempo real
-
-El directorio `MILPIN_PowerBI/` contiene los scripts para configurar Power BI manualmente:
-
-- `medidas_DAX.txt` — medidas calculadas DAX
-- `power_query_M.txt` — transformaciones Power Query
-- `GUIA_CONFIGURACION.txt` — instrucciones paso a paso (~30-45 min)
-
-Los reportes consumen los CSVs de `data/synthetic/`. Para conectarlos actualizar las rutas en Power Query M.
-
----
 
 ## Instalación y uso
 
@@ -628,7 +587,7 @@ python backend/init_db.py --reset    # DROP + CREATE + seed (destructivo)
 python backend/init_db.py --check    # Solo verifica conexión
 
 # 5. Aplicar migraciones Alembic
-cd backend && alembic upgrade head   # aplica las 3 migraciones
+cd backend && alembic upgrade head   # aplica las 4 migraciones
 
 # 6. Cargar datos sintéticos (opcional para desarrollo)
 python tools/cargar_datos_sinteticos.py
@@ -730,6 +689,6 @@ flowchart LR
 
 <sub>Proyecto académico — Ciencia de Datos aplicada al agro · Valle del Yaqui, Sonora, México</sub>
 
-<sub>⚠️ Pre-MVP · Datos sintéticos intencionalmente · PostGIS ✅ · 3 Migraciones ✅ · 108+7 Tests ✅ · XGBoost entrenado ✅ · IForest entrenado ✅ · Power BI ✅</sub>
+<sub>MVP · Datos sintéticos intencionalmente · PostGIS OK · 4 Migraciones OK · 108+7 Tests OK · XGBoost entrenado OK · IForest entrenado OK · 6 Routers OK · Dashboard Operacional OK</sub>
 
 </div>

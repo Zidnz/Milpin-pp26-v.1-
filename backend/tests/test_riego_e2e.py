@@ -503,11 +503,11 @@ class TestFeedbackLoop:
             )
             return len(res.scalars().all())
 
-    async def test_aceptada_inserta_historial(self, client, seeded, test_engine):
-        id_rec = await self._id_recomendacion(client, seeded)
+    async def test_aceptada_inserta_historial(self, auth_client, seeded, test_engine):
+        id_rec = await self._id_recomendacion(auth_client, seeded)
         antes = await self._contar_historial(test_engine, seeded["id_parcela"])
 
-        r = await client.patch(
+        r = await auth_client.patch(
             f"/api/recomendaciones/{id_rec}/feedback",
             json={"aceptada": "aceptada"},
         )
@@ -517,11 +517,11 @@ class TestFeedbackLoop:
         assert despues == antes + 1, "Debe insertar exactamente 1 fila en historial_riego"
 
     async def test_modificada_inserta_historial_con_lamina_ejecutada(
-        self, client, seeded, test_engine
+        self, auth_client, seeded, test_engine
     ):
-        id_rec = await self._id_recomendacion(client, seeded)
+        id_rec = await self._id_recomendacion(auth_client, seeded)
 
-        r = await client.patch(
+        r = await auth_client.patch(
             f"/api/recomendaciones/{id_rec}/feedback",
             json={"aceptada": "modificada", "lamina_ejecutada_mm": 40.0},
         )
@@ -543,16 +543,16 @@ class TestFeedbackLoop:
         assert float(riego.lamina_mm) == pytest.approx(40.0, abs=0.01)
         assert float(riego.volumen_m3_ha) == pytest.approx(400.0, abs=0.1)
 
-    async def test_ignorada_inserta_historial_con_volumen_cero(self, client, seeded, test_engine):
+    async def test_ignorada_inserta_historial_con_volumen_cero(self, auth_client, seeded, test_engine):
         """
         'ignorada' debe escribir un registro en historial_riego con volumen = 0.
         Esto permite calcular tasa de adopcion real en el dashboard BI.
         El registro NO debe afectar propagar_balance_hidrico porque
         _estimar_humedad_actual filtra por volumen_m3_ha > 0.
         """
-        id_rec = await self._id_recomendacion(client, seeded)
+        id_rec = await self._id_recomendacion(auth_client, seeded)
 
-        r = await client.patch(
+        r = await auth_client.patch(
             f"/api/recomendaciones/{id_rec}/feedback",
             json={"aceptada": "ignorada"},
         )
@@ -576,36 +576,36 @@ class TestFeedbackLoop:
         assert float(riego.lamina_mm) == pytest.approx(0.0), "lamina debe ser 0 para no-riego"
         assert riego.origen_decision == "sistema"
 
-    async def test_feedback_doble_retorna_409(self, client, seeded):
-        id_rec = await self._id_recomendacion(client, seeded)
+    async def test_feedback_doble_retorna_409(self, auth_client, seeded):
+        id_rec = await self._id_recomendacion(auth_client, seeded)
 
-        r1 = await client.patch(
+        r1 = await auth_client.patch(
             f"/api/recomendaciones/{id_rec}/feedback",
             json={"aceptada": "aceptada"},
         )
         assert r1.status_code == 200
 
-        r2 = await client.patch(
+        r2 = await auth_client.patch(
             f"/api/recomendaciones/{id_rec}/feedback",
             json={"aceptada": "aceptada"},
         )
         assert r2.status_code == 409
 
-    async def test_recomendacion_queda_marcada_aceptada(self, client, seeded):
-        id_rec = await self._id_recomendacion(client, seeded)
+    async def test_recomendacion_queda_marcada_aceptada(self, auth_client, seeded):
+        id_rec = await self._id_recomendacion(auth_client, seeded)
 
-        await client.patch(
+        await auth_client.patch(
             f"/api/recomendaciones/{id_rec}/feedback",
             json={"aceptada": "aceptada"},
         )
 
-        r = await client.get(f"/api/recomendaciones/{id_rec}")
+        r = await auth_client.get(f"/api/recomendaciones/{id_rec}")
         assert r.status_code == 200
         assert r.json()["aceptada"] == "aceptada"
 
-    async def test_origen_decision_es_sistema(self, client, seeded, test_engine):
-        id_rec = await self._id_recomendacion(client, seeded)
-        await client.patch(
+    async def test_origen_decision_es_sistema(self, auth_client, seeded, test_engine):
+        id_rec = await self._id_recomendacion(auth_client, seeded)
+        await auth_client.patch(
             f"/api/recomendaciones/{id_rec}/feedback",
             json={"aceptada": "aceptada"},
         )
@@ -623,11 +623,11 @@ class TestFeedbackLoop:
             riego = res.scalars().first()
         assert riego.origen_decision == "sistema"
 
-    async def test_volumen_coherente_con_lamina(self, client, seeded, test_engine):
+    async def test_volumen_coherente_con_lamina(self, auth_client, seeded, test_engine):
         """volumen_m3_ha debe ser lamina_mm * 10 (conversion FAO estandar)."""
-        id_rec = await self._id_recomendacion(client, seeded)
+        id_rec = await self._id_recomendacion(auth_client, seeded)
 
-        r = await client.patch(
+        r = await auth_client.patch(
             f"/api/recomendaciones/{id_rec}/feedback",
             json={"aceptada": "aceptada"},
         )

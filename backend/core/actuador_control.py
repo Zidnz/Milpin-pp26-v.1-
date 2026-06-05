@@ -280,6 +280,7 @@ async def evaluar_y_comandar(
         capacidad_campo_pct=cc_pct,
         punto_marchitez_pct=pmp_pct,
         profundidad_raiz_m=prof_raiz_m,
+        sistema_riego=sistema,
     )
 
     # ── 4. XGBoost: predicción ─────────────────────────────────────────────
