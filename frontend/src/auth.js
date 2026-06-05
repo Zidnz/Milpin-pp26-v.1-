@@ -1,5 +1,5 @@
 const MILPIN_AUTH = (() => {
-    const API_BASE = "https://milpin-dss.onrender.com/api";
+    const API_BASE = "https://milpin-pp26-v1-production.up.railway.app/api";
     const STORAGE_KEY = "milpin.currentUser";
 
     let currentUser = null;

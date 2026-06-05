@@ -103,7 +103,8 @@ ALLOWED_ORIGINS = [
     "http://localhost:8080",   # Python http.server / otros servidores locales
     "http://127.0.0.1:8080",
     "null",                    # file:// abierto directo en navegador
-    "https://milpin-dss.netlify.app",   # producción Netlify
+    "https://milpin-dss.netlify.app",              # producción Netlify
+    "https://milpin-pp26-v1-production.up.railway.app",  # backend Railway (self)
 ]
 
 app.add_middleware(

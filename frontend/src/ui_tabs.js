@@ -2,11 +2,11 @@
 // ui_tabs.js: Controladores de Interfaz y Recomendaciones
 // ==========================================
 
-const API_BASE = "https://milpin-dss.onrender.com/api";
+const API_BASE = "https://milpin-pp26-v1-production.up.railway.app/api";
 
 // Mapa cultivo → imagen servida por el backend en /static/imagenes/
 // El backend (FastAPI en localhost:8000) monta la carpeta imagenes/ como static.
-const _IMG_BASE = "https://milpin-dss.onrender.com/static/imagenes";
+const _IMG_BASE = "https://milpin-pp26-v1-production.up.railway.app/static/imagenes";
 const CULTIVO_IMG = {
     "maiz":     `${_IMG_BASE}/maiz.jpeg`,
     "maíz":     `${_IMG_BASE}/maiz.jpeg`,
