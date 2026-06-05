@@ -74,6 +74,9 @@ let recognition = null;
 let reconociendoVoz = false;
 let _sttReintentos = 0;
 const _STT_MAX_REINTENTOS = 2;
+let _sttTimeout = null;
+const _isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const _STT_TIMEOUT_MS = _isMobile ? 7000 : 12000; // móvil más corto — UX y bug Chrome Android
 
 document.addEventListener('DOMContentLoaded', () => {
     const btnMilpin = document.getElementById('milpinBtn');
@@ -89,11 +92,22 @@ document.addEventListener('DOMContentLoaded', () => {
         recognition.onstart = () => {
             reconociendoVoz = true;
             if (btnMilpin) btnMilpin.classList.add('listening');
-            if (statusText) statusText.innerText = "MILPÍN TE ESCUCHA...";
+            if (statusText) statusText.innerText = _isMobile
+                ? "Habla ahora... (toca para cancelar)"
+                : "MILPÍN TE ESCUCHA...";
             console.log("[MILPÍN STT] Escuchando...");
+
+            // Timeout de seguridad: Chrome Android a veces no dispara onend.
+            _sttTimeout = setTimeout(() => {
+                console.warn("[MILPÍN STT] Timeout — abortando.");
+                // Forzar reset ANTES de abort para cubrir el caso donde onend no llega.
+                _resetSTTUI(btnMilpin, statusText, "No se detectó voz. Intenta de nuevo.");
+                try { recognition.abort(); } catch (_) {}
+            }, _STT_TIMEOUT_MS);
         };
 
         recognition.onresult = async (event) => {
+            clearTimeout(_sttTimeout);
             _sttReintentos = 0;
             const transcripcion = event.results[0][0].transcript.trim();
             const confianza     = (event.results[0][0].confidence * 100).toFixed(0);
@@ -103,16 +117,15 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         recognition.onerror = (event) => {
-            reconociendoVoz = false;
-            if (btnMilpin) btnMilpin.classList.remove('listening');
+            clearTimeout(_sttTimeout);
             console.error("[MILPÍN STT] Error:", event.error);
 
             if (event.error === 'network' && _sttReintentos < _STT_MAX_REINTENTOS) {
                 _sttReintentos++;
-                const delay = _sttReintentos * 1200; // 1.2s, 2.4s — más margen para Chrome
+                const delay = _sttReintentos * 1200;
                 console.log(`[MILPÍN STT] Reintentando (${_sttReintentos}/${_STT_MAX_REINTENTOS}) en ${delay}ms...`);
                 if (statusText) statusText.innerText = "Reintentando...";
-                setTimeout(() => recognition.start(), delay);
+                setTimeout(() => { try { recognition.start(); } catch (_) {} }, delay);
                 return;
             }
 
@@ -122,14 +135,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 'audio-capture': "No se detectó micrófono.",
                 'not-allowed'  : "Permiso de micrófono denegado.",
                 'network'      : "Sin conexión con el servicio de voz. Verifica internet.",
+                'aborted'      : "MILPÍN listo",
             };
             const msg = mensajes[event.error] || `Error de reconocimiento: ${event.error}`;
-            if (statusText) statusText.innerText = msg;
+            _resetSTTUI(btnMilpin, statusText, msg);
         };
 
         recognition.onend = () => {
-            reconociendoVoz = false;
-            if (btnMilpin) btnMilpin.classList.remove('listening');
+            clearTimeout(_sttTimeout);
+            // Solo resetear si aún está en modo escucha (evita sobreescribir mensaje de timeout).
+            if (reconociendoVoz) _resetSTTUI(btnMilpin, statusText);
         };
 
         if (statusText) statusText.innerText = "MILPÍN listo";
@@ -140,9 +155,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Botón micrófono
+    // touchstart: desbloquea AudioContext dentro del gesto táctil (Chrome móvil lo exige).
+    // click: inicia el reconocimiento (se dispara tras touchend si no se llamó preventDefault).
     if (btnMilpin) {
-        btnMilpin.addEventListener('click', alternarGrabacion);
-        btnMilpin.addEventListener('touchstart', (e) => { e.preventDefault(); alternarGrabacion(); });
+        // touchstart: previene el click sintético posterior (evita doble disparo).
+        // NO llamar _desbloquearAudio() aquí — speechSynthesis activo bloquea STT en Android.
+        btnMilpin.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            alternarGrabacion();
+        }, { passive: false });
+        // Fallback desktop
+        btnMilpin.addEventListener('click', (e) => {
+            if (e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) return;
+            alternarGrabacion();
+        });
     }
 
     // Cargar voces TTS del navegador
@@ -217,6 +243,14 @@ function _desbloquearAudio() {
     window.speechSynthesis.speak(silencio);
 }
 
+function _resetSTTUI(btn, st, msg) {
+    reconociendoVoz = false;
+    const b = btn || document.getElementById('milpinBtn');
+    const s = st  || document.getElementById('statusLabel');
+    if (b) b.classList.remove('listening');
+    if (s) s.innerText = msg !== undefined ? msg : 'MILPÍN listo';
+}
+
 function alternarGrabacion() {
     if (!recognition) {
         console.error("[MILPÍN] Web Speech API no disponible.");
@@ -224,9 +258,14 @@ function alternarGrabacion() {
     }
     if (!reconociendoVoz) {
         _sttReintentos = 0;
-        recognition.start();
+        try { recognition.start(); } catch (e) {
+            console.error("[MILPÍN STT] Error al iniciar:", e);
+        }
     } else {
-        recognition.stop();
+        // Resetear UI de inmediato — no esperar onend (puede no llegar en Android).
+        clearTimeout(_sttTimeout);
+        _resetSTTUI(null, null, 'MILPÍN listo');
+        try { recognition.abort(); } catch (_) {}
     }
 }
 
