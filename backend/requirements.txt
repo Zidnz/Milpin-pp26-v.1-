@@ -3,8 +3,8 @@ uvicorn[standard]==0.30.6
 
 # Base de datos
 sqlalchemy[asyncio]==2.0.36
-asyncpg==0.30.0
-psycopg2-binary==2.9.10
+asyncpg>=0.30.0
+psycopg2-binary>=2.9.10
 aiosqlite==0.20.0
 
 # Migraciones
@@ -19,12 +19,12 @@ bcrypt==4.2.1
 python-dotenv==1.0.1
 
 # ML / Agronómico
-pandas==2.2.3
-shapely==2.0.6
+pandas>=2.2.3
+shapely>=2.0.6
 
-numpy==1.26.4
-scikit-learn==1.4.2
-xgboost==2.1.1
+numpy>=2.0.0
+scikit-learn>=1.4.2
+xgboost>=2.1.1
 
 # scipy, numba, llvmlite, shap eliminados — solo se usan en ml/training/ (offline).
 # Reinstalar localmente si se necesitan: pip install scipy numba shap
