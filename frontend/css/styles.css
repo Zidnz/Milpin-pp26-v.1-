@@ -5189,6 +5189,255 @@ body #main-container {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
+   MAPA GIS — Header NDVI + Panel de widgets debajo del canvas
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Header NDVI (reemplaza .data-card inline) ── */
+.map-ndvi-header-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-card);
+    border-radius: 14px;
+    padding: 12px 16px 10px;
+    margin: 10px 0 0;
+}
+
+.map-ndvi-header-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    margin-bottom: 8px;
+}
+
+.map-ndvi-header-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.map-ndvi-header-lbl {
+    font-size: 0.7rem;
+    color: var(--secondary-text);
+    white-space: nowrap;
+}
+
+.map-ndvi-header-gradient {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #cc1800 0%, #e07000 30%, #d4c000 55%, #4cbb17 75%, #00a600 100%);
+}
+
+.map-ndvi-header-hint {
+    font-size: 0.68rem;
+    color: var(--secondary-text);
+    text-align: center;
+}
+
+/* ── Panel contenedor de widgets ── */
+.map-widgets-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+    padding-bottom: 12px;
+}
+
+/* ── Tarjeta base de widget ── */
+.map-widget-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-card);
+    border-radius: 14px;
+    padding: 14px 16px;
+    min-width: 0;
+}
+
+.map-widget-card--half {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 130px;
+}
+
+.map-widget-card--full {
+    flex: 1 1 100%;
+}
+
+.map-widget-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+}
+
+/* ── Resumen DR-041 ── */
+.map-resumen-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.map-resumen-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.map-resumen-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.map-resumen-lbl {
+    font-size: 0.68rem;
+    color: var(--secondary-text);
+    flex: 1;
+}
+
+.map-resumen-val {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--primary-text);
+}
+
+/* ── Leyenda NDVI ── */
+.map-ndvi-bar {
+    height: 6px;
+    border-radius: 3px;
+    margin-bottom: 10px;
+    background: linear-gradient(90deg, #cc1800, #e07000, #d4c000, #4cbb17, #00a600);
+}
+
+.map-ndvi-levels {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.map-ndvi-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.map-ndvi-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.map-ndvi-nombre {
+    font-size: 0.68rem;
+    color: var(--secondary-text);
+    flex: 1;
+}
+
+.map-ndvi-rango {
+    font-size: 0.63rem;
+    color: var(--secondary-text);
+    opacity: 0.75;
+}
+
+.map-ndvi-count {
+    font-size: 0.68rem;
+    font-weight: 700;
+    min-width: 18px;
+    text-align: right;
+}
+
+.map-ndvi-total {
+    font-size: 0.64rem;
+    color: var(--secondary-text);
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border-card);
+}
+
+/* ── Panel de capas ── */
+.map-layers-body {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.map-layers-section {
+    flex: 1;
+    min-width: 120px;
+}
+
+.map-layers-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--secondary-text);
+    margin-bottom: 8px;
+}
+
+/* Botones basemap */
+.map-basemap-group {
+    display: flex;
+    gap: 6px;
+}
+
+.map-basemap-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    background: var(--accent-bg);
+    color: var(--secondary-text);
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.map-basemap-btn--active {
+    background: rgba(46, 158, 91, 0.12);
+    border-color: rgba(46, 158, 91, 0.35);
+    color: #2E9E5B;
+    font-weight: 600;
+}
+
+.map-basemap-btn:hover:not(.map-basemap-btn--active) {
+    background: var(--card-bg);
+    border-color: var(--primary-text);
+}
+
+/* Checkboxes de capas */
+.map-layers-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.map-layer-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    color: var(--secondary-text);
+}
+
+.map-layer-row input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #2E9E5B;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.map-layer-row:hover span {
+    color: var(--primary-text);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
    COLORES ACTIVOS POR MÓDULO (navbar data-tab)
    Cada tab tiene su identidad cromática. El inactive state queda siempre gris.
    ══════════════════════════════════════════════════════════════════════════════ */

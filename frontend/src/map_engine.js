@@ -11,11 +11,15 @@ let map;
 let mapaIniciado = false;
 
 // ── Layer Groups ──────────────────────────────────────────────────────
-let capaLotes    = null;   // Parcelas agrícolas (NDVI / rendimiento)
-let capaRios     = null;   // Red hidrográfica
-let capaCanales  = null;   // Canales DR-041
-let capaPozos    = null;   // Pozos de extracción
-let capaAnalisis = null;   // Resultados dinámicos (clustering, etc.)
+let capaLotes    = null;
+let capaRios     = null;
+let capaCanales  = null;
+let capaPozos    = null;
+let capaAnalisis = null;
+
+// ── Capas base (necesarias para el panel de capas fuera del mapa) ─────
+let _baseSatelite = null;
+let _baseTopo     = null;
 
 // ── Centro por defecto (Cajeme, Valle del Yaqui) ─────────────────────
 const DEFAULT_CENTER = [27.3670, -109.9310];
@@ -317,16 +321,16 @@ async function inicializarMapa() {
     });
 
     // Bases cartográficas
-    const baseSatelite = L.tileLayer(
+    _baseSatelite = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         { attribution: 'Tiles &copy; Esri — USDA, GeoEye, GIS Community', maxZoom: 18 }
     );
-    const baseTopo = L.tileLayer(
+    _baseTopo = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
         { attribution: 'Tiles &copy; Esri — Esri, DeLorme, NAVTEQ', maxZoom: 18 }
     );
 
-    baseSatelite.addTo(map);
+    _baseSatelite.addTo(map);
 
     // Capa para resultados dinámicos
     capaAnalisis = L.layerGroup().addTo(map);
@@ -382,12 +386,9 @@ async function inicializarMapa() {
 
         map.fitBounds(capaLotes.getBounds(), { padding: [30, 30] });
 
-        // Leyenda NDVI en el mapa
-        crearLeyendaNDVI(datosLotes).addTo(map);
-
-        // Badge resumen en esquina superior derecha
-        const badge = crearBadgeResumen(datosLotes);
-        if (badge) badge.addTo(map);
+        // Widgets fuera del mapa (panel DOM debajo del NDVI)
+        _renderLeyendaDOM(datosLotes);
+        _renderBadgeDOM(datosLotes);
     }
 
     // 3. ── Red hidrográfica ─────────────────────────────────────────
@@ -438,22 +439,8 @@ async function inicializarMapa() {
         }).addTo(map);
     }
 
-    // ── Control de capas ──────────────────────────────────────────────
-    const baseMaps = {
-        "Satélite (Esri)": baseSatelite,
-        "Topográfico":     baseTopo
-    };
-    const overlays = {};
-    if (capaLotes)   overlays["Parcelas (NDVI)"]         = capaLotes;
-    if (capaRios)    overlays["Red Hidrográfica"]        = capaRios;
-    if (capaCanales) overlays["Canales DR-041"]          = capaCanales;
-    if (capaPozos)   overlays["Pozos de Extracción"]     = capaPozos;
-    overlays["Análisis (K-Means)"] = capaAnalisis;
-
-    L.control.layers(baseMaps, overlays, { collapsed: true }).addTo(map);
-
-    // ── Escala métrica ────────────────────────────────────────────────
-    L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
+    // ── Panel de capas: conectar controles HTML externos ─────────────
+    _wirePanelCapas();
 
     // ── Bridge: botón "Ver recomendación" dentro del popup ────────────
     window._irRiego = function(idParcela) {
@@ -467,6 +454,110 @@ async function inicializarMapa() {
     };
 
     console.log("[GIS] Mapa v2.1 inicializado — NDVI mejorado, Cajeme delimitado.");
+}
+
+// ── Widgets DOM (renderizados fuera del canvas Leaflet) ───────────────
+
+function _renderBadgeDOM(parcelas) {
+    const el = document.getElementById('map-badge-resumen');
+    if (!el || !parcelas || !parcelas.features.length) return;
+    const features  = parcelas.features;
+    const total     = features.length;
+    const ndviMedia = features.reduce((s, f) => s + getNDVI(f.properties), 0) / total;
+    const criticas  = features.filter(f => getNDVI(f.properties) < 0.25).length;
+    const color     = obtenerColorNDVI(ndviMedia);
+    el.innerHTML = `
+        <div class="map-widget-title">Resumen DR-041</div>
+        <div class="map-resumen-rows">
+            <div class="map-resumen-row">
+                <span class="map-resumen-dot" style="background:${color}"></span>
+                <span class="map-resumen-lbl">NDVI promedio</span>
+                <span class="map-resumen-val" style="color:${color}">${Math.round(ndviMedia * 100)}%</span>
+            </div>
+            ${criticas > 0 ? `<div class="map-resumen-row">
+                <span class="map-resumen-dot" style="background:#cc1800"></span>
+                <span class="map-resumen-lbl">En estrés crítico</span>
+                <span class="map-resumen-val" style="color:#ff6b6b">${criticas} lotes</span>
+            </div>` : ''}
+            <div class="map-resumen-row">
+                <span class="map-resumen-dot" style="background:var(--secondary-text)"></span>
+                <span class="map-resumen-lbl">Total parcelas</span>
+                <span class="map-resumen-val">${total}</span>
+            </div>
+        </div>`;
+}
+
+function _renderLeyendaDOM(parcelas) {
+    const el = document.getElementById('map-leyenda-ndvi');
+    if (!el) return;
+    const conteos = { excelente: 0, saludable: 0, moderado: 0, alerta: 0, critico: 0 };
+    const total = parcelas ? parcelas.features.length : 0;
+    if (parcelas) {
+        parcelas.features.forEach(f => {
+            const ndvi = getNDVI(f.properties);
+            if      (ndvi >= 0.80) conteos.excelente++;
+            else if (ndvi >= 0.60) conteos.saludable++;
+            else if (ndvi >= 0.40) conteos.moderado++;
+            else if (ndvi >= 0.25) conteos.alerta++;
+            else                   conteos.critico++;
+        });
+    }
+    const niveles = [
+        { color: '#00a600', label: '≥ 80%',  nombre: 'Excelente', n: conteos.excelente },
+        { color: '#4cbb17', label: '60–79%', nombre: 'Saludable', n: conteos.saludable },
+        { color: '#d4c000', label: '40–59%', nombre: 'Moderado',  n: conteos.moderado  },
+        { color: '#e07000', label: '25–39%', nombre: 'Alerta',    n: conteos.alerta    },
+        { color: '#cc1800', label: '< 25%',  nombre: 'Crítico',   n: conteos.critico   },
+    ];
+    el.innerHTML = `
+        <div class="map-widget-title">Índice NDVI</div>
+        <div class="map-ndvi-bar"></div>
+        <div class="map-ndvi-levels">
+            ${niveles.map(e => `
+            <div class="map-ndvi-row">
+                <span class="map-ndvi-dot" style="background:${e.color}"></span>
+                <span class="map-ndvi-nombre">${e.nombre}</span>
+                <span class="map-ndvi-rango">${e.label}</span>
+                ${total > 0 ? `<span class="map-ndvi-count" style="color:${e.color}">${e.n}</span>` : ''}
+            </div>`).join('')}
+        </div>
+        ${total > 0 ? `<div class="map-ndvi-total">Total: ${total} parcelas</div>` : ''}`;
+}
+
+function _wirePanelCapas() {
+    // Basemap toggle
+    document.querySelectorAll('.map-basemap-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.map-basemap-btn').forEach(b => b.classList.remove('map-basemap-btn--active'));
+            this.classList.add('map-basemap-btn--active');
+            if (this.dataset.base === 'satelite') {
+                if (map.hasLayer(_baseTopo)) map.removeLayer(_baseTopo);
+                _baseSatelite.addTo(map);
+            } else {
+                if (map.hasLayer(_baseSatelite)) map.removeLayer(_baseSatelite);
+                _baseTopo.addTo(map);
+            }
+        });
+    });
+
+    // Overlay checkboxes
+    const overlayMap = {
+        'lyr-parcelas': () => capaLotes,
+        'lyr-rios':     () => capaRios,
+        'lyr-canales':  () => capaCanales,
+        'lyr-pozos':    () => capaPozos,
+        'lyr-analisis': () => capaAnalisis,
+    };
+    Object.entries(overlayMap).forEach(([id, getLayer]) => {
+        const cb = document.getElementById(id);
+        if (!cb) return;
+        cb.addEventListener('change', function() {
+            const layer = getLayer();
+            if (!layer) return;
+            if (this.checked) map.addLayer(layer);
+            else              map.removeLayer(layer);
+        });
+    });
 }
 
 // ── Panel de detalle de parcela (bajo el mapa) ────────────────────────

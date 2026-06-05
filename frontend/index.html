@@ -247,18 +247,55 @@
 
         <div id="map" style="width: 100%; border-radius: 15px; border: 2px solid var(--agri-green);"></div>
         <div id="parcela-detalle-card" style="display:none;"></div>
-        <div class="data-card" style="margin-top: 12px; padding: 12px 16px;">
-            <div style="font-size: 0.82em; font-weight: 700; margin-bottom: 6px; color: var(--primary-text);">
-                Monitor Satelital NDVI · Valle del Yaqui · Municipio de Cajeme (DR-041)
+        <div class="map-ndvi-header-card">
+            <div class="map-ndvi-header-title">Monitor Satelital NDVI · Valle del Yaqui · Municipio de Cajeme (DR-041)</div>
+            <div class="map-ndvi-header-bar">
+                <span class="map-ndvi-header-lbl">Crítico</span>
+                <div class="map-ndvi-header-gradient"></div>
+                <span class="map-ndvi-header-lbl">Excelente</span>
             </div>
-            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75em; color: var(--secondary-text);">
-                <span>Crítico</span>
-                <div style="flex: 1; height: 8px; margin: 0 12px; border-radius: 4px; background: linear-gradient(90deg, #cc1800 0%, #e07000 30%, #d4c000 55%, #4cbb17 75%, #00a600 100%);"></div>
-                <span>Excelente</span>
+            <div class="map-ndvi-header-hint">Haz click en una parcela para ver el detalle agronómico</div>
+        </div>
+
+        <!-- ── Widgets del mapa (debajo del NDVI) ── -->
+        <div class="map-widgets-panel">
+
+            <!-- Resumen DR-041 -->
+            <div id="map-badge-resumen" class="map-widget-card map-widget-card--half"></div>
+
+            <!-- Leyenda NDVI detallada -->
+            <div id="map-leyenda-ndvi" class="map-widget-card map-widget-card--half"></div>
+
+            <!-- Selector de capas -->
+            <div class="map-widget-card map-widget-card--full">
+                <div class="map-widget-title">Capas del mapa</div>
+                <div class="map-layers-body">
+                    <div class="map-layers-section">
+                        <div class="map-layers-label">Mapa base</div>
+                        <div class="map-basemap-group">
+                            <button class="map-basemap-btn map-basemap-btn--active" data-base="satelite">
+                                <svg viewBox="0 0 24 24" fill="none" width="13" height="13"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="currentColor" stroke-width="1.5"/></svg>
+                                Satélite
+                            </button>
+                            <button class="map-basemap-btn" data-base="topo">
+                                <svg viewBox="0 0 24 24" fill="none" width="13" height="13"><path d="M3 17l6-8 4 5 3-3 5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                Topográfico
+                            </button>
+                        </div>
+                    </div>
+                    <div class="map-layers-section">
+                        <div class="map-layers-label">Capas visibles</div>
+                        <div class="map-layers-grid">
+                            <label class="map-layer-row"><input type="checkbox" id="lyr-parcelas" checked><span>Parcelas NDVI</span></label>
+                            <label class="map-layer-row"><input type="checkbox" id="lyr-rios" checked><span>Red hidrográfica</span></label>
+                            <label class="map-layer-row"><input type="checkbox" id="lyr-canales" checked><span>Canales DR-041</span></label>
+                            <label class="map-layer-row"><input type="checkbox" id="lyr-pozos" checked><span>Pozos</span></label>
+                            <label class="map-layer-row"><input type="checkbox" id="lyr-analisis"><span>Análisis K-Means</span></label>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div style="font-size: 0.7em; color: #aaa; margin-top: 5px; text-align: center;">
-                Haz click en una parcela para ver el detalle agronómico
-            </div>
+
         </div>
     </div>
 
@@ -1071,7 +1108,7 @@
 <div id="alertas-overlay" class="alertas-overlay" onclick="toggleAlertasPanel()"></div>
 
 <script src="src/auth.js?v=2"></script>
-<script src="src/map_engine.js"></script>
+<script src="src/map_engine.js?v=2"></script>
 <script src="src/bi_operacion.js"></script>
 <script src="src/bi_dashboard.js"></script>
 <script src="src/admin_panel.js"></script>
