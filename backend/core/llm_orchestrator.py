@@ -8,7 +8,7 @@ import os
 import requests
 from collections import deque
 
-# Cliente Groq (reemplaza Ollama para inferencia en la nube)
+# Cliente Groq — LLM (chat) + STT (whisper-large-v3)
 try:
     from groq import Groq
     _groq_api_key = os.getenv("GROQ_API_KEY")
@@ -17,23 +17,6 @@ try:
 except (ImportError, Exception):
     _groq_client = None
     _USE_GROQ = False
-
-# imageio_ffmpeg trae su propio binario pero con nombre largo (ej. ffmpeg-win64-v6.exe).
-# Whisper lo llama por nombre exacto "ffmpeg", así que copiamos el binario
-# a un directorio temporal con el nombre correcto y lo añadimos al PATH.
-import shutil, tempfile, atexit
-
-try:
-    import imageio_ffmpeg
-    _src_exe = imageio_ffmpeg.get_ffmpeg_exe()
-    _tmp_dir = tempfile.mkdtemp(prefix="milpin_ffmpeg_")
-    _dst_exe = os.path.join(_tmp_dir, "ffmpeg.exe")
-    shutil.copy2(_src_exe, _dst_exe)
-    os.environ["PATH"] = _tmp_dir + os.pathsep + os.environ.get("PATH", "")
-    atexit.register(shutil.rmtree, _tmp_dir, ignore_errors=True)
-    print(f"[MILPÍN] ffmpeg listo en: {_tmp_dir}")
-except ImportError:
-    print("[MILPÍN] imageio-ffmpeg no instalado. Whisper buscará ffmpeg en el PATH del sistema.")
 
 # ── Configuration ────────────────────────────────────────────────────────────
 OLLAMA_URL   = os.getenv("MILPIN_OLLAMA_URL",   "http://localhost:11434/api/chat")
@@ -203,35 +186,6 @@ Usuario: "¿Cuál es la lámina recomendada?"
 {"intent":"consultar","target":null,"message":"Consultando la lámina de riego recomendada para tu parcela.","parameters":null}
 """
 
-# ── STT: Whisper (lazy load) ──────────────────────────────────────────────────
-# No se carga al importar el módulo. Se inicializa en el primer request de voz.
-# Ahorra ~30-60s de startup y ~150MB de RAM si nadie usa el micrófono.
-_whisper_model = None
-_whisper_loaded = False
-
-
-def _get_whisper():
-    """Carga Whisper la primera vez que se necesita y reutiliza la instancia.
-
-    El import de whisper (que arrastra torch y numpy) se hace aquí dentro,
-    no al importar el módulo. Ahorra ~30-60 s de startup y ~150 MB de RAM
-    cuando nadie usa el micrófono en la sesión.
-    """
-    global _whisper_model, _whisper_loaded
-    if _whisper_loaded:
-        return _whisper_model
-    print("[MILPÍN] Cargando motor Whisper (primer uso)…")
-    try:
-        import whisper  # import diferido: torch se carga solo si se usa voz
-        _whisper_model = whisper.load_model("base")
-        print("[MILPÍN] Whisper listo.")
-    except Exception as e:
-        print(f"[MILPÍN] Whisper no disponible: {e}")
-        _whisper_model = None
-    _whisper_loaded = True
-    return _whisper_model
-
-
 # ── Session memory (ring buffer, single-user) ─────────────────────────────────
 # Stores alternating {"role":"user"/"assistant", "content":"..."} dicts.
 _history: deque = deque(maxlen=HISTORY_TURNS * 2)
@@ -240,14 +194,20 @@ _history: deque = deque(maxlen=HISTORY_TURNS * 2)
 # ── Private helpers ───────────────────────────────────────────────────────────
 
 def _transcribir(audio_path: str) -> str | None:
-    model = _get_whisper()
-    if not model:
+    """STT vía Groq Whisper API — sin modelo local ni PyTorch."""
+    if not (_USE_GROQ and _groq_client):
+        print("[MILPÍN] GROQ_API_KEY no configurada — transcripción de audio no disponible.")
         return None
     try:
-        result = model.transcribe(audio_path, language="es", fp16=False)
-        return result["text"].strip()
+        with open(audio_path, "rb") as f:
+            transcript = _groq_client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=f,
+                language="es",
+            )
+        return transcript.text.strip() or None
     except Exception as e:
-        print(f"[Whisper] Error: {e}")
+        print(f"[Groq STT] Error: {e}")
         return None
 
 
@@ -370,7 +330,7 @@ def _error(msg: str) -> dict:
 
 def interpretar_comando_voz(audio_path: str) -> dict:
     """
-    Main pipeline: WAV/WebM → Whisper STT → Ollama LLM → validated JSON dict.
+    Main pipeline: WAV/WebM → Groq Whisper STT → Groq LLM → validated JSON dict.
     Injects the last HISTORY_TURNS exchanges as conversational context.
     """
     transcripcion = _transcribir(audio_path)
@@ -379,7 +339,7 @@ def interpretar_comando_voz(audio_path: str) -> dict:
         resultado["transcripcion"] = ""
         return resultado
 
-    print(f"[Whisper] '{transcripcion}'")
+    print(f"[Groq STT] '{transcripcion}'")
 
     resultado = _llamar_llm(transcripcion)
 
@@ -408,3 +368,4 @@ def limpiar_historial() -> None:
     Llamar antes de cada suite de pruebas para garantizar aislamiento entre casos.
     """
     _history.clear()
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
