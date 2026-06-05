@@ -2727,20 +2727,25 @@ select, input {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    min-width: 52px;
-    padding: 8px 4px;
-    border-radius: 10px;
-    background: var(--accent-bg);
+    gap: 5px;
+    min-width: 56px;
+    padding: 10px 6px 8px;
+    border-radius: 14px;
+    background: var(--card-bg, var(--accent-bg));
     border: 1px solid var(--border-card);
     flex: 1;
     position: relative;
-    transition: box-shadow .15s;
+    transition: box-shadow .2s, transform .15s;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.riego-fc-dia:hover {
+    box-shadow: 0 4px 14px rgba(0,0,0,.10);
+    transform: translateY(-1px);
 }
 .riego-fc-dia--riego {
     border-color: #5DADE2;
-    background: rgba(93,173,226,.07);
-    box-shadow: 0 0 0 2px rgba(93,173,226,.25);
+    background: linear-gradient(160deg, rgba(93,173,226,.14) 0%, rgba(41,128,185,.06) 100%);
+    box-shadow: 0 2px 14px rgba(93,173,226,.22), 0 0 0 1.5px rgba(93,173,226,.40);
 }
 
 .riego-fc-fecha {
@@ -2750,31 +2755,31 @@ select, input {
     line-height: 1.2;
 }
 .riego-fc-ds {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     color: var(--secondary-text);
-    font-weight: 500;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
 }
 .riego-fc-dn {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     font-weight: 700;
     color: var(--primary-text);
 }
 
 .riego-fc-barra-wrap {
-    width: 18px;
-    height: 48px;
+    width: 20px;
+    height: 52px;
     background: var(--border-card);
-    border-radius: 6px;
+    border-radius: 8px;
     display: flex;
     align-items: flex-end;
     overflow: hidden;
 }
 .riego-fc-barra {
     width: 100%;
-    border-radius: 6px;
-    transition: height .3s ease;
+    border-radius: 8px 8px 0 0;
+    transition: height .4s cubic-bezier(.4,0,.2,1);
     min-height: 3px;
 }
 
@@ -2785,22 +2790,57 @@ select, input {
     gap: 1px;
 }
 .riego-fc-etc {
-    font-size: 0.65rem;
+    font-size: 0.63rem;
     color: var(--secondary-text);
 }
 .riego-fc-deficit {
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .riego-fc-pin {
-    font-size: 0.68rem;
-    color: #1a5c85;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.65rem;
+    color: #fff;
     font-weight: 600;
-    margin-top: 2px;
+    background: linear-gradient(135deg, #2980B9, #5DADE2);
+    border-radius: 20px;
+    padding: 2px 7px;
+    margin-top: 1px;
+    letter-spacing: 0.02em;
+}
+.riego-fc-pin svg {
+    flex-shrink: 0;
+}
+
+.riego-fc-alerta-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(93,173,226,.18);
+    color: #1a5c85;
+    flex-shrink: 0;
+}
+.riego-fc-alerta-icon--ok {
+    background: rgba(46,158,91,.15);
+    color: var(--primary-green);
+}
+
+.riego-forecast-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .riego-forecast-advertencia {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 0.75rem;
     color: var(--secondary-text);
     margin-top: 10px;
@@ -2808,7 +2848,11 @@ select, input {
 }
 .riego-forecast-loading,
 .riego-forecast-error {
-    padding: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
     font-size: 0.82rem;
     color: var(--secondary-text);
     text-align: center;

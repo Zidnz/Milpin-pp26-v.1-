@@ -647,7 +647,7 @@ async function cargarForecast(idParcela, diasSiembra) {
     }
 
     if (wrap) wrap.style.display = 'block';
-    if (timeline) timeline.innerHTML = '<div class="riego-forecast-loading">⏳ Calculando proyección Ridge…</div>';
+    if (timeline) timeline.innerHTML = '<div class="riego-forecast-loading"><span class="bi-spinner"></span> Calculando proyección…</div>';
     if (alertaEl) alertaEl.style.display = 'none';
     if (advertEl) advertEl.style.display = 'none';
 
@@ -664,7 +664,8 @@ async function cargarForecast(idParcela, diasSiembra) {
         console.error('[MILPÍN Forecast]', err);
         if (timeline) {
             timeline.innerHTML = `<div class="riego-forecast-error">
-                ⚠️ No se pudo cargar la proyección.<br>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                No se pudo cargar la proyección.<br>
                 <small>${err.message}</small>
             </div>`;
         }
@@ -678,11 +679,18 @@ function _renderForecast(data, timeline, alertaEl, advertEl, badgeEl) {
     const incertidumbre = data.incertidumbre_dias ?? 1;
     const metodo        = data.metodo_eto || 'ridge_regression';
 
+    // SVG icons reutilizables
+    const _svgDrop  = `<svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>`;
+    const _svgCheck = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>`;
+    const _svgInfo  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+
     // Badge del método
     if (badgeEl) {
         const esML = metodo === 'ridge_regression';
-        badgeEl.textContent  = esML ? '🤖 Ridge ML' : '📊 Media 14d';
-        badgeEl.className    = 'riego-forecast-badge ' +
+        badgeEl.innerHTML = esML
+            ? `${_svgDrop} Ridge ML`
+            : `${_svgInfo} Media 14d`;
+        badgeEl.className = 'riego-forecast-badge ' +
             (esML ? 'riego-forecast-badge--ml' : 'riego-forecast-badge--fallback');
     }
 
@@ -694,13 +702,16 @@ function _renderForecast(data, timeline, alertaEl, advertEl, badgeEl) {
                     'es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
                 : `en ${diaRiego} días`;
             alertaEl.innerHTML =
-                `💧 <strong>Próximo riego estimado: ${fechaFmt}</strong>` +
-                `<span class="riego-forecast-incert">&nbsp;±${incertidumbre} días</span>`;
-            alertaEl.style.display = 'block';
+                `<span class="riego-fc-alerta-icon">${_svgDrop}</span>` +
+                `<span><strong>Próximo riego estimado: ${fechaFmt}</strong>` +
+                `<span class="riego-forecast-incert">&nbsp;±${incertidumbre} días</span></span>`;
+            alertaEl.style.display = 'flex';
             alertaEl.className = 'riego-forecast-alerta riego-forecast-alerta--activa';
         } else {
-            alertaEl.innerHTML = '✓ Sin déficit crítico proyectado en los próximos 7 días.';
-            alertaEl.style.display = 'block';
+            alertaEl.innerHTML =
+                `<span class="riego-fc-alerta-icon riego-fc-alerta-icon--ok">${_svgCheck}</span>` +
+                `<span>Sin déficit crítico proyectado en los próximos 7 días.</span>`;
+            alertaEl.style.display = 'flex';
             alertaEl.className = 'riego-forecast-alerta riego-forecast-alerta--ok';
         }
     }
@@ -713,33 +724,37 @@ function _renderForecast(data, timeline, alertaEl, advertEl, badgeEl) {
             const diaSemana  = DIAS_ES[fecha.getDay()];
             const diaNum     = fecha.getDate();
             const esRiego    = diaRiego !== null && d.dia === diaRiego;
-            // Normalizar barra: 25 mm déficit = barra llena
             const deficitPct = Math.min(100, (d.deficit_mm / 25) * 100);
             const barColor   = d.deficit_mm > 20 ? '#E63946'
-                             : d.deficit_mm > 10 ? '#E8C27D'
-                             : '#7BB395';
+                             : d.deficit_mm > 10 ? '#E8A23A'
+                             : '#2E9E5B';
+            const barGradient = d.deficit_mm > 20
+                ? 'linear-gradient(to top, #E63946, #ff6b6b)'
+                : d.deficit_mm > 10
+                ? 'linear-gradient(to top, #E8A23A, #f5c87a)'
+                : 'linear-gradient(to top, #2E9E5B, #7BB395)';
 
             return `<div class="riego-fc-dia${esRiego ? ' riego-fc-dia--riego' : ''}">
                 <div class="riego-fc-fecha">
                     <span class="riego-fc-ds">${diaSemana}</span>
                     <span class="riego-fc-dn">${diaNum}</span>
                 </div>
-                <div class="riego-fc-barra-wrap" title="Déficit: ${d.deficit_mm} mm">
+                <div class="riego-fc-barra-wrap" title="Déficit acumulado: ${d.deficit_mm} mm">
                     <div class="riego-fc-barra"
-                         style="height:${deficitPct}%;background:${barColor}"></div>
+                         style="height:${deficitPct}%;background:${barGradient}"></div>
                 </div>
                 <div class="riego-fc-vals">
-                    <span class="riego-fc-etc" title="ETc estimada">~${d.etc_mm} mm</span>
+                    <span class="riego-fc-etc">−${d.etc_mm} mm</span>
                     <span class="riego-fc-deficit" style="color:${barColor}">${d.deficit_mm} mm</span>
                 </div>
-                ${esRiego ? '<div class="riego-fc-pin">💧 riego</div>' : ''}
+                ${esRiego ? `<div class="riego-fc-pin">${_svgDrop} Riego</div>` : ''}
             </div>`;
         }).join('');
     }
 
     // Advertencia de fallback o datos insuficientes
     if (advertEl && data.advertencia) {
-        advertEl.textContent  = `ℹ️ ${data.advertencia}`;
+        advertEl.innerHTML = `${_svgInfo} ${data.advertencia}`;
         advertEl.style.display = 'block';
     }
 }
