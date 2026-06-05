@@ -5006,6 +5006,189 @@ body #main-container {
 .alertas-overlay { display: none !important; }
 
 /* ══════════════════════════════════════════════════════════════════════════════
+   DRAWER ALERTAS — contenido ML (ml-anomaly-*)
+   Renderizado por _renderMLAnomalias() en ui_tabs.js
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Resumen de 3 KPIs ── */
+.ml-anomaly-summary {
+    display: flex;
+    gap: 0;
+    padding: 14px 16px 0;
+    border-bottom: 1px solid var(--border-card);
+    margin-bottom: 12px;
+}
+
+.ml-anomaly-kpi {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 4px 12px;
+    gap: 3px;
+    border-right: 1px solid var(--border-card);
+}
+.ml-anomaly-kpi:last-child { border-right: none; }
+
+.ml-anomaly-kpi-num {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    line-height: 1;
+}
+.ml-anomaly-kpi--warn .ml-anomaly-kpi-num {
+    color: #E8622A;
+}
+
+.ml-anomaly-kpi-lbl {
+    font-size: 0.62rem;
+    color: var(--secondary-text);
+    text-align: center;
+    line-height: 1.3;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* ── Lista de items ── */
+.ml-anomaly-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 12px;
+}
+
+/* ── Item individual ── */
+.ml-anomaly-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    overflow: hidden;
+    border-left: 3px solid var(--border-card);
+}
+
+/* Colores de borde izquierdo según nivel de anomalía
+   El JS colorea la barra con barColor, pero el borde del card
+   lo controlamos via CSS segun el color del score chip */
+.ml-anomaly-item:has(.ml-anomaly-score-chip[style*="#e63946"]) { border-left-color: #e63946; }
+.ml-anomaly-item:has(.ml-anomaly-score-chip[style*="#d4820a"]) { border-left-color: #d4820a; }
+.ml-anomaly-item:has(.ml-anomaly-score-chip[style*="#52b788"]) { border-left-color: #52b788; }
+
+.ml-anomaly-item-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 12px 4px;
+}
+
+.ml-anomaly-parcela {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary-text);
+    font-family: 'Courier New', monospace;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ml-anomaly-ciclo {
+    font-size: 0.67rem;
+    color: var(--secondary-text);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.ml-anomaly-score-chip {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-family: 'Courier New', monospace;
+}
+
+/* ── Barra de nivel de anomalía ── */
+.ml-anomaly-score-bar-track {
+    height: 3px;
+    background: var(--border-card);
+    margin: 0 12px 8px;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.ml-anomaly-score-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+
+/* ── Métricas ── */
+.ml-anomaly-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 12px 10px;
+}
+
+.ml-anomaly-metrics span {
+    font-size: 0.64rem;
+    color: var(--secondary-text);
+    background: var(--accent-bg);
+    border: 1px solid var(--border-card);
+    border-radius: 6px;
+    padding: 2px 6px;
+    white-space: nowrap;
+}
+
+.ml-anomaly-motivo {
+    font-size: 0.64rem !important;
+    color: #E8622A !important;
+    background: rgba(232,98,42,0.08) !important;
+    border-color: rgba(232,98,42,0.2) !important;
+    font-weight: 600 !important;
+}
+
+/* ── Estados vacío / error / carga ── */
+.ml-anomaly-empty {
+    padding: 20px 16px;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--secondary-text);
+    line-height: 1.5;
+}
+
+.ml-anomaly-error {
+    padding: 16px;
+    font-size: 0.82rem;
+    color: #e63946;
+    line-height: 1.5;
+}
+.ml-anomaly-error small {
+    color: var(--secondary-text);
+    font-size: 0.72rem;
+}
+
+.ml-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--secondary-text);
+    font-size: 0.82rem;
+}
+
+.ml-anomaly-disclaimer {
+    font-size: 0.62rem;
+    color: var(--secondary-text);
+    padding: 10px 16px 0;
+    margin-top: 6px;
+    border-top: 1px solid var(--border-card);
+    line-height: 1.5;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
    COLORES ACTIVOS POR MÓDULO (navbar data-tab)
    Cada tab tiene su identidad cromática. El inactive state queda siempre gris.
    ══════════════════════════════════════════════════════════════════════════════ */
