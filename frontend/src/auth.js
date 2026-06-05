@@ -1,5 +1,5 @@
 const MILPIN_AUTH = (() => {
-    const API_BASE = "http://localhost:8000/api";
+    const API_BASE = "https://milpin-backend.onrender.com/api";
     const STORAGE_KEY = "milpin.currentUser";
 
     let currentUser = null;

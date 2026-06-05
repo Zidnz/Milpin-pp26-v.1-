@@ -3,7 +3,7 @@
 // Fallback: DEMO_DATA cuando el backend no está disponible.
 
 const WORKLOAD = (() => {
-  const API = 'http://localhost:8000/api';
+  const API = 'https://milpin-backend.onrender.com/api';
 
   let _data          = null;
   let _filtroUrgencia = 'todos';

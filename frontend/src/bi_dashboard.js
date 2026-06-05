@@ -5,7 +5,7 @@
 const BI = (() => {
   'use strict';
 
-  const API      = 'http://localhost:8000/api';
+  const API      = 'https://milpin-backend.onrender.com/api';
   const BASELINE = 8000;
   const TARIFA   = 1.68;
 

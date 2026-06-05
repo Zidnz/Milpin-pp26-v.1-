@@ -3,7 +3,7 @@
 
 const BIOp = (() => {
 
-  const API          = 'http://localhost:8000/api';
+  const API          = 'https://milpin-backend.onrender.com/api';
   const TIMEOUT      = 12000;
   const CICLO_LABEL  = 'OI 2025-26';
   const BASELINE_M3  = 8000;

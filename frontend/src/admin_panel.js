@@ -3,7 +3,7 @@
 // Consume: GET /api/parcelas (sin filtro → todas), GET /api/usuarios
 
 const ADMIN = (() => {
-  const API = 'http://localhost:8000/api';
+  const API = 'https://milpin-backend.onrender.com/api';
 
   // ── Estado ──────────────────────────────────────────────────────────────────
   let _parcelas  = [];
