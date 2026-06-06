@@ -268,10 +268,15 @@ function _renderizarCardActiva(rec) {
     const elFechaSug = document.getElementById("riego-fecha-sugerida");
     if (elFechaSug) {
         if (rec.fecha_riego_sugerida) {
-            const d = new Date(rec.fecha_riego_sugerida + "T12:00:00");
-            elFechaSug.textContent = d.toLocaleDateString("es-MX", {
+            const d    = new Date(rec.fecha_riego_sugerida + "T12:00:00");
+            const hoy  = new Date(); hoy.setHours(0, 0, 0, 0);
+            const pasada = d < hoy;
+            const label = d.toLocaleDateString("es-MX", {
                 day: "numeric", month: "short", year: "numeric",
             });
+            elFechaSug.innerHTML = pasada
+                ? `${label} <span class="rec-badge-vencida">Recalcular</span>`
+                : label;
         } else {
             elFechaSug.textContent = "—";
         }
@@ -1392,7 +1397,13 @@ async function cargarHistorialRiego(idParcela) {
     try {
         const res = await fetch(`${API_BASE}/riego/parcela/${idParcela}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const eventos = await res.json();  // list[RiegoOut]
+        const todosEventos = await res.json();  // list[RiegoOut]
+
+        const hoy = new Date();
+        hoy.setHours(23, 59, 59, 999);
+        const eventos = todosEventos.filter(e =>
+            !e.fecha_riego || new Date(e.fecha_riego + 'T12:00:00') <= hoy
+        );
 
         _renderHistorialRiegoKPIs(eventos, kpisEl);
         _renderHistorialRiegoLista(eventos, listaEl, estadoEl, msgEl);

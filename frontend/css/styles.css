@@ -669,6 +669,27 @@ select, input {
     font-weight: 600;
     color: var(--primary-green);
 }
+.voz-dropdown-sep {
+    padding: 6px 14px 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--secondary-text);
+    background: var(--accent-bg);
+    cursor: default;
+    pointer-events: none;
+}
+.voz-dropdown-nota {
+    padding: 10px 14px;
+    font-size: 0.8rem;
+    color: var(--secondary-text);
+    border-top: 1px solid var(--border-subtle);
+    background: var(--accent-bg);
+    cursor: default;
+    pointer-events: none;
+    line-height: 1.4;
+}
 
 /* Preferencias card */
 .preferencias-card {
@@ -2656,6 +2677,19 @@ select, input {
     font-size: 0.82rem;
     text-align: center;
 }
+.rec-badge-vencida {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #fff;
+    background: #E8A23A;
+    border-radius: 20px;
+    padding: 1px 7px;
+    margin-left: 5px;
+    vertical-align: middle;
+    letter-spacing: 0.02em;
+}
+
 .bi-spinner {
     display: inline-block;
     width: 16px; height: 16px;
@@ -3537,7 +3571,7 @@ body #main-container {
 
 /* Tab Mapa */
 #tab-mapas > #map-search-bar  { margin: 8px 12px 6px; }
-#tab-mapas > #map              { margin: 0 12px; }
+#tab-mapas > #map              { margin: 8px 12px 0; }
 #tab-mapas > #parcela-detalle-card { margin: 0 12px; }
 #tab-mapas > .data-card        { margin: 10px 12px 0; }
 
@@ -4597,7 +4631,7 @@ body #main-container {
     border-radius: 999px;
     padding: 4px;
     gap: 2px;
-    margin: 12px 0 16px;
+    margin: 12px auto 16px;
     width: fit-content;
     max-width: 100%;
     border: 1px solid var(--border-muted);
@@ -5874,6 +5908,313 @@ body #main-container {
     margin: 0;
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   ML — XAI Grid: Feature Breakdown + Radar
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ml-xai-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+/* ── Feature breakdown card ──────────────────────────────────────── */
+.ml-features-card {
+    background: var(--white);
+    border-radius: 16px;
+    padding: 16px 16px 14px;
+    box-shadow: 0 2px 10px var(--shadow-xs);
+    border: 1px solid rgba(123, 47, 190, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ml-features-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ml-features-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #5A189A;
+    letter-spacing: 0.2px;
+}
+
+.ml-features-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* ── Una fila de feature ─────────────────────────────────────────── */
+.ml-feature-row {
+    background: rgba(123, 47, 190, 0.03);
+    border-radius: 10px;
+    padding: 9px 11px 8px;
+    border: 1px solid rgba(123, 47, 190, 0.07);
+    transition: background 0.15s;
+}
+.ml-feature-row:hover {
+    background: rgba(123, 47, 190, 0.06);
+}
+
+.ml-feature-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 5px;
+}
+
+.ml-feature-label {
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--primary-text);
+}
+
+.ml-feature-val {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    /* color set inline from JS */
+}
+
+.ml-feature-bar-track {
+    height: 5px;
+    background: rgba(123, 47, 190, 0.10);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+
+.ml-feature-bar {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.5s ease;
+}
+
+.ml-feature-desc {
+    font-size: 0.68rem;
+    color: var(--secondary-text);
+    line-height: 1.4;
+}
+
+/* ── Fuente de datos badge ───────────────────────────────────────── */
+.ml-features-source {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 99px;
+    display: inline-block;
+    align-self: flex-start;
+}
+.ml-features-source--ok {
+    background: var(--green-bg);
+    color: var(--green-dark);
+    border: 1px solid var(--green-border);
+}
+.ml-features-source--warn {
+    background: var(--amber-bg);
+    color: var(--amber-dark);
+    border: 1px solid var(--amber-border);
+}
+
+/* ── Radar card ──────────────────────────────────────────────────── */
+.ml-radar-card {
+    background: var(--white);
+    border-radius: 16px;
+    padding: 16px 14px 12px;
+    box-shadow: 0 2px 10px var(--shadow-xs);
+    border: 1px solid rgba(123, 47, 190, 0.12);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.ml-radar-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #5A189A;
+    align-self: flex-start;
+}
+
+.ml-radar-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.ml-radar-svg {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    display: block;
+}
+
+.ml-radar-sub {
+    font-size: 0.65rem;
+    color: var(--secondary-text);
+    text-align: center;
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* ── Loading spinner compartido ─────────────────────────────────── */
+.ml-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px 0;
+    font-size: 0.78rem;
+    color: var(--secondary-text);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ML — Sección colapsable (métricas / drift)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ml-section-card {
+    background: var(--white);
+    border-radius: 14px;
+    border: 1px solid rgba(123, 47, 190, 0.10);
+    box-shadow: 0 1px 6px var(--shadow-xs);
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.ml-metricas-toggle {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 13px 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--primary-text);
+    letter-spacing: 0.1px;
+    transition: background 0.15s;
+}
+.ml-metricas-toggle:hover {
+    background: rgba(123, 47, 190, 0.04);
+}
+
+.ml-metricas-chevron {
+    font-size: 0.7rem;
+    color: var(--secondary-text);
+    transition: transform 0.2s;
+}
+
+.ml-metricas-body {
+    padding: 0 16px 16px;
+    border-top: 1px solid rgba(123, 47, 190, 0.06);
+}
+
+/* ── Grid de modelos: dos columnas ───────────────────────────────── */
+.ml-metricas-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding-top: 14px;
+}
+
+.ml-met-section {
+    background: rgba(123, 47, 190, 0.03);
+    border: 1px solid rgba(123, 47, 190, 0.08);
+    border-radius: 12px;
+    padding: 12px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ml-met-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.ml-met-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ml-met-dot--ok  { background: #2E9E5B; box-shadow: 0 0 0 2px rgba(46,158,91,0.20); }
+.ml-met-dot--err { background: #e63946; box-shadow: 0 0 0 2px rgba(230,57,70,0.20); }
+
+.ml-met-title {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--primary-text);
+}
+
+.ml-met-desc {
+    font-size: 0.67rem;
+    color: var(--secondary-text);
+    line-height: 1.45;
+}
+
+/* ── Chips de métricas ───────────────────────────────────────────── */
+.ml-met-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ml-met-chip {
+    background: var(--white);
+    border: 1px solid rgba(123, 47, 190, 0.14);
+    border-radius: 8px;
+    padding: 4px 9px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    min-width: 54px;
+}
+
+.ml-met-chip-lbl {
+    font-size: 0.59rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.ml-met-chip-val {
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #5A189A;
+    letter-spacing: -0.2px;
+}
+
+.ml-metricas-disclaimer {
+    font-size: 0.65rem;
+    color: var(--secondary-text);
+    line-height: 1.5;
+    border-top: 1px solid rgba(123, 47, 190, 0.07);
+    padding-top: 10px;
+    margin: 0;
+}
+
+/* Responsive: colapsar a 1 columna en pantallas estrechas */
+@media (max-width: 380px) {
+    .ml-xai-grid,
+    .ml-metricas-grid {
+        grid-template-columns: 1fr;
+    }
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    MÓDULO DASHBOARD — Sub-navegación + vistas Operación / Análisis
