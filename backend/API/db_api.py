@@ -999,7 +999,7 @@ async def feedback_recomendacion(
     id_recomendacion: uuid.UUID,
     feedback: FeedbackRecomendacion,
     db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(get_optional_user),
 ):
     """
     Registra la respuesta del agricultor a una recomendacion.
