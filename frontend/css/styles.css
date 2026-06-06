@@ -429,8 +429,8 @@ body.login-open {
 @media (max-width: 768px) {
     .login-card {
         grid-template-columns: 1fr;
-        width: min(440px, 100%);
-        max-height: 92vh;
+        width: min(360px, 92%);
+        max-height: 80vh;
         overflow-y: auto;
     }
 
@@ -439,19 +439,19 @@ body.login-open {
     }
 
     .login-col-form {
-        padding: 36px 28px;
+        padding: 24px 22px;
     }
 
     .login-logo--mobile {
         display: block;
-        height: 40px;
+        height: 34px;
         width: auto;
         object-fit: contain;
-        margin-bottom: 20px;
+        margin-bottom: 14px;
     }
 
     .login-title {
-        font-size: 1.5rem;
+        font-size: 1.35rem;
     }
 }
 
