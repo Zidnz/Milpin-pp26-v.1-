@@ -835,7 +835,7 @@
 
         <div class="ajustes-section-title">Cuenta</div>
         <div class="ajustes-list-card">
-            <div class="ajustes-list-item">
+            <div class="ajustes-list-item" onclick="abrirPanelPerfil()" style="cursor:pointer;">
                 <div class="ajustes-list-icon ajustes-list-icon--blue">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 19a7 7 0 0 1 14 0"/></svg>
                 </div>
@@ -1058,6 +1058,61 @@
 <!-- ══════════════════════════════════════════════════════════════
      DRAWER DE ALERTAS — global, accesible desde cualquier módulo
      ══════════════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════════
+     DRAWER — Perfil de usuario
+     ══════════════════════════════════════════════════════════════ -->
+<div id="perfil-drawer" class="alertas-drawer" aria-hidden="true" style="max-width:420px;">
+    <div class="alertas-drawer-header">
+        <div class="alertas-drawer-icon" style="background:var(--accent-blue,#2563eb);">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+                <circle cx="12" cy="8" r="3.5"/>
+                <path d="M5 19a7 7 0 0 1 14 0"/>
+            </svg>
+        </div>
+        <div class="alertas-drawer-titles">
+            <span class="alertas-drawer-title">Mi perfil</span>
+            <span class="alertas-drawer-sub">Editar nombre y parcelas</span>
+        </div>
+        <button class="alertas-drawer-close" onclick="cerrarPanelPerfil()" aria-label="Cerrar">✕</button>
+    </div>
+
+    <div class="alertas-drawer-body" id="perfil-drawer-body">
+        <!-- Sección usuario -->
+        <div style="padding:18px 16px 10px;">
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+                <div id="perfil-avatar-grande" style="width:52px;height:52px;border-radius:50%;background:var(--accent-blue,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:700;flex-shrink:0;">
+                    MP
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:0.7rem;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Nombre</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input id="perfil-nombre-input"
+                               type="text"
+                               style="flex:1;border:1px solid var(--border-color,#e5e7eb);border-radius:8px;padding:6px 10px;font-size:0.92rem;background:var(--surface,#fff);color:var(--primary-text,#111);min-width:0;"
+                               placeholder="Tu nombre completo">
+                        <button id="perfil-nombre-btn"
+                                onclick="guardarNombreUsuario()"
+                                style="padding:6px 12px;border-radius:8px;background:var(--accent-blue,#2563eb);color:#fff;border:none;font-size:0.82rem;cursor:pointer;white-space:nowrap;">
+                            Guardar
+                        </button>
+                    </div>
+                    <div id="perfil-nombre-msg" style="font-size:0.75rem;margin-top:4px;min-height:16px;"></div>
+                </div>
+            </div>
+
+            <div style="font-size:0.7rem;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border-color,#e5e7eb);">
+                Mis parcelas
+            </div>
+            <div id="perfil-parcelas-lista" style="display:flex;flex-direction:column;gap:10px;">
+                <div style="color:var(--secondary-text);font-size:0.82rem;text-align:center;padding:20px 0;">
+                    Cargando parcelas…
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="perfil-overlay" class="alertas-overlay" onclick="cerrarPanelPerfil()"></div>
+
 <div id="alertas-drawer" class="alertas-drawer" aria-hidden="true">
     <div class="alertas-drawer-header">
         <div class="alertas-drawer-icon">
@@ -1240,5 +1295,35 @@ function manejarImportacion(input) {
     reader.readAsText(file);
 }
 </script>
+
+<!-- ── Modal: Panel de Perfil ─────────────────────────────────────────── -->
+<div id="perfil-overlay" class="perfil-overlay" onclick="cerrarPanelPerfil()" style="display:none;"></div>
+<div id="perfil-panel" class="perfil-panel" style="display:none;">
+    <div class="perfil-panel-header">
+        <button class="perfil-panel-back" onclick="cerrarPanelPerfil()">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <span>Mi perfil</span>
+    </div>
+
+    <div class="perfil-avatar-wrap">
+        <div class="perfil-avatar" id="perfil-avatar-initials">—</div>
+    </div>
+
+    <div class="perfil-section-title">Nombre</div>
+    <div class="perfil-field-row">
+        <input id="perfil-input-nombre" class="perfil-input" type="text" placeholder="Tu nombre completo" maxlength="120"/>
+        <button class="perfil-save-btn" onclick="guardarNombreUsuario()">Guardar</button>
+    </div>
+    <p id="perfil-nombre-status" class="perfil-status"></p>
+
+    <div class="perfil-section-title">Información</div>
+    <div class="perfil-info-row"><span class="perfil-info-label">Email</span><span id="perfil-email" class="perfil-info-value">—</span></div>
+    <div class="perfil-info-row"><span class="perfil-info-label">Módulo</span><span id="perfil-modulo" class="perfil-info-value">—</span></div>
+    <div class="perfil-info-row"><span class="perfil-info-label">Rol</span><span id="perfil-rol" class="perfil-info-value">—</span></div>
+
+    <div class="perfil-section-title">Mis parcelas <span id="perfil-parcelas-count" class="perfil-count"></span></div>
+    <div id="perfil-parcelas-lista"></div>
+</div>
 </body>
 </html>
