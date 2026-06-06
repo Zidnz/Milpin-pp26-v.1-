@@ -533,11 +533,11 @@ function poblarSelectorVoces() {
     });
 
     // Pie de nota si no hay voces neurales de español
-    const hayNeuralES = vocesES.some(_esNeural);
+    const hayNeuralES = ordenadas.some(_esNeural);
     if (!hayNeuralES) {
         const nota = document.createElement('li');
         nota.className = 'voz-dropdown-nota';
-        nota.innerHTML = '💡 Para voces neurales (Sofia, Sabina…) abre en <strong>Microsoft Edge</strong>';
+        nota.textContent = 'Para voces neurales abre en Microsoft Edge';
         lista.appendChild(nota);
     }
 
