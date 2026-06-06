@@ -42,8 +42,8 @@ MODELS_DIR = Path(__file__).parents[2] / "backend" / "models_ml"
 RIEGOS_CSV = Path(__file__).parents[2] / "data" / "synthetic" / "historial_riego.csv"
 
 # ── Hiperparámetros (replicados del notebook anomaly_detector.ipynb) ──────────
-CONTAMINATION = 0.12   # fracción esperada de anomalías
-N_ESTIMATORS  = 160    # suficiente para demo; subir a 300 con datos reales
+CONTAMINATION = 0.152  # calibrado contra ground truth: 146/960 pares anómalos
+N_ESTIMATORS  = 300    # más árboles = mejor separación en datos sintéticos
 SEED          = 42
 
 # ── Encoding de sistemas de riego ─────────────────────────────────────────────
