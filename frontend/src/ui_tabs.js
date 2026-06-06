@@ -21,6 +21,8 @@ const CULTIVO_IMG = {
 
 // ID de la parcela activa en el tab de Riego (necesario para feedback)
 let _parcelaRiegoActual = null;
+// Parcela que viene del mapa y debe pre-seleccionarse al abrir Riego o ML
+let _parcelaPendiente = null;
 // ID de la recomendacion pendiente actual (para el PATCH de feedback)
 let _recActualId = null;
 // Lámina recomendada activa (para pre-llenar el panel de detalle)
@@ -49,13 +51,17 @@ function cambiarPestana(event, tabId) {
             }, 300);
         }
         if (tabId === "tab-costos") {
-            _cargarParcelasEnSelect("select-parcela-riego");
+            const pending = _parcelaPendiente;
+            _parcelaPendiente = null;
+            _cargarParcelasEnSelect("select-parcela-riego", pending);
         }
         if (tabId === "tab-bi") {
             BI.init();
         }
         if (tabId === "tab-ml") {
-            _cargarParcelasEnSelect("select-parcela-ml");
+            const preId = _parcelaPendiente || _parcelaRiegoActual;
+            _parcelaPendiente = null;
+            _cargarParcelasEnSelect("select-parcela-ml", preId);
         }
     }
 
@@ -109,7 +115,7 @@ async function _fetchWithRetry(url, intentos = 3, delayMs = 800) {
     }
 }
 
-async function _cargarParcelasEnSelect(selectId) {
+async function _cargarParcelasEnSelect(selectId, preSelectId = null) {
     const sel = document.getElementById(selectId);
     if (!sel) return;
     sel.innerHTML = '<option value="">Cargando parcelas…</option>';
@@ -124,6 +130,10 @@ async function _cargarParcelasEnSelect(selectId) {
             opt.textContent = p.nombre_parcela || `Parcela ${p.id_parcela.slice(0, 8)}`;
             sel.appendChild(opt);
         });
+        if (preSelectId) {
+            sel.value = preSelectId;
+            if (sel.value === preSelectId) sel.dispatchEvent(new Event('change'));
+        }
     } catch (err) {
         console.error("[MILPIN] Error cargando parcelas:", err);
         sel.innerHTML = '<option value="">⚠ Sin conexión — reintenta</option>';
@@ -2086,6 +2096,7 @@ function cerrarConfiguracion() {
 
 // ── Exports globales explícitos ──────────────────────────────────────────────
 window.cambiarPestana             = cambiarPestana;
+window._setParcelaPendiente       = (id) => { _parcelaPendiente = id; };
 window.abrirPanelAdmin            = abrirPanelAdmin;
 window.cargarParcelasAjustes      = cargarParcelasAjustes;
 window.confirmarRiego             = confirmarRiego;
@@ -2101,3 +2112,308 @@ window._toggleMLDrift             = _toggleMLDrift;
 window.cargarMLDrift              = cargarMLDrift;
 window.abrirConfiguracion         = abrirConfiguracion;
 window.cerrarConfiguracion        = cerrarConfiguracion;
+
+// ── Panel de Perfil (drawer desde Configuración > Cuenta > Perfil) ────────────
+
+let _perfilAbierto = false;
+
+function abrirPanelPerfil() {
+    const drawer  = document.getElementById('perfil-drawer');
+    const overlay = document.getElementById('perfil-overlay');
+    if (!drawer) return;
+    _perfilAbierto = true;
+    drawer.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
+    if (overlay) overlay.classList.add('is-visible');
+    _cargarPanelPerfil();
+}
+
+function cerrarPanelPerfil() {
+    const drawer  = document.getElementById('perfil-drawer');
+    const overlay = document.getElementById('perfil-overlay');
+    _perfilAbierto = false;
+    if (drawer)  { drawer.classList.remove('is-open'); drawer.setAttribute('aria-hidden', 'true'); }
+    if (overlay) overlay.classList.remove('is-visible');
+}
+
+async function _cargarPanelPerfil() {
+    const user = window.MILPIN_AUTH?.getCurrentUser?.();
+    if (!user) return;
+
+    // Avatar y nombre inicial
+    const initials = (user.nombre_completo || 'MP').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+    const avatarEl = document.getElementById('perfil-avatar-grande');
+    const inputEl  = document.getElementById('perfil-nombre-input');
+    if (avatarEl) avatarEl.textContent = initials;
+    if (inputEl)  inputEl.value = user.nombre_completo || '';
+
+    // Cargar parcelas del usuario
+    await _renderParcelasPerfil(user.id_usuario);
+}
+
+async function _renderParcelasPerfil(id_usuario) {
+    const listaEl = document.getElementById('perfil-parcelas-lista');
+    if (!listaEl) return;
+
+    listaEl.innerHTML = '<div style="color:var(--secondary-text);font-size:0.82rem;text-align:center;padding:16px 0;">Cargando…</div>';
+
+    try {
+        const qs = id_usuario ? `?id_usuario=${encodeURIComponent(id_usuario)}` : '';
+        const res = await fetch(`${API_BASE}/parcelas${qs}`, {
+            headers: { ...window.MILPIN_AUTH?.getAuthHeader?.() }
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const parcelas = await res.json();
+
+        if (!parcelas.length) {
+            listaEl.innerHTML = '<div style="color:var(--secondary-text);font-size:0.82rem;text-align:center;padding:16px 0;">Sin parcelas registradas.</div>';
+            return;
+        }
+
+        listaEl.innerHTML = parcelas.map(p => `
+            <div style="border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:10px 12px;">
+                <div style="font-size:0.68rem;color:var(--secondary-text);margin-bottom:4px;">
+                    ${p.cultivo_actual || 'Sin cultivo'} · ${p.superficie_ha ? p.superficie_ha + ' ha' : ''}
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="text"
+                           id="parcela-nombre-${p.id_parcela}"
+                           value="${(p.nombre_parcela || '').replace(/"/g, '&quot;')}"
+                           placeholder="Nombre de la parcela"
+                           style="flex:1;border:1px solid var(--border-color,#e5e7eb);border-radius:7px;padding:5px 9px;font-size:0.87rem;background:var(--surface,#fff);color:var(--primary-text,#111);min-width:0;">
+                    <button onclick="guardarNombreParcela('${p.id_parcela}')"
+                            style="padding:5px 11px;border-radius:7px;background:var(--accent-blue,#2563eb);color:#fff;border:none;font-size:0.78rem;cursor:pointer;white-space:nowrap;">
+                        OK
+                    </button>
+                </div>
+                <div id="parcela-msg-${p.id_parcela}" style="font-size:0.72rem;margin-top:3px;min-height:14px;"></div>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.warn('[MILPÍN Perfil]', err);
+        listaEl.innerHTML = `<div style="color:var(--danger,#dc2626);font-size:0.82rem;padding:10px;">Error cargando parcelas: ${err.message}</div>`;
+    }
+}
+
+async function guardarNombreUsuario() {
+    const user   = window.MILPIN_AUTH?.getCurrentUser?.();
+    const inputEl = document.getElementById('perfil-nombre-input');
+    const msgEl   = document.getElementById('perfil-nombre-msg');
+    if (!user || !inputEl) return;
+
+    const nombre = inputEl.value.trim();
+    if (!nombre) { if (msgEl) { msgEl.textContent = 'El nombre no puede estar vacío.'; msgEl.style.color = 'var(--danger,#dc2626)'; } return; }
+
+    const btnEl = document.getElementById('perfil-nombre-btn');
+    if (btnEl) btnEl.disabled = true;
+
+    try {
+        const res = await fetch(`${API_BASE}/usuarios/${user.id_usuario}/nombre`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...window.MILPIN_AUTH?.getAuthHeader?.() },
+            body: JSON.stringify({ nombre })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const updated = await res.json();
+
+        // Actualizar iniciales del avatar y estado local
+        const initials = nombre.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+        const avatarEl = document.getElementById('perfil-avatar-grande');
+        if (avatarEl) avatarEl.textContent = initials;
+
+        // Refrescar nombre en la topbar / ajustes si existe
+        const nameEl = document.getElementById('profile-name') || document.querySelector('.ajustes-profile-name');
+        if (nameEl) nameEl.textContent = nombre;
+
+        if (msgEl) { msgEl.textContent = '✓ Guardado'; msgEl.style.color = 'var(--success,#16a34a)'; }
+        setTimeout(() => { if (msgEl) msgEl.textContent = ''; }, 2500);
+
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = `Error: ${err.message}`; msgEl.style.color = 'var(--danger,#dc2626)'; }
+    } finally {
+        if (btnEl) btnEl.disabled = false;
+    }
+}
+
+async function guardarNombreParcela(id_parcela) {
+    const inputEl = document.getElementById(`parcela-nombre-${id_parcela}`);
+    const msgEl   = document.getElementById(`parcela-msg-${id_parcela}`);
+    if (!inputEl) return;
+
+    const nombre = inputEl.value.trim();
+    if (!nombre) { if (msgEl) { msgEl.textContent = 'El nombre no puede estar vacío.'; msgEl.style.color = 'var(--danger,#dc2626)'; } return; }
+
+    try {
+        const res = await fetch(`${API_BASE}/parcelas/${id_parcela}/nombre`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...window.MILPIN_AUTH?.getAuthHeader?.() },
+            body: JSON.stringify({ nombre })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        if (msgEl) { msgEl.textContent = '✓ Guardado'; msgEl.style.color = 'var(--success,#16a34a)'; }
+        setTimeout(() => { if (msgEl) msgEl.textContent = ''; }, 2500);
+
+        // Refrescar lista de parcelas en el select de ajustes si existe
+        if (typeof cargarParcelasAjustes === 'function') cargarParcelasAjustes();
+
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = `Error: ${err.message}`; msgEl.style.color = 'var(--danger,#dc2626)'; }
+    }
+}
+
+window.abrirPanelPerfil    = abrirPanelPerfil;
+window.cerrarPanelPerfil   = cerrarPanelPerfil;
+window.guardarNombreUsuario = guardarNombreUsuario;
+window.guardarNombreParcela = guardarNombreParcela;
+
+// ── Panel de Perfil (drawer desde Configuración > Cuenta > Perfil) ────────────
+
+let _perfilAbierto = false;
+
+function abrirPanelPerfil() {
+    const drawer  = document.getElementById('perfil-drawer');
+    const overlay = document.getElementById('perfil-overlay');
+    if (!drawer) return;
+    _perfilAbierto = true;
+    drawer.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
+    if (overlay) overlay.classList.add('is-visible');
+    _cargarPanelPerfil();
+}
+
+function cerrarPanelPerfil() {
+    const drawer  = document.getElementById('perfil-drawer');
+    const overlay = document.getElementById('perfil-overlay');
+    _perfilAbierto = false;
+    if (drawer)  { drawer.classList.remove('is-open'); drawer.setAttribute('aria-hidden', 'true'); }
+    if (overlay) overlay.classList.remove('is-visible');
+}
+
+async function _cargarPanelPerfil() {
+    const user = window.MILPIN_AUTH?.getCurrentUser?.();
+    if (!user) return;
+
+    const initials = (user.nombre_completo || 'MP').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+    const avatarEl = document.getElementById('perfil-avatar-grande');
+    const inputEl  = document.getElementById('perfil-nombre-input');
+    if (avatarEl) avatarEl.textContent = initials;
+    if (inputEl)  inputEl.value = user.nombre_completo || '';
+
+    await _renderParcelasPerfil(user.id_usuario);
+}
+
+async function _renderParcelasPerfil(id_usuario) {
+    const listaEl = document.getElementById('perfil-parcelas-lista');
+    if (!listaEl) return;
+
+    listaEl.innerHTML = '<div style="color:var(--secondary-text);font-size:0.82rem;text-align:center;padding:16px 0;">Cargando…</div>';
+
+    try {
+        const qs = id_usuario ? '?id_usuario=' + encodeURIComponent(id_usuario) : '';
+        const res = await fetch(API_BASE + '/parcelas' + qs, {
+            headers: Object.assign({}, window.MILPIN_AUTH?.getAuthHeader?.())
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const parcelas = await res.json();
+
+        if (!parcelas.length) {
+            listaEl.innerHTML = '<div style="color:var(--secondary-text);font-size:0.82rem;text-align:center;padding:16px 0;">Sin parcelas registradas.</div>';
+            return;
+        }
+
+        listaEl.innerHTML = parcelas.map(function(p) {
+            var nombreSafe = (p.nombre_parcela || '').replace(/"/g, '&quot;');
+            var cultivoInfo = (p.cultivo_actual || 'Sin cultivo') + (p.superficie_ha ? ' · ' + p.superficie_ha + ' ha' : '');
+            return '<div style="border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:10px 12px;">' +
+                '<div style="font-size:0.68rem;color:var(--secondary-text);margin-bottom:4px;">' + cultivoInfo + '</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<input type="text" id="parcela-nombre-' + p.id_parcela + '" value="' + nombreSafe + '" placeholder="Nombre de la parcela"' +
+                ' style="flex:1;border:1px solid var(--border-color,#e5e7eb);border-radius:7px;padding:5px 9px;font-size:0.87rem;background:var(--surface,#fff);color:var(--primary-text,#111);min-width:0;">' +
+                '<button onclick="guardarNombreParcela(\'' + p.id_parcela + '\')"' +
+                ' style="padding:5px 11px;border-radius:7px;background:var(--accent-blue,#2563eb);color:#fff;border:none;font-size:0.78rem;cursor:pointer;white-space:nowrap;">OK</button>' +
+                '</div>' +
+                '<div id="parcela-msg-' + p.id_parcela + '" style="font-size:0.72rem;margin-top:3px;min-height:14px;"></div>' +
+                '</div>';
+        }).join('');
+
+    } catch (err) {
+        console.warn('[MILPÍN Perfil]', err);
+        listaEl.innerHTML = '<div style="color:var(--danger,#dc2626);font-size:0.82rem;padding:10px;">Error cargando parcelas: ' + err.message + '</div>';
+    }
+}
+
+async function guardarNombreUsuario() {
+    const user    = window.MILPIN_AUTH?.getCurrentUser?.();
+    const inputEl = document.getElementById('perfil-nombre-input');
+    const msgEl   = document.getElementById('perfil-nombre-msg');
+    if (!user || !inputEl) return;
+
+    const nombre = inputEl.value.trim();
+    if (!nombre) {
+        if (msgEl) { msgEl.textContent = 'El nombre no puede estar vacío.'; msgEl.style.color = 'var(--danger,#dc2626)'; }
+        return;
+    }
+
+    const btnEl = document.getElementById('perfil-nombre-btn');
+    if (btnEl) btnEl.disabled = true;
+
+    try {
+        const res = await fetch(API_BASE + '/usuarios/' + user.id_usuario + '/nombre', {
+            method: 'PATCH',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, window.MILPIN_AUTH?.getAuthHeader?.()),
+            body: JSON.stringify({ nombre: nombre })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        const initials = nombre.split(' ').map(function(p) { return p[0]; }).join('').slice(0, 2).toUpperCase();
+        const avatarEl = document.getElementById('perfil-avatar-grande');
+        if (avatarEl) avatarEl.textContent = initials;
+
+        var nameEl = document.getElementById('profile-name') || document.querySelector('.ajustes-profile-name');
+        if (nameEl) nameEl.textContent = nombre;
+
+        if (msgEl) { msgEl.textContent = '✓ Guardado'; msgEl.style.color = 'var(--success,#16a34a)'; }
+        setTimeout(function() { if (msgEl) msgEl.textContent = ''; }, 2500);
+
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = 'Error: ' + err.message; msgEl.style.color = 'var(--danger,#dc2626)'; }
+    } finally {
+        if (btnEl) btnEl.disabled = false;
+    }
+}
+
+async function guardarNombreParcela(id_parcela) {
+    const inputEl = document.getElementById('parcela-nombre-' + id_parcela);
+    const msgEl   = document.getElementById('parcela-msg-' + id_parcela);
+    if (!inputEl) return;
+
+    const nombre = inputEl.value.trim();
+    if (!nombre) {
+        if (msgEl) { msgEl.textContent = 'El nombre no puede estar vacío.'; msgEl.style.color = 'var(--danger,#dc2626)'; }
+        return;
+    }
+
+    try {
+        const res = await fetch(API_BASE + '/parcelas/' + id_parcela + '/nombre', {
+            method: 'PATCH',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, window.MILPIN_AUTH?.getAuthHeader?.()),
+            body: JSON.stringify({ nombre: nombre })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        if (msgEl) { msgEl.textContent = '✓ Guardado'; msgEl.style.color = 'var(--success,#16a34a)'; }
+        setTimeout(function() { if (msgEl) msgEl.textContent = ''; }, 2500);
+
+        if (typeof cargarParcelasAjustes === 'function') cargarParcelasAjustes();
+
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = 'Error: ' + err.message; msgEl.style.color = 'var(--danger,#dc2626)'; }
+    }
+}
+
+window.abrirPanelPerfil     = abrirPanelPerfil;
+window.cerrarPanelPerfil    = cerrarPanelPerfil;
+window.guardarNombreUsuario = guardarNombreUsuario;
+window.guardarNombreParcela = guardarNombreParcela;

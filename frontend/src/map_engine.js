@@ -457,11 +457,10 @@ async function inicializarMapa() {
     // ── Bridge: botón "Ver recomendación" dentro del popup ────────────
     window._irRiego = function(idParcela) {
         if (typeof cambiarPestana === 'function') {
+            if (typeof window._setParcelaPendiente === 'function') {
+                window._setParcelaPendiente(idParcela);
+            }
             cambiarPestana(null, 'tab-costos');
-            setTimeout(() => {
-                const sel = document.getElementById('select-parcela-riego');
-                if (sel) { sel.value = idParcela; sel.dispatchEvent(new Event('change')); }
-            }, 200);
         }
     };
 
@@ -523,7 +522,6 @@ function _renderLeyendaDOM(parcelas) {
     ];
     el.innerHTML = `
         <div class="map-widget-title">Índice NDVI</div>
-        <div class="map-ndvi-bar"></div>
         <div class="map-ndvi-levels">
             ${niveles.map(e => `
             <div class="map-ndvi-row">
