@@ -258,6 +258,9 @@ function _resetSTTUI(btn, st, msg) {
 let _mediaRecorder  = null;
 let _audioChunks    = [];
 let _grabandoMobile = false;
+// Elemento Audio pre-desbloqueado en el gesto táctil (iOS/Android policy).
+// Se crea UNA vez y se reutiliza para todas las respuestas TTS.
+let _ttsAudio = new Audio();
 
 async function _iniciarMobile() {
     const btnMilpin  = document.getElementById('milpinBtn');
@@ -273,8 +276,9 @@ async function _iniciarMobile() {
 
     // Desbloquear audio DURANTE el gesto táctil — los browsers móviles bloquean
     // Audio.play() si no se llama en el contexto directo de un user gesture.
-    // Reproducir un buffer silencioso aquí "desbloquea" la política para
-    // llamadas posteriores asíncronas (como la respuesta de ElevenLabs).
+    // 1) AudioContext: desbloquea Web Audio API.
+    // 2) _ttsAudio.play(): desbloquea el elemento HTML Audio que se reutilizará
+    //    asincrónicamente para ElevenLabs (iOS exige play() en el mismo gesto).
     try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const buf = ctx.createBuffer(1, 1, 22050);
@@ -283,6 +287,17 @@ async function _iniciarMobile() {
         src.connect(ctx.destination);
         src.start(0);
         await ctx.resume();
+    } catch (_) {}
+
+    // Pre-desbloquear _ttsAudio con un MP3 silencioso mínimo (44 bytes).
+    // Después de este play(), iOS permitirá que el mismo elemento reproduzca
+    // audio generado asincrónicamente (fetch → blob → src → play).
+    try {
+        _ttsAudio.muted = true;
+        // 1 frame de silencio en base64 (MP3 válido, 44 bytes)
+        _ttsAudio.src = 'data:audio/mpeg;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sQxAADgnABGiAAQBCqgCRMAAgEAH///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////';
+        await _ttsAudio.play();
+        _ttsAudio.muted = false;
     } catch (_) {}
 
     try {
@@ -607,18 +622,32 @@ async function hablar(texto) {
 
         const blob = await resp.blob();
         const url  = URL.createObjectURL(blob);
-        _elevenlabsAudio = new Audio(url);
+
+        // Reutilizar _ttsAudio (pre-desbloqueado en el gesto táctil).
+        // En iOS/Android, new Audio().play() desde contexto asíncrono falla
+        // silenciosamente; reutilizar el mismo elemento evita ese bloqueo.
+        _elevenlabsAudio = _ttsAudio;
         _elevenlabsAudio.onended = () => {
             URL.revokeObjectURL(url);
             _elevenlabsAudio = null;
             console.log('[MILPÍN TTS] ElevenLabs — reproducción completa.');
         };
-        _elevenlabsAudio.onerror = () => {
+        _elevenlabsAudio.onerror = (e) => {
+            console.warn('[MILPÍN TTS] Error audio element:', e);
             URL.revokeObjectURL(url);
             _elevenlabsAudio = null;
         };
+        _elevenlabsAudio.src = url;
+        _elevenlabsAudio.muted = false;
         console.log(`[MILPÍN TTS] ElevenLabs → "${texto.substring(0, 40)}..."`);
-        _elevenlabsAudio.play();
+        try {
+            await _elevenlabsAudio.play();
+        } catch (playErr) {
+            console.warn('[MILPÍN TTS] play() bloqueado, usando Web Speech API:', playErr);
+            URL.revokeObjectURL(url);
+            _elevenlabsAudio = null;
+            throw playErr; // cae al catch → Web Speech fallback
+        }
         return;
 
     } catch (err) {
