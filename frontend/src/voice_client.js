@@ -271,6 +271,20 @@ async function _iniciarMobile() {
         return;
     }
 
+    // Desbloquear audio DURANTE el gesto táctil — los browsers móviles bloquean
+    // Audio.play() si no se llama en el contexto directo de un user gesture.
+    // Reproducir un buffer silencioso aquí "desbloquea" la política para
+    // llamadas posteriores asíncronas (como la respuesta de ElevenLabs).
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+        await ctx.resume();
+    } catch (_) {}
+
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
