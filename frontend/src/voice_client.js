@@ -472,20 +472,15 @@ function poblarSelectorVoces() {
     const todas  = window.speechSynthesis.getVoices();
     if (todas.length === 0) return;
 
-    const esES   = v => v.lang.startsWith('es');
-    const vocesES    = todas.filter(esES);
-    const vocesOtras = todas.filter(v => !esES(v));
+    const esES = v => v.lang.startsWith('es');
 
-    // Neurales primero dentro de cada grupo
-    const ordenarGrupo = arr => [
-        ...arr.filter(_esNeural),
-        ...arr.filter(v => !_esNeural(v)),
-    ];
-
+    // Solo voces en español — neurales/online primero, luego estándar
     const ordenadas = [
-        ...ordenarGrupo(vocesES),
-        ...ordenarGrupo(vocesOtras),
+        ...todas.filter(v => esES(v) && _esNeural(v)),
+        ...todas.filter(v => esES(v) && !_esNeural(v)),
     ];
+
+    if (ordenadas.length === 0) return;
 
     // Determinar voz activa: 1) guardada en localStorage, 2) vozSeleccionada actual,
     // 3) lista de prioridad, 4) primera disponible.
@@ -508,17 +503,13 @@ function poblarSelectorVoces() {
 
     lista.innerHTML = '';
 
-    let seccionActual = null;
-    ordenadas.forEach(voz => {
-        const seccion = esES(voz) ? 'Español' : 'Otros idiomas';
-        if (seccion !== seccionActual) {
-            seccionActual = seccion;
-            const sep = document.createElement('li');
-            sep.className = 'voz-dropdown-sep';
-            sep.textContent = seccion;
-            lista.appendChild(sep);
-        }
+    // Encabezado único — solo español
+    const sep = document.createElement('li');
+    sep.className = 'voz-dropdown-sep';
+    sep.textContent = 'Voces en español';
+    lista.appendChild(sep);
 
+    ordenadas.forEach(voz => {
         const neural  = _esNeural(voz);
         const prefijo = neural ? '★ ' : '';
         const meta    = neural ? `Neural · ${voz.lang}` : `Estándar · ${voz.lang}`;
