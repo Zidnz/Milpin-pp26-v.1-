@@ -251,7 +251,110 @@ function _resetSTTUI(btn, st, msg) {
     if (s) s.innerText = msg !== undefined ? msg : 'MILPÍN listo';
 }
 
+// ─── Pipeline móvil: MediaRecorder → Groq Whisper API ────────────────────────
+// Web Speech API en Android no transcribe de forma confiable (depende de Google
+// STT y a menudo no devuelve resultado). MediaRecorder graba localmente y envía
+// el audio a /api/voz/voice-command donde Groq Whisper transcribe en la nube.
+let _mediaRecorder  = null;
+let _audioChunks    = [];
+let _grabandoMobile = false;
+
+async function _iniciarMobile() {
+    const btnMilpin  = document.getElementById('milpinBtn');
+    const statusText = document.getElementById('statusLabel');
+
+    // Segunda pulsación: detener y enviar
+    if (_grabandoMobile) {
+        if (_mediaRecorder && _mediaRecorder.state === 'recording') {
+            _mediaRecorder.stop();
+        }
+        return;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus'
+            : MediaRecorder.isTypeSupported('audio/webm')
+            ? 'audio/webm'
+            : 'audio/mp4';
+
+        _audioChunks  = [];
+        _mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+        _mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) _audioChunks.push(e.data);
+        };
+
+        _mediaRecorder.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop()); // liberar micrófono
+            _grabandoMobile = false;
+            if (btnMilpin) btnMilpin.classList.remove('listening');
+            if (statusText) statusText.innerText = 'Procesando...';
+
+            const blob = new Blob(_audioChunks, { type: mimeType });
+            _audioChunks = [];
+
+            if (blob.size < 1000) {
+                if (statusText) statusText.innerText = 'Audio muy corto. Intenta de nuevo.';
+                return;
+            }
+            await _enviarAudioAlBackend(blob, mimeType, statusText);
+        };
+
+        _mediaRecorder.start();
+        _grabandoMobile = true;
+        if (btnMilpin) btnMilpin.classList.add('listening');
+        if (statusText) statusText.innerText = 'Habla ahora... (toca para enviar)';
+
+    } catch (err) {
+        console.error('[MILPÍN Mobile] Error micrófono:', err);
+        if (statusText) statusText.innerText =
+            err.name === 'NotAllowedError'
+                ? 'Permiso de micrófono denegado.'
+                : 'Error al acceder al micrófono.';
+    }
+}
+
+async function _enviarAudioAlBackend(blob, mimeType, statusText) {
+    try {
+        const ext      = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        const formData = new FormData();
+        formData.append('audio_file', blob, `comando.${ext}`);
+
+        const response = await fetch(`${API_BASE}/voice-command`, {
+            method: 'POST',
+            body  : formData,
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        console.log('[MILPÍN Mobile] Transcripción:', data.transcripcion);
+
+        if (statusText) {
+            statusText.innerText = data.transcripcion
+                ? `"${data.transcripcion}"`
+                : 'MILPÍN listo';
+            if (data.transcripcion) {
+                setTimeout(() => { if (statusText) statusText.innerText = 'MILPÍN listo'; }, 3000);
+            }
+        }
+        procesarRespuestaIA(data);
+    } catch (err) {
+        console.error('[MILPÍN Mobile] Error de envío:', err);
+        if (statusText) statusText.innerText = 'Error de conexión con el servidor.';
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function alternarGrabacion() {
+    // Móvil: usar MediaRecorder → Groq Whisper (más confiable que Web Speech API en Android)
+    if (_isMobile) {
+        _iniciarMobile();
+        return;
+    }
+    // Desktop: Web Speech API
     if (!recognition) {
         console.error("[MILPÍN] Web Speech API no disponible.");
         return;
