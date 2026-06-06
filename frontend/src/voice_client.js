@@ -567,39 +567,68 @@ setInterval(() => {
     }
 }, 5000);
 
-function hablar(texto) {
-    if (!texto || !window.speechSynthesis) return;
-    _desbloquearAudio();
-    window.speechSynthesis.cancel();
+// Audio activo de ElevenLabs (para poder cancelarlo si llega otro mensaje)
+let _elevenlabsAudio = null;
 
-    // Delay tras cancel() — Chrome necesita un tick para liberar el sintetizador
+async function hablar(texto) {
+    if (!texto) return;
+
+    // Cancelar audio previo
+    if (_elevenlabsAudio) {
+        _elevenlabsAudio.pause();
+        _elevenlabsAudio = null;
+    }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+    // Intentar ElevenLabs primero
+    try {
+        const resp = await fetch(`${API_BASE}/tts`, {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({ texto }),
+            signal : AbortSignal.timeout(18000),
+        });
+
+        if (!resp.ok) throw new Error(`TTS HTTP ${resp.status}`);
+
+        const blob = await resp.blob();
+        const url  = URL.createObjectURL(blob);
+        _elevenlabsAudio = new Audio(url);
+        _elevenlabsAudio.onended = () => {
+            URL.revokeObjectURL(url);
+            _elevenlabsAudio = null;
+            console.log('[MILPÍN TTS] ElevenLabs — reproducción completa.');
+        };
+        _elevenlabsAudio.onerror = () => {
+            URL.revokeObjectURL(url);
+            _elevenlabsAudio = null;
+        };
+        console.log(`[MILPÍN TTS] ElevenLabs → "${texto.substring(0, 40)}..."`);
+        _elevenlabsAudio.play();
+        return;
+
+    } catch (err) {
+        console.warn(`[MILPÍN TTS] ElevenLabs no disponible (${err.message}). Fallback a Web Speech API.`);
+    }
+
+    // Fallback: Web Speech API
+    if (!window.speechSynthesis) return;
+    _desbloquearAudio();
     setTimeout(() => {
         const utterance = new SpeechSynthesisUtterance(texto);
-        utterance.lang  = vozSeleccionada?.lang || 'es-MX';
+        utterance.lang  = 'es-MX';
         utterance.rate  = 1.05;
-
-        // Las voces "Online" requieren red y pueden fallar silenciosamente.
-        // Si la voz seleccionada es Online, intentamos primero con ella;
-        // si falla, el onerror cae a cualquier voz local española disponible.
         utterance.voice = vozSeleccionada || null;
-
-        utterance.onstart = () => console.log(`[MILPÍN TTS] Reproduciendo: "${texto.substring(0, 40)}..."`);
-        utterance.onend   = () => console.log('[MILPÍN TTS] Reproducción completa.');
-
+        utterance.onstart = () => console.log(`[MILPÍN TTS] Web Speech → "${texto.substring(0, 40)}..."`);
         utterance.onerror = (e) => {
-            // 'interrupted' significa que cancel() lo cortó intencionalmente — no es fallo real.
             if (e.error === 'interrupted') return;
-            console.warn(`[MILPÍN TTS] Fallo con voz "${vozSeleccionada?.name}": ${e.error}. Usando voz local.`);
-            const fallback = new SpeechSynthesisUtterance(texto);
-            // Buscar primera voz local española (sin "Online" en el nombre)
             const vocesLocales = window.speechSynthesis.getVoices()
                 .filter(v => v.lang.startsWith('es') && !v.name.includes('Online'));
-            fallback.voice = vocesLocales[0] || null;
-            fallback.lang  = 'es';
-            fallback.rate  = 1.0;
-            window.speechSynthesis.speak(fallback);
+            const fb = new SpeechSynthesisUtterance(texto);
+            fb.voice = vocesLocales[0] || null;
+            fb.lang  = 'es';
+            window.speechSynthesis.speak(fb);
         };
-
         window.speechSynthesis.speak(utterance);
     }, 50);
 }

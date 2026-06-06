@@ -4,7 +4,9 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -181,3 +183,55 @@ def _formatear_consulta_hablada(rec: Recomendacion, cultivo_nombre: Optional[str
 
     # Unir con coma y punto final
     return ", ".join(partes) + "."
+
+
+# ── Endpoint TTS: texto → ElevenLabs → audio MP3 ─────────────────────────────
+_ELEVENLABS_API_KEY  = os.getenv("ELEVENLABS_API_KEY", "")
+_ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "qWWAqFomnJ99VwQLREfT")
+_ELEVENLABS_URL      = f"https://api.elevenlabs.io/v1/text-to-speech/{_ELEVENLABS_VOICE_ID}"
+
+class TTSRequest(BaseModel):
+    texto: str
+
+
+@router.post("/tts")
+async def text_to_speech(body: TTSRequest):
+    """Convierte texto a audio MP3 usando ElevenLabs TTS."""
+    if not _ELEVENLABS_API_KEY:
+        raise HTTPException(status_code=503, detail="ElevenLabs no configurado.")
+
+    texto = body.texto.strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="Texto vacío.")
+    if len(texto) > 2000:
+        texto = texto[:2000]  # límite de seguridad
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                _ELEVENLABS_URL,
+                headers={
+                    "xi-api-key": _ELEVENLABS_API_KEY,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "text": texto,
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {
+                        "stability": 0.45,
+                        "similarity_boost": 0.80,
+                        "style": 0.20,
+                    },
+                },
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="ElevenLabs tardó demasiado.")
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"ElevenLabs error {resp.status_code}.")
+
+    return Response(
+        content=resp.content,
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "no-store"},
+    )
