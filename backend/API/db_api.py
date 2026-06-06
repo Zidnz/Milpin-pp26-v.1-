@@ -328,6 +328,26 @@ async def obtener_usuario(id_usuario: uuid.UUID, db: AsyncSession = Depends(get_
     return usuario
 
 
+class NombreUpdate(BaseModel):
+    nombre: str = Field(..., min_length=1, max_length=120, strip_whitespace=True)
+
+
+@router.patch("/usuarios/{id_usuario}/nombre", response_model=UsuarioOut)
+async def actualizar_nombre_usuario(
+    id_usuario: uuid.UUID,
+    data: NombreUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    resultado = await db.execute(select(Usuario).where(Usuario.id_usuario == id_usuario))
+    usuario = resultado.scalar_one_or_none()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    usuario.nombre_completo = data.nombre
+    await db.commit()
+    await db.refresh(usuario)
+    return usuario
+
+
 @router.post("/auth/login", response_model=TokenOut)
 async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     """
@@ -617,6 +637,24 @@ async def obtener_parcela(id_parcela: uuid.UUID, db: AsyncSession = Depends(get_
     parcela = resultado.scalar_one_or_none()
     if not parcela:
         raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+    return _to_parcela_out(parcela)
+
+
+@router.patch("/parcelas/{id_parcela}/nombre", response_model=ParcelaOut)
+async def actualizar_nombre_parcela(
+    id_parcela: uuid.UUID,
+    data: NombreUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    resultado = await db.execute(
+        select(Parcela).where(Parcela.id_parcela == id_parcela, Parcela.activo == True)
+    )
+    parcela = resultado.scalar_one_or_none()
+    if not parcela:
+        raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+    parcela.nombre_parcela = data.nombre
+    await db.commit()
+    await db.refresh(parcela)
     return _to_parcela_out(parcela)
 
 
@@ -1406,3 +1444,46 @@ async def forecast_parcela(
         )
 
     return respuesta
+
+
+# ── PATCH: renombrar parcela ───────────────────────────────────────────────────
+class RenombrePayload(BaseModel):
+    nombre: str
+
+
+@router.patch("/parcelas/{id_parcela}/nombre")
+async def renombrar_parcela(
+    id_parcela: uuid.UUID,
+    body: RenombrePayload,
+    db: AsyncSession = Depends(get_db),
+):
+    """Renombra una parcela del usuario."""
+    resultado = await db.execute(select(Parcela).where(Parcela.id_parcela == id_parcela))
+    parcela = resultado.scalar_one_or_none()
+    if not parcela:
+        raise HTTPException(status_code=404, detail="Parcela no encontrada.")
+    nombre = body.nombre.strip()[:100]
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre vacío.")
+    parcela.nombre_parcela = nombre
+    await db.commit()
+    return {"id_parcela": str(id_parcela), "nombre_parcela": nombre}
+
+
+@router.patch("/usuarios/{id_usuario}/nombre")
+async def renombrar_usuario(
+    id_usuario: uuid.UUID,
+    body: RenombrePayload,
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualiza el nombre completo del usuario."""
+    resultado = await db.execute(select(Usuario).where(Usuario.id_usuario == id_usuario))
+    usuario = resultado.scalar_one_or_none()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    nombre = body.nombre.strip()[:120]
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre vacío.")
+    usuario.nombre_completo = nombre
+    await db.commit()
+    return {"id_usuario": str(id_usuario), "nombre_completo": nombre}
