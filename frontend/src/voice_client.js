@@ -270,7 +270,24 @@ async function _iniciarMobile() {
     if (_grabandoMobile) {
         if (_mediaRecorder && _mediaRecorder.state === 'recording') {
             _mediaRecorder.stop();
+        } else {
+            // _mediaRecorder no está grabando pero _grabandoMobile quedó true (edge case).
+            // Reset para no dejar al usuario bloqueado.
+            _grabandoMobile = false;
+            if (btnMilpin) btnMilpin.classList.remove('listening');
+            if (statusText) statusText.innerText = 'MILPÍN listo';
         }
+        return;
+    }
+
+    // Chrome Android requiere HTTPS (o localhost) para getUserMedia.
+    // En acceso por IP local (http://192.168.x.x) el micrófono falla silenciosamente.
+    const _isSecure = location.protocol === 'https:'
+        || location.hostname === 'localhost'
+        || location.hostname === '127.0.0.1';
+    if (!_isSecure) {
+        if (statusText) statusText.innerText = 'El micrófono requiere HTTPS. Abre la app desde la URL segura.';
+        console.warn('[MILPÍN Mobile] getUserMedia bloqueado: no es HTTPS ni localhost.');
         return;
     }
 
@@ -337,6 +354,18 @@ async function _iniciarMobile() {
         if (btnMilpin) btnMilpin.classList.add('listening');
         if (statusText) statusText.innerText = 'Habla ahora... (toca para enviar)';
 
+        // Watchdog: Chrome Android a veces no dispara onstop.
+        // Si después de 60s el estado sigue grabando, forzar detención.
+        setTimeout(() => {
+            if (_grabandoMobile) {
+                console.warn('[MILPÍN Mobile] Watchdog: forzando stop tras 60s.');
+                try { _mediaRecorder.stop(); } catch (_) {}
+                _grabandoMobile = false;
+                if (btnMilpin) btnMilpin.classList.remove('listening');
+                if (statusText) statusText.innerText = 'Grabación demasiado larga. Intenta de nuevo.';
+            }
+        }, 60000);
+
     } catch (err) {
         console.error('[MILPÍN Mobile] Error micrófono:', err);
         if (statusText) statusText.innerText =
@@ -355,6 +384,7 @@ async function _enviarAudioAlBackend(blob, mimeType, statusText) {
         const response = await fetch(`${API_BASE}/voice-command`, {
             method: 'POST',
             body  : formData,
+            signal: AbortSignal.timeout(35000), // 35s — Whisper CPU en Railway puede tardar en cold start
         });
 
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -372,7 +402,10 @@ async function _enviarAudioAlBackend(blob, mimeType, statusText) {
         procesarRespuestaIA(data);
     } catch (err) {
         console.error('[MILPÍN Mobile] Error de envío:', err);
-        if (statusText) statusText.innerText = 'Error de conexión con el servidor.';
+        const msg = (err.name === 'TimeoutError' || err.name === 'AbortError')
+            ? 'El servidor tardó demasiado. Intenta de nuevo en unos segundos.'
+            : 'Error de conexión con el servidor.';
+        if (statusText) statusText.innerText = msg;
     }
 }
 // ─────────────────────────────────────────────────────────────────────────────
