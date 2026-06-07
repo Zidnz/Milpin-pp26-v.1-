@@ -6,6 +6,14 @@
 // API_BASE is declared in ui_tabs.js
 let vozSeleccionada = null;
 
+// ── ElevenLabs TTS — llamada directa desde el browser ────────────────────────
+// Llamar a ElevenLabs directamente evita el salto por Railway (browser→Railway→EL→Railway→browser)
+// y elimina la dependencia del backend para TTS. Trade-off: la key queda en el JS.
+// Reemplaza YOUR_API_KEY con tu clave real de elevenlabs.io → Profile → API Keys.
+const _EL_KEY      = '91370e4ba0f502023e38c98ec6534d668a34ccd167305c033dd3c60b45436608';
+const _EL_VOICE_ID = 'qWWAqFomnJ99VwQLREfT';
+const _EL_URL      = `https://api.elevenlabs.io/v1/text-to-speech/${_EL_VOICE_ID}/stream`;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PIPELINE ANTIGUO — MediaRecorder + Whisper (servidor)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -652,50 +660,58 @@ async function hablar(texto) {
     }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
 
-    // Intentar ElevenLabs primero
-    try {
-        const resp = await fetch(`${API_BASE}/tts`, {
-            method : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body   : JSON.stringify({ texto }),
-            signal : AbortSignal.timeout(18000),
-        });
-
-        if (!resp.ok) throw new Error(`TTS HTTP ${resp.status}`);
-
-        const blob = await resp.blob();
-        const url  = URL.createObjectURL(blob);
-
-        // Reutilizar _ttsAudio (pre-desbloqueado en el gesto táctil).
-        // En iOS/Android, new Audio().play() desde contexto asíncrono falla
-        // silenciosamente; reutilizar el mismo elemento evita ese bloqueo.
-        _elevenlabsAudio = _ttsAudio;
-        _elevenlabsAudio.onended = () => {
-            URL.revokeObjectURL(url);
-            _elevenlabsAudio = null;
-            console.log('[MILPÍN TTS] ElevenLabs — reproducción completa.');
-        };
-        _elevenlabsAudio.onerror = (e) => {
-            console.warn('[MILPÍN TTS] Error audio element:', e);
-            URL.revokeObjectURL(url);
-            _elevenlabsAudio = null;
-        };
-        _elevenlabsAudio.src = url;
-        _elevenlabsAudio.load(); // Forzar carga tras cambio de src — evita "interrupted by new load" en Chrome Android
-        _elevenlabsAudio.muted = false;
-        console.log(`[MILPÍN TTS] ElevenLabs → "${texto.substring(0, 40)}..."`);
+    // Intentar ElevenLabs directo desde el browser (sin pasar por Railway)
+    if (_EL_KEY && _EL_KEY !== 'YOUR_API_KEY') {
         try {
-            await _elevenlabsAudio.play();
-        } catch (playErr) {
-            console.warn('[MILPÍN TTS] play() bloqueado, usando Web Speech API:', playErr);
-            URL.revokeObjectURL(url);
-            _elevenlabsAudio = null;
-            throw playErr; // cae al catch → Web Speech fallback
-        }
-        return;
+            const resp = await fetch(_EL_URL, {
+                method : 'POST',
+                headers: {
+                    'xi-api-key'  : _EL_KEY,
+                    'Content-Type': 'application/json',
+                    'Accept'      : 'audio/mpeg',
+                },
+                body  : JSON.stringify({
+                    text          : texto,
+                    model_id      : 'eleven_multilingual_v2',
+                    voice_settings: { stability: 0.45, similarity_boost: 0.80, style: 0.20 },
+                }),
+                signal: AbortSignal.timeout(18000),
+            });
 
-    } catch (err) {
-        console.warn(`[MILPÍN TTS] ElevenLabs no disponible (${err.message}). Fallback a Web Speech API.`);
+            if (!resp.ok) throw new Error(`ElevenLabs ${resp.status}`);
+
+            const blob = await resp.blob();
+            const url  = URL.createObjectURL(blob);
+
+            // Reutilizar _ttsAudio (pre-desbloqueado en el gesto táctil).
+            _elevenlabsAudio = _ttsAudio;
+            _elevenlabsAudio.onended = () => {
+                URL.revokeObjectURL(url);
+                _elevenlabsAudio = null;
+                console.log('[MILPÍN TTS] ElevenLabs — reproducción completa.');
+            };
+            _elevenlabsAudio.onerror = (e) => {
+                console.warn('[MILPÍN TTS] Error audio element:', e);
+                URL.revokeObjectURL(url);
+                _elevenlabsAudio = null;
+            };
+            _elevenlabsAudio.src = url;
+            _elevenlabsAudio.load();
+            _elevenlabsAudio.muted = false;
+            console.log(`[MILPÍN TTS] ElevenLabs → "${texto.substring(0, 40)}..."`);
+            try {
+                await _elevenlabsAudio.play();
+            } catch (playErr) {
+                console.warn('[MILPÍN TTS] play() bloqueado, usando Web Speech API:', playErr);
+                URL.revokeObjectURL(url);
+                _elevenlabsAudio = null;
+                throw playErr;
+            }
+            return;
+
+        } catch (err) {
+            console.warn(`[MILPÍN TTS] ElevenLabs directo falló (${err.message}). Fallback a Web Speech API.`);
+        }
     }
 
     // Fallback: Web Speech API
