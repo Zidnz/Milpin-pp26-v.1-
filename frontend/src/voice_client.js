@@ -179,11 +179,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Cargar voces TTS del navegador
-    if (window.speechSynthesis.getVoices().length > 0) {
+    // Cargar voces TTS del navegador y advertir si no hay español
+    function _cargarYVerificarVoces() {
         poblarSelectorVoces();
+        const voces = window.speechSynthesis.getVoices();
+        const hayEspanol = voces.some(v => v.lang.startsWith('es'));
+        if (!hayEspanol && voces.length > 0 && statusText) {
+            // Sin voces en español → mostrar aviso con instrucción de instalación
+            statusText.innerText = 'Sin voz española instalada. Ve a Ajustes → Síntesis de voz → Instalar español';
+            setTimeout(() => { if (statusText) statusText.innerText = 'MILPÍN listo'; }, 6000);
+            console.warn('[MILPÍN TTS] Sin voces en español. En Android: Configuración → Síntesis de voz → Google → Instalar datos de voz → Español.');
+        }
+    }
+    if (window.speechSynthesis.getVoices().length > 0) {
+        _cargarYVerificarVoces();
     } else {
-        window.speechSynthesis.onvoiceschanged = poblarSelectorVoces;
+        window.speechSynthesis.onvoiceschanged = _cargarYVerificarVoces;
     }
 
     // Dropdown de voces — inicializar
