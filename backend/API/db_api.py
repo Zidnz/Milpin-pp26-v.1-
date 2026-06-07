@@ -38,6 +38,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from security import (
     TokenOut,
@@ -208,6 +209,7 @@ class ParcelaOut(BaseModel):
     agua_disponible_mm: Optional[float]
     sistema_riego: Optional[str]
     activo: bool
+    cultivo_nombre: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -215,6 +217,8 @@ def _to_parcela_out(p: Parcela) -> ParcelaOut:
     """Serializa un ORM Parcela a ParcelaOut, convirtiendo geom WKB → GeoJSON dict."""
     out = ParcelaOut.model_validate(p)
     out.geom_geojson = _geom_to_geojson(p.geom)
+    if p.cultivo_actual is not None:
+        out.cultivo_nombre = p.cultivo_actual.nombre_comun
     return out
 
 
@@ -446,6 +450,7 @@ async def listar_parcelas(
     """
     stmt = (
         select(Parcela)
+        .options(selectinload(Parcela.cultivo_actual))
         .where(Parcela.activo == True)
         .order_by(Parcela.nombre_parcela)
     )
@@ -632,7 +637,9 @@ async def crear_parcela(
 @router.get("/parcelas/{id_parcela}", response_model=ParcelaOut)
 async def obtener_parcela(id_parcela: uuid.UUID, db: AsyncSession = Depends(get_db)):
     resultado = await db.execute(
-        select(Parcela).where(Parcela.id_parcela == id_parcela, Parcela.activo == True)
+        select(Parcela)
+        .options(selectinload(Parcela.cultivo_actual))
+        .where(Parcela.id_parcela == id_parcela, Parcela.activo == True)
     )
     parcela = resultado.scalar_one_or_none()
     if not parcela:
