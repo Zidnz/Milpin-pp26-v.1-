@@ -12,7 +12,7 @@ let vozSeleccionada = null;
 // Reemplaza YOUR_API_KEY con tu clave real de elevenlabs.io → Profile → API Keys.
 const _EL_KEY      = '91370e4ba0f502023e38c98ec6534d668a34ccd167305c033dd3c60b45436608';
 const _EL_VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; // Adam — voz masculina gratuita por defecto
-const _EL_URL      = `https://api.elevenlabs.io/v1/text-to-speech/${_EL_VOICE_ID}/stream`;
+const _EL_URL      = `https://api.elevenlabs.io/v1/text-to-speech/${_EL_VOICE_ID}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PIPELINE ANTIGUO — MediaRecorder + Whisper (servidor)
@@ -683,7 +683,7 @@ async function hablar(texto) {
                 },
                 body  : JSON.stringify({
                     text          : texto,
-                    model_id      : 'eleven_turbo_v2_5',
+                    model_id      : 'eleven_multilingual_v2',
                     voice_settings: { stability: 0.45, similarity_boost: 0.80, style: 0.20 },
                 }),
                 signal: AbortSignal.timeout(18000),
