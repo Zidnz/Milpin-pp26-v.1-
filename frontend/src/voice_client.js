@@ -268,11 +268,21 @@ async function _iniciarMobile() {
 
     // Segunda pulsación: detener y enviar
     if (_grabandoMobile) {
+        // Activar speechSynthesis en el contexto del gesto táctil.
+        // Chrome Android bloquea speechSynthesis.speak() desde contextos async (la respuesta
+        // del backend llega varios segundos después del gesto). Llamarlo aquí — con el gesto
+        // activo — inicializa el motor TTS; la activación persiste incluso después del
+        // cancel() que hablar() ejecuta internamente antes de encolar la respuesta real.
+        try {
+            const s = new SpeechSynthesisUtterance(' ');
+            s.volume = 0;
+            window.speechSynthesis.speak(s);
+        } catch (_) {}
+
         if (_mediaRecorder && _mediaRecorder.state === 'recording') {
             _mediaRecorder.stop();
         } else {
             // _mediaRecorder no está grabando pero _grabandoMobile quedó true (edge case).
-            // Reset para no dejar al usuario bloqueado.
             _grabandoMobile = false;
             if (btnMilpin) btnMilpin.classList.remove('listening');
             if (statusText) statusText.innerText = 'MILPÍN listo';
@@ -671,6 +681,7 @@ async function hablar(texto) {
             _elevenlabsAudio = null;
         };
         _elevenlabsAudio.src = url;
+        _elevenlabsAudio.load(); // Forzar carga tras cambio de src — evita "interrupted by new load" en Chrome Android
         _elevenlabsAudio.muted = false;
         console.log(`[MILPÍN TTS] ElevenLabs → "${texto.substring(0, 40)}..."`);
         try {
