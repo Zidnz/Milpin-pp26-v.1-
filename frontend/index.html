@@ -1061,7 +1061,7 @@
 <!-- ══════════════════════════════════════════════════════════════
      DRAWER — Perfil de usuario
      ══════════════════════════════════════════════════════════════ -->
-<div id="perfil-drawer" class="alertas-drawer" aria-hidden="true" style="max-width:420px;">
+<div id="perfil-drawer" class="alertas-drawer" aria-hidden="true">
     <div class="alertas-drawer-header">
         <div class="alertas-drawer-icon" style="background:var(--accent-blue,#2563eb);">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
@@ -1100,10 +1100,26 @@
                 </div>
             </div>
 
-            <div style="font-size:0.7rem;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border-color,#e5e7eb);">
-                Mis parcelas
+            <div class="perfil-parcelas-header">
+                <div class="perfil-parcelas-header-left">
+                    <div class="perfil-parcelas-header-icon">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#2E9E5B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22V12"/>
+                            <path d="M12 12s-5-2-6-7c0 0 6-1 10 3 2 2 2 5 2 5s-3-1-6-1z"/>
+                            <path d="M12 12s5-2 6-7c0 0-6-1-10 3-2 2-2 5-2 5s3-1 6-1z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="perfil-parcelas-header-title">Mis parcelas</div>
+                        <div class="perfil-parcelas-header-sub">Administra tus parcelas fácilmente</div>
+                    </div>
+                </div>
+                <button class="perfil-parcelas-add-btn" onclick="agregarParcelaPerfil()">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Agregar parcela
+                </button>
             </div>
-            <div id="perfil-parcelas-lista" style="display:flex;flex-direction:column;gap:10px;">
+            <div id="perfil-parcelas-lista" style="display:flex;flex-direction:column;gap:0;">
                 <div style="color:var(--secondary-text);font-size:0.82rem;text-align:center;padding:20px 0;">
                     Cargando parcelas…
                 </div>

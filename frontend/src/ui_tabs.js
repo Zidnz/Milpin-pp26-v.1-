@@ -2170,25 +2170,47 @@ async function _renderParcelasPerfil(id_usuario) {
             return;
         }
 
-        listaEl.innerHTML = parcelas.map(p => `
-            <div style="border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:10px 12px;">
-                <div style="font-size:0.68rem;color:var(--secondary-text);margin-bottom:4px;">
-                    ${p.cultivo_actual || 'Sin cultivo'} · ${p.superficie_ha ? p.superficie_ha + ' ha' : ''}
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;">
+        // Agrupar por cultivo_nombre
+        const groups = {};
+        for (const p of parcelas) {
+            const key = p.cultivo_nombre || 'Sin cultivo';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(p);
+        }
+
+        const leafIcon = `
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#2E9E5B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22V12"/>
+                <path d="M12 12s-5-2-6-7c0 0 6-1 10 3 2 2 2 5 2 5s-3-1-6-1z"/>
+                <path d="M12 12s5-2 6-7c0 0-6-1-10 3-2 2-2 5-2 5s3-1 6-1z"/>
+            </svg>`;
+
+        let html = '';
+        for (const [cultivo, items] of Object.entries(groups)) {
+            html += `<div class="perfil-parcelas-grupo-label">${cultivo.toUpperCase()}</div>`;
+            for (const p of items) {
+                const cultivoKey = cultivo.toLowerCase().trim();
+                const imgSrc     = CULTIVO_IMG[cultivoKey] || null;
+                const iconHtml   = imgSrc
+                    ? `<img src="${imgSrc}" alt="${cultivo}" class="perfil-parcela-icon">`
+                    : `<div class="perfil-parcela-icon perfil-parcela-icon--leaf">${leafIcon}</div>`;
+                html += `
+                <div class="perfil-parcela-card">
+                    ${iconHtml}
                     <input type="text"
                            id="parcela-nombre-${p.id_parcela}"
                            value="${(p.nombre_parcela || '').replace(/"/g, '&quot;')}"
                            placeholder="Nombre de la parcela"
-                           style="flex:1;border:1px solid var(--border-color,#e5e7eb);border-radius:7px;padding:5px 9px;font-size:0.87rem;background:var(--surface,#fff);color:var(--primary-text,#111);min-width:0;">
-                    <button onclick="guardarNombreParcela('${p.id_parcela}')"
-                            style="padding:5px 11px;border-radius:7px;background:var(--accent-blue,#2563eb);color:#fff;border:none;font-size:0.78rem;cursor:pointer;white-space:nowrap;">
+                           class="perfil-parcela-input">
+                    <button onclick="guardarNombreParcela('${p.id_parcela}')" class="perfil-parcela-ok">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                         OK
                     </button>
                 </div>
-                <div id="parcela-msg-${p.id_parcela}" style="font-size:0.72rem;margin-top:3px;min-height:14px;"></div>
-            </div>
-        `).join('');
+                <div id="parcela-msg-${p.id_parcela}" class="perfil-parcela-msg"></div>`;
+            }
+        }
+        listaEl.innerHTML = html;
 
     } catch (err) {
         console.warn('[MILPÍN Perfil]', err);
@@ -2263,8 +2285,14 @@ async function guardarNombreParcela(id_parcela) {
     }
 }
 
+function agregarParcelaPerfil() {
+    // TODO: abrir formulario de alta de parcela
+    alert('Funcionalidad de agregar parcela próximamente.');
+}
+
 window.abrirPanelPerfil    = abrirPanelPerfil;
 window.cerrarPanelPerfil   = cerrarPanelPerfil;
 window.guardarNombreUsuario = guardarNombreUsuario;
 window.guardarNombreParcela = guardarNombreParcela;
+window.agregarParcelaPerfil = agregarParcelaPerfil;
 
