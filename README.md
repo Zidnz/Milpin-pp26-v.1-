@@ -1,9 +1,9 @@
 <div align="center">
-<img src="imagenes/icono.jpeg" alt="MILPÍN Logo" width="120" style="border-radius:50%"/>
+<img src="frontend/imagenes/milpin-logo.png" alt="MILPÍN Logo" width="120" style="border-radius:50%"/> 
 <h1>MILPÍN AgTech</h1>
 <h3>Sistema Inteligente de Optimización de Riego — Valle del Yaqui, DR-041</h3>
 <p>
-  <img src="https://img.shields.io/badge/estado-pre--MVP-orange?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/estado-MVP%20producción-brightgreen?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi"/>
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white"/>
   <img src="https://img.shields.io/badge/PostgreSQL-15+-336791?style=for-the-badge&logo=postgresql&logoColor=white"/>
@@ -20,6 +20,11 @@
   <img src="https://img.shields.io/badge/Alembic-4%20migraciones-blueviolet?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/routers-6%20FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white"/>
 </p>
+<p>
+  <img src="https://img.shields.io/badge/Supabase-PostgreSQL%20cloud-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Railway-backend%20deploy-0B0D0E?style=for-the-badge&logo=railway&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Netlify-frontend%20deploy-00C7B7?style=for-the-badge&logo=netlify&logoColor=white"/>
+</p>
 <blockquote>
 <strong>Meta principal:</strong> Reducir el consumo hídrico de <code>8,000 m³/ha/ciclo</code> a <code>6,000 m³/ha/ciclo</code> — un ahorro del <strong>25%</strong> equivalente a ~$1.68 MXN/m³ (tarifa CFE 9-CU, bombeo 80 m).
 </blockquote>
@@ -27,11 +32,12 @@
 
 ---
 
-> **ADVERTENCIA: Proyecto académico — datos sintéticos intencionalmente.**
+> **Proyecto académico — datos sintéticos intencionalmente.**
 > MILPÍN es un sistema de apoyo a decisiones desarrollado como proyecto de ciencia de datos aplicada.
-> **No se llevará a producción.** Todos los datos de parcelas, usuarios, clima e historial son sintéticos
-> y generados por los scripts de `tools/` y `ML/training/`. El motor agronómico FAO-56 es real y preciso;
-> los datos que lo alimentan son ficticios pero agronómicamente plausibles para el Valle del Yaqui.
+> El MVP está desplegado en producción (Netlify + Railway + Supabase) con fines de demostración.
+> Todos los datos de parcelas, usuarios, clima e historial son sintéticos y generados por los scripts
+> de `tools/` y `ML/training/`. El motor agronómico FAO-56 es real y preciso; los datos que lo
+> alimentan son ficticios pero agronómicamente plausibles para el Valle del Yaqui.
 
 ---
 
@@ -39,7 +45,7 @@
 
 - [¿Qué es MILPÍN?](#-qué-es-milpín)
 - [Estado del proyecto](#-estado-del-proyecto)
-- [Deuda técnica vigente](#-deuda-técnica-vigente)
+- [Despliegue en Producción (MVP Cloud)](#-despliegue-en-producción-mvp-cloud)
 - [Arquitectura del sistema](#-arquitectura-del-sistema)
 - [Stack tecnológico](#-stack-tecnológico)
 - [Estructura del proyecto](#-estructura-del-proyecto)
@@ -65,7 +71,7 @@
 
 ## Estado del proyecto
 
-**Fase actual: Pre-MVP — bloqueador único: autenticación**
+**Fase actual: MVP desplegado en producción**
 
 ### Implementado y funcionando
 
@@ -94,22 +100,108 @@
 | Pipeline de voz | Whisper STT carga lazy (startup ~2 s) → Ollama `llama3.2:latest` → Web Speech API TTS | 2026-04-30 |
 | Clustering K-Means | scikit-learn 1.5, zonas de manejo y logística | — |
 | Frontend GIS | Vanilla JS + Leaflet 1.9.4, capas Esri + OpenTopoMap + límites Cajeme. `map_engine.js` carga desde PostGIS (fallback: `lotes.geojson`). | — |
+| **MVP en producción** | Frontend en Netlify, backend en Railway, BD en Supabase (PostgreSQL + PostGIS). | 2026-06 |
 
-### Pendiente para MVP
+### Pendiente / deuda activa
 
 | Ítem | Descripción |
 |---|---|
-| **Autenticación** | `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. Bloqueador principal. Migración `0002` ya agrega columna `rol` (agricultor/admin). |
-| CORS restringido | `allow_origins=["*"]` — reemplazar por allowlist. |
-| Seguridad en voz | Path traversal en `voice_endpoint.py` (`temp_{audio_file.filename}` sin sanitizar), sin límite de tamaño ni validación de content-type. |
+| **Autenticación** | `id_usuario` entra como UUID en body; cualquiera puede crear parcelas a nombre de cualquiera. `rol` ya existe en BD (migración `0002`), falta implementar JWT/sesiones. |
+| **Voz deshabilitada en producción** | Whisper y Ollama requieren GPU local. En Railway solo funciona `POST /api/text-command` vía Web Speech API del browser. |
+| **CORS en prod** | `ALLOWED_ORIGINS` debe restringirse al dominio de Netlify en las variables de Railway. |
 
 ---
 
+## Despliegue en Producción (MVP Cloud)
+
+El MVP está disponible públicamente mediante tres servicios gestionados:
+
+| Capa | Servicio | Notas |
+|---|---|---|
+| **Frontend** | [Netlify](https://www.netlify.com) | Deploy automático desde rama `main`. HTML/CSS/JS estático. Dominio asignado por Netlify. |
+| **Backend (API)** | [Railway](https://railway.app) | Contenedor Python/Uvicorn. Variables de entorno configuradas en el dashboard de Railway. |
+| **Base de datos** | [Supabase](https://supabase.com) | PostgreSQL 15 + extensión PostGIS habilitada. Credenciales via `DATABASE_URL` en Railway. |
+
+### Arquitectura cloud
+
+```
+Browser
+  └─► Netlify (index.html + JS estático)
+        └─► Railway (FastAPI, puerto $PORT)
+              └─► Supabase (PostgreSQL + PostGIS)
+```
+
+### Variables de entorno en Railway
+
+```env
+DATABASE_URL=postgresql+asyncpg://<user>:<password>@<host>.supabase.co:5432/postgres
+MILPIN_OLLAMA_URL=          # vacío en prod — Ollama no disponible en cloud
+MILPIN_OLLAMA_MODEL=        # vacío en prod
+GROQ_API_KEY=gsk_...        # LLM alternativo cuando Ollama no está disponible
+ALLOWED_ORIGINS=https://<tu-sitio>.netlify.app
+```
+
+> **Nota:** Whisper y los modelos de Isolation Forest se ejecutan localmente en desarrollo. En Railway, `POST /api/voice-command` (Whisper) está desactivado. El path de voz principal usa **Web Speech API** del browser, que no requiere servidor.
+
+### Configuración de Supabase
+
+1. Crear proyecto en Supabase → habilitar PostGIS desde el SQL Editor:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS postgis;
+   ```
+2. Ejecutar `backend/schema.sql` en el SQL Editor para crear tablas y vistas.
+3. Aplicar migraciones Alembic apuntando al `DATABASE_URL` de Supabase:
+   ```bash
+   cd backend && alembic upgrade head
+   ```
+4. Cargar datos sintéticos:
+   ```bash
+   python backend/init_db.py
+   python tools/cargar_datos_sinteticos.py
+   ```
+
+### Deploy en Railway
+
+Railway detecta el `Procfile` o se configura con el start command:
+
+```bash
+uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+```
+
+El `$PORT` lo inyecta Railway automáticamente. Verificar que `ALLOWED_ORIGINS` incluya el dominio de Netlify.
+
+### Deploy en Netlify
+
+El frontend es 100% estático (sin build step). Configurar `netlify.toml` en la raíz del repo:
+
+```toml
+[build]
+  publish = "frontend"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://<tu-app>.railway.app/api/:splat"
+  status = 200
+  force = true
+```
+
+El redirect proxea todas las llamadas `/api/*` del frontend hacia Railway, evitando problemas de CORS en producción.
+
+---
 
 ## Arquitectura del sistema
 
 ```mermaid
 flowchart TB
+    subgraph CLOUD_PROD["PRODUCCIÓN (MVP Cloud)"]
+        direction LR
+        NETLIFY["Netlify\nFrontend estático"]
+        RAILWAY["Railway\nFastAPI + Uvicorn"]
+        SUPABASE["Supabase\nPostgreSQL + PostGIS"]
+        NETLIFY -->|"REST /api/* (proxy)"| RAILWAY
+        RAILWAY -->|"asyncpg"| SUPABASE
+    end
+
     subgraph FRONTEND["FRONTEND (SPA)"]
         direction TB
         FE_TECH["index.html · Leaflet.js · Web Audio API · Vanilla JS"]
@@ -130,7 +222,7 @@ flowchart TB
             RIEGO_API["riego_api.py — FAO-56 + /geojson + forecast"]
             ML_API["ml_api.py — XGBoost + IForest + métricas"]
             ACT_API["actuadores_api.py — control físico"]
-            VOICE_EP["voice_endpoint.py — STT pipeline"]
+            VOICE_EP["voice_endpoint.py — STT pipeline (solo dev)"]
             OPER_API["operacion_api.py — triage FAO-56 + pulso climático"]
         end
         subgraph CORE["core/"]
@@ -184,10 +276,10 @@ flowchart TB
 | **Alembic** | latest | Migraciones de schema (4 activas) |
 | **GeoAlchemy2** | latest | Tipos PostGIS en ORM |
 | **Uvicorn** | 0.30.6 | Servidor ASGI |
-| **OpenAI Whisper** | 20240930 | STT local — carga **lazy** |
-| **Web Speech API** | Browser | STT nativo en cliente (path principal) |
-| **Ollama** | latest | LLM local (`llama3.2:latest`) |
-| **Groq** | cloud | LLM cloud alternativo (opcional) |
+| **OpenAI Whisper** | 20240930 | STT local — carga **lazy** (solo en dev) |
+| **Web Speech API** | Browser | STT nativo en cliente (path principal, funciona en prod) |
+| **Ollama** | latest | LLM local `llama3.2:latest` (solo en dev) |
+| **Groq** | cloud | LLM cloud alternativo (usado en prod cuando Ollama no disponible) |
 | **XGBoost** | latest | 3 modelos de riego entrenados |
 | **scikit-learn** | 1.5.2 | K-Means + Isolation Forest + Ridge Regression |
 | **numpy** | 1.26.4 | Cálculos numéricos |
@@ -195,6 +287,14 @@ flowchart TB
 | **geopandas + shapely** | 2.0.6 | Pipeline GIS (`make_valid`, Douglas-Peucker) |
 | **Pydantic** | 2.9.2 | Validación de datos |
 | **pytest / pytest-asyncio** | latest | 108 tests backend + 7 ML |
+
+### Infraestructura cloud
+
+| Servicio | Rol |
+|---|---|
+| **Supabase** | PostgreSQL 15 + PostGIS 3.6 gestionado en cloud |
+| **Railway** | Deploy del backend FastAPI (contenedor, autoescalado) |
+| **Netlify** | Hosting del frontend estático con proxy `/api/*` → Railway |
 
 ### Frontend
 
@@ -223,14 +323,15 @@ milpin/
 │   ├── alembic.ini
 │   ├── pytest.ini
 │   ├── requirements.txt
-│   ├── .env                       # [WARN] contiene secretos — rotar, verificar gitignore
+│   ├── .env                       # en .gitignore — usar .env.example como plantilla
+│   ├── .env.example               # plantilla con placeholders (commiteado)
 │   ├── API/
 │   │   ├── db_api.py              # CRUD: 14 endpoints + forecast parcela
 │   │   ├── riego_api.py           # FAO-56 + /parcelas/geojson + balance hídrico
 │   │   ├── ml_api.py              # XGBoost predicción + Isolation Forest anomalías + métricas
 │   │   ├── actuadores_api.py      # Control de actuadores físicos de riego
 │   │   ├── operacion_api.py       # Triage FAO-56 priorizado + serie climática W6
-│   │   └── voice_endpoint.py      # [WARN] path traversal sin sanitizar
+│   │   └── voice_endpoint.py      # STT pipeline (Whisper — solo dev)
 │   ├── core/
 │   │   ├── balance_hidrico.py     # FAO-56 Penman-Monteith + KC_TABLE + propagar_balance_hidrico()
 │   │   ├── eto_forecast.py        # Ridge Regression forecast ETo 7 días
@@ -263,10 +364,10 @@ milpin/
 │   │   └── feature_preprocessor.py
 │   ├── training/
 │   │   ├── xgboost_riego/
-│   │   │   ├── train.py           # Entrenamiento XGBoost
-│   │   │   ├── eval.py            # Evaluación
+│   │   │   ├── train.py
+│   │   │   ├── eval.py
 │   │   │   ├── promote.py         # Promote gate con umbrales YAML
-│   │   │   ├── generar_datos.py   # Generación de datos sintéticos ML
+│   │   │   ├── generar_datos.py
 │   │   │   ├── v7_train.py        # Entrenamiento v7 (anti-leakage)
 │   │   │   ├── v7_generar_datos.py
 │   │   │   ├── v7_benchmark.py
@@ -309,20 +410,20 @@ milpin/
 │   │   ├── drift.py               # PSI, KS — detección de drift
 │   │   └── eval_metrics.py
 │   ├── feature_store/
-│   │   ├── views/                 # Definiciones YAML de features
+│   │   ├── views/
 │   │   │   ├── parcela_static.yaml
 │   │   │   ├── parcela_daily.yaml
 │   │   │   └── parcela_ciclo.yaml
 │   │   └── builders/              # Vacío — pendiente implementación
-│   ├── pipelines/                 # Stubs Prefect (pendientes Fase C/D)
+│   ├── pipelines/
 │   │   ├── nasa_power_daily.py
 │   │   ├── features_materialize.py
 │   │   ├── train_eval_promote.py
 │   │   └── batch_scoring.py
 │   └── tests/
-│       ├── test_drift.py          # 3 tests
-│       ├── test_preprocessor.py   # 2 tests
-│       └── test_promote_gate.py   # 2 tests
+│       ├── test_drift.py
+│       ├── test_preprocessor.py
+│       └── test_promote_gate.py
 │
 ├── data/
 │   ├── synthetic/                 # Fuente de verdad — datos 100% sintéticos
@@ -332,9 +433,9 @@ milpin/
 │   │   ├── historial_riego.csv
 │   │   ├── recomendaciones.csv
 │   │   ├── costos_ciclo.csv
-│   │   ├── milpin_ciclos_ml.csv   # Dataset ML principal
-│   │   ├── anomalias_labels.csv   # Labels para evaluación Isolation Forest
-│   │   └── anomaly_report.csv     # Reporte de anomalías detectadas
+│   │   ├── milpin_ciclos_ml.csv
+│   │   ├── anomalias_labels.csv
+│   │   └── anomaly_report.csv
 │   ├── raw/nasa_power/            # Cache NASA POWER (~75 archivos JSON por parcela)
 │   └── snapshots/                 # Parquets Feature Store (vacío en dev)
 │
@@ -358,17 +459,17 @@ milpin/
 │       └── milpin-logo-transparente.png
 │
 ├── tools/                         # Scripts CLI
-│   ├── nasa_power_etl.py          # Ingestor NASA POWER → clima_diario
-│   ├── geo_pipeline.py            # geopandas + make_valid + Douglas-Peucker
-│   ├── generar_datos_sinteticos.py # Generador de datos sintéticos
-│   ├── cargar_datos_sinteticos.py  # Carga CSVs sintéticos a PostgreSQL
-│   ├── importar_csv_postgres.py    # Importador genérico CSV → PostgreSQL
-│   ├── recuperar_cache_nasa.py     # Recuperación de caché NASA POWER
-│   └── add_eda_sections.py         # Utilidad para notebooks EDA
+│   ├── nasa_power_etl.py
+│   ├── geo_pipeline.py
+│   ├── generar_datos_sinteticos.py
+│   ├── cargar_datos_sinteticos.py
+│   ├── importar_csv_postgres.py
+│   ├── recuperar_cache_nasa.py
+│   └── add_eda_sections.py
 │
-├── docs/                          # Documentación técnica y académica
+├── docs/
 │   ├── ARCHITECTURE.md
-│   ├── AGRONOMY.md                # FAO-56/33 referenciado
+│   ├── AGRONOMY.md
 │   ├── MLOPS.md
 │   ├── SECURITY.md
 │   ├── diagramas_mermaid_milpin.md
@@ -376,32 +477,33 @@ milpin/
 │   ├── runbooks/
 │   │   ├── nasa_power_falla.md
 │   │   └── drift_alerta.md
-│   └── *.docx / *.pdf             # Documentos académicos de entrega (v2–v4)
+│   └── *.docx / *.pdf
 │
-├── manifests/                     # Manifiestos de despliegue (Kubernetes/Docker)
+├── manifests/
 │
-├── MILPIN_PowerBI/                # Scripts y archivo Power BI
-│   ├── milpin_dashboard.pbix      # Archivo Power BI (requiere ajustar rutas de CSVs)
+├── MILPIN_PowerBI/
+│   ├── milpin_dashboard.pbix
 │   ├── medidas_DAX.txt
 │   ├── power_query_M.txt
 │   └── GUIA_CONFIGURACION.txt
 │
 ├── infra/
-│   ├── docker-compose.yml         # postgres+postgis, minio, mlflow, grafana
-│   ├── grafana/                   # Vacío — pendiente configuración
-│   └── prefect/                   # Vacío — pendiente configuración
+│   ├── docker-compose.yml         # postgres+postgis, minio, mlflow, grafana (dev local)
+│   ├── grafana/
+│   └── prefect/
 │
-├── imagenes/                      # Assets gráficos
-│   └── *.jpeg / *.png             # Logos, cultivos, capturas
+├── imagenes/
+│   └── *.jpeg / *.png
 │
-├── CLAUDE.md                      # Instrucciones para Claude Code
+├── netlify.toml                   # Configuración Netlify (publish + proxy /api/*)
+├── CLAUDE.md
 ├── AGENTS.md
 ├── MILPIN_PlanNegocios_Revisado.docx
 ├── MILPIN_Requerimientos_Negocio.docx
 ├── MILPIN_Tecnico_v6.docx
 ├── MILPIN_Vision_Solucion.docx
 ├── generar_doc_ml.py
-├── requirements.txt               # Requirements raíz (redundante con backend/)
+├── requirements.txt
 └── .gitignore
 ```
 
@@ -492,13 +594,13 @@ Pulso climático W6: serie climática de los últimos 6 días para la parcela (E
 ### Comandos de Voz
 
 ```http
-POST /api/text-command    # PRINCIPAL — texto Web Speech API → LLM
-POST /api/voice-command   # FALLBACK — audio WebM → Whisper STT → LLM
+POST /api/text-command    # PRINCIPAL — texto Web Speech API → LLM (funciona en prod)
+POST /api/voice-command   # FALLBACK — audio WebM → Whisper STT → LLM (solo dev local)
 ```
 
 **Intents soportados:** `navegar`, `ejecutar_analisis`, `llenar_prescripcion`, `consultar`, `saludo`, `desconocido`.
 
-> **ADVERTENCIA - Seguridad:** `voice-command` no sanitiza el nombre del archivo (path traversal). Deuda técnica #3.
+> **Nota prod:** `voice-command` (Whisper) está desactivado en Railway. En producción solo funciona `text-command` con Web Speech API del browser.
 
 ---
 
@@ -540,7 +642,6 @@ GET /health
 
 > `backend/models.py` es la fuente de verdad del schema en runtime. `schema.sql` está desalineado (aún documenta JSONB).
 
-
 ### Cultivos precargados
 
 | Cultivo | Kc inicial | Kc medio | Kc final | Ky |
@@ -555,17 +656,9 @@ GET /health
 
 ---
 
-
 ## Instalación y uso
 
-### Requisitos previos
-
-- Python 3.12+
-- PostgreSQL 15+ con extensión **PostGIS 3.6**
-- Ollama con `llama3.2:latest` (`ollama pull llama3.2:latest`)
-- ffmpeg (incluido vía `imageio-ffmpeg`)
-
-### Backend
+### Desarrollo local (PostgreSQL local)
 
 ```bash
 # 1. Clonar el repositorio
@@ -579,7 +672,8 @@ venv\Scripts\activate           # Windows
 pip install -r backend/requirements.txt
 
 # 3. Configurar variables de entorno
-# Copiar y editar backend/.env con DATABASE_URL y configuración de Ollama
+cp backend/.env.example backend/.env
+# Editar backend/.env con DATABASE_URL local y configuración de Ollama
 
 # 4. Inicializar la base de datos
 python backend/init_db.py            # Crea tablas + seed
@@ -587,14 +681,18 @@ python backend/init_db.py --reset    # DROP + CREATE + seed (destructivo)
 python backend/init_db.py --check    # Solo verifica conexión
 
 # 5. Aplicar migraciones Alembic
-cd backend && alembic upgrade head   # aplica las 4 migraciones
+cd backend && alembic upgrade head
 
-# 6. Cargar datos sintéticos (opcional para desarrollo)
+# 6. Cargar datos sintéticos (opcional)
 python tools/cargar_datos_sinteticos.py
 
 # 7. Iniciar el servidor
 uvicorn backend.main:app --reload --port 8000
 ```
+
+### Producción (Supabase + Railway + Netlify)
+
+Ver sección [Despliegue en Producción (MVP Cloud)](#-despliegue-en-producción-mvp-cloud).
 
 ### Tests
 
@@ -628,7 +726,8 @@ npx live-server frontend --port=5500
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/milpin_mvp
 MILPIN_OLLAMA_URL=http://localhost:11434/api/chat
 MILPIN_OLLAMA_MODEL=llama3.2:latest
-GROQ_API_KEY=                     # opcional
+GROQ_API_KEY=                     # opcional en dev, usado en prod (Railway)
+ALLOWED_ORIGINS=http://localhost:5500,http://localhost:3000
 ```
 
 ---
@@ -646,6 +745,7 @@ ETo = [0.408·Δ·(Rn - G) + γ·(900/(T+273))·u₂·(es - ea)]
 Si los datos de radiación o humedad son insuficientes, cae a **Hargreaves** como fallback. `propagar_balance_hidrico()` calcula la humedad inicial acumulando balance día a día desde el último riego real — no usa la estimación `(CC+PMP)/2`.
 
 **Parámetros locales por defecto:**
+
 - Latitud: 27.37°N (Cajeme, Valle del Yaqui)
 - Altitud: 40 m (Cd. Obregón)
 - Tarifa energética: $1.68 MXN/m³ (CFE 9-CU, bombeo 80 m)
@@ -657,13 +757,13 @@ Si los datos de radiación o humedad son insuficientes, cae a **Hargreaves** com
 ```mermaid
 flowchart LR
     USER["Usuario habla"]
-    USER --> WSA["Web Speech API\n(STT nativo — path principal)"]
+    USER --> WSA["Web Speech API\n(STT nativo — funciona en prod)"]
     WSA --> TEXT_CMD["POST /api/text-command"]
-    USER --> |fallback| AUDIO["Web Audio API"]
+    USER --> |"solo dev local"| AUDIO["Web Audio API"]
     AUDIO --> VOICE_CMD["POST /api/voice-command"]
     VOICE_CMD --> WHISPER["Whisper STT\n(carga lazy ~2 s)"]
     WHISPER --> LLM
-    TEXT_CMD --> LLM["Ollama llama3.2\n(local)"]
+    TEXT_CMD --> LLM["Ollama llama3.2\n(local) / Groq (prod)"]
     LLM --> PARSER["Intent Parser (JSON)"]
     PARSER --> UI["Acción en UI"]
 ```
@@ -689,6 +789,6 @@ flowchart LR
 
 <sub>Proyecto académico — Ciencia de Datos aplicada al agro · Valle del Yaqui, Sonora, México</sub>
 
-<sub>MVP · Datos sintéticos intencionalmente · PostGIS OK · 4 Migraciones OK · 108+7 Tests OK · XGBoost entrenado OK · IForest entrenado OK · 6 Routers OK · Dashboard Operacional OK</sub>
+<sub>MVP en producción (Netlify + Railway + Supabase) · PostGIS OK · 4 Migraciones OK · 108+7 Tests OK · XGBoost OK · IForest OK · 6 Routers OK · Dashboard Operacional OK</sub>
 
 </div>
