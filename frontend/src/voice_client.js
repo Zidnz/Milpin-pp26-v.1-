@@ -664,14 +664,16 @@ let _elevenlabsAudio = null;
 async function hablar(texto) {
     if (!texto) return;
 
-    // Cancelar audio previo
+    // Cancelar SOLO el audio HTML5 previo.
+    // NO cancelar speechSynthesis aquí — el cancel() al inicio destruye la
+    // activación del motor TTS que se primó en el segundo tap, haciendo que
+    // los speak() async posteriores fallen silenciosamente en Chrome Android.
     if (_elevenlabsAudio) {
         _elevenlabsAudio.pause();
         _elevenlabsAudio = null;
     }
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
 
-    // Intentar ElevenLabs directo desde el browser (sin pasar por Railway)
+    // ── ElevenLabs directo desde el browser (sin pasar por Railway) ──────────
     if (_EL_KEY && _EL_KEY !== 'YOUR_API_KEY') {
         try {
             const resp = await fetch(_EL_URL, {
@@ -694,7 +696,9 @@ async function hablar(texto) {
             const blob = await resp.blob();
             const url  = URL.createObjectURL(blob);
 
-            // Reutilizar _ttsAudio (pre-desbloqueado en el gesto táctil).
+            // Cancelar speechSynthesis sólo si ElevenLabs va a hablar
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
+
             _elevenlabsAudio = _ttsAudio;
             _elevenlabsAudio.onended = () => {
                 URL.revokeObjectURL(url);
@@ -712,39 +716,42 @@ async function hablar(texto) {
             console.log(`[MILPÍN TTS] ElevenLabs → "${texto.substring(0, 40)}..."`);
             try {
                 await _elevenlabsAudio.play();
+                return; // éxito — no continuar al fallback
             } catch (playErr) {
                 console.warn('[MILPÍN TTS] play() bloqueado, usando Web Speech API:', playErr);
                 URL.revokeObjectURL(url);
                 _elevenlabsAudio = null;
-                throw playErr;
+                // caer al fallback Web Speech API
             }
-            return;
 
         } catch (err) {
             console.warn(`[MILPÍN TTS] ElevenLabs directo falló (${err.message}). Fallback a Web Speech API.`);
         }
     }
 
-    // Fallback: Web Speech API
+    // ── Fallback: Web Speech API ──────────────────────────────────────────────
+    // El motor fue activado en el segundo tap (stop recording).
+    // cancel() se hace aquí, justo antes del speak(), no antes — preserva
+    // la activación para el speak() que viene inmediatamente después.
     if (!window.speechSynthesis) return;
-    _desbloquearAudio();
-    setTimeout(() => {
-        const utterance = new SpeechSynthesisUtterance(texto);
-        utterance.lang  = 'es-MX';
-        utterance.rate  = 1.05;
-        utterance.voice = vozSeleccionada || null;
-        utterance.onstart = () => console.log(`[MILPÍN TTS] Web Speech → "${texto.substring(0, 40)}..."`);
-        utterance.onerror = (e) => {
-            if (e.error === 'interrupted') return;
-            const vocesLocales = window.speechSynthesis.getVoices()
-                .filter(v => v.lang.startsWith('es') && !v.name.includes('Online'));
-            const fb = new SpeechSynthesisUtterance(texto);
-            fb.voice = vocesLocales[0] || null;
-            fb.lang  = 'es';
-            window.speechSynthesis.speak(fb);
-        };
-        window.speechSynthesis.speak(utterance);
-    }, 50);
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(texto);
+    utterance.lang  = 'es-MX';
+    utterance.rate  = 1.05;
+    utterance.voice = vozSeleccionada || null;
+    utterance.onstart = () => console.log(`[MILPÍN TTS] Web Speech → "${texto.substring(0, 40)}..."`);
+    utterance.onerror = (e) => {
+        if (e.error === 'interrupted') return;
+        // Reintentar con cualquier voz en español disponible
+        const vocesLocales = window.speechSynthesis.getVoices()
+            .filter(v => v.lang.startsWith('es') && !v.name.includes('Online'));
+        const fb = new SpeechSynthesisUtterance(texto);
+        fb.voice = vocesLocales[0] || null;
+        fb.lang  = 'es';
+        window.speechSynthesis.speak(fb);
+    };
+    window.speechSynthesis.speak(utterance);
 }
 
 // ── Selección de parcela por nombre (para intents de riego con nombre) ──────
