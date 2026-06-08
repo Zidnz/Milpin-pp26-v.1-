@@ -11,8 +11,8 @@ let vozSeleccionada = null;
 // y elimina la dependencia del backend para TTS. Trade-off: la key queda en el JS.
 // Reemplaza YOUR_API_KEY con tu clave real de elevenlabs.io → Profile → API Keys.
 const _EL_KEY      = '91370e4ba0f502023e38c98ec6534d668a34ccd167305c033dd3c60b45436608';
-const _EL_VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; // Adam — voz masculina gratuita por defecto
-const _EL_URL      = `https://api.elevenlabs.io/v1/text-to-speech/${_EL_VOICE_ID}`;
+const _EL_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel — voz por defecto, disponible en Free
+const _EL_URL      = `https://api.elevenlabs.io/v1/text-to-speech/${_EL_VOICE_ID}?output_format=mp3_44100_128`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PIPELINE ANTIGUO — MediaRecorder + Whisper (servidor)
@@ -729,7 +729,33 @@ async function hablar(texto) {
         }
     }
 
-    // ── Fallback: Web Speech API ──────────────────────────────────────────────
+    // ── Fallback B: Google Translate TTS via elemento Audio ──────────────────
+    // Usa el mismo _ttsAudio pre-desbloqueado en el gesto táctil.
+    // Los elementos <audio> no tienen restricciones CORS para reproducción simple
+    // (a diferencia de fetch), por lo que esto funciona en async sin gesto activo.
+    try {
+        // Google TTS acepta hasta ~200 chars por request
+        const gtTexto = texto.length > 200 ? texto.slice(0, 197) + '…' : texto;
+        const gtUrl   = `https://translate.google.com/translate_tts?ie=UTF-8&tl=es&client=tw-ob&q=${encodeURIComponent(gtTexto)}`;
+
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+        await new Promise((resolve, reject) => {
+            _elevenlabsAudio = _ttsAudio;
+            _elevenlabsAudio.onended = () => { _elevenlabsAudio = null; resolve(); };
+            _elevenlabsAudio.onerror = (e) => { _elevenlabsAudio = null; reject(new Error('gtts-error')); };
+            _elevenlabsAudio.src    = gtUrl;
+            _elevenlabsAudio.load();
+            _elevenlabsAudio.muted  = false;
+            _elevenlabsAudio.play().catch(reject);
+        });
+        console.log(`[MILPÍN TTS] Google TTS → "${texto.substring(0, 40)}..."`);
+        return;
+    } catch (err) {
+        console.warn(`[MILPÍN TTS] Google TTS falló (${err.message}). Fallback a Web Speech API.`);
+    }
+
+    // ── Fallback C: Web Speech API ────────────────────────────────────────────
     // El motor fue activado en el segundo tap (stop recording).
     // cancel() se hace aquí, justo antes del speak(), no antes — preserva
     // la activación para el speak() que viene inmediatamente después.
