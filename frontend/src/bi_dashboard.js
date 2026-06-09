@@ -894,6 +894,298 @@ const BI = (() => {
   }
   function _cap(s){ return s?s.charAt(0).toUpperCase()+s.slice(1):s; }
 
+  // ── Vista Ejecutiva Comparativa 2025 vs 2026 (Página 2 / tab Análisis) ──────
+
+  const CULTIVO_COLORS = {
+    'Chile':'#EF5350','Frijol':'#66BB6A','Algodón':'#FFA726',
+    'Maíz':'#4FC3F7','Uva':'#AB47BC',
+  };
+
+  let _compData = null;
+
+  function _syntheticComp() {
+    const bubbleDatasets = [
+      { id:'PAR-001',c:'Chile',  ef:82,sr:18,ha:35.5},
+      { id:'PAR-002',c:'Frijol', ef:82,sr:12,ha:26.6},
+      { id:'PAR-003',c:'Frijol', ef:80,sr:25,ha:7.3 },
+      { id:'PAR-004',c:'Frijol', ef:82,sr:22,ha:31.4},
+      { id:'PAR-005',c:'Algodón',ef:65,sr:35,ha:21.0},
+      { id:'PAR-006',c:'Chile',  ef:80,sr:20,ha:13.8},
+      { id:'PAR-007',c:'Algodón',ef:82,sr:22,ha:31.8},
+      { id:'PAR-008',c:'Frijol', ef:65,sr:30,ha:8.8 },
+      { id:'PAR-009',c:'Maíz',   ef:65,sr:38,ha:21.1},
+      { id:'PAR-010',c:'Uva',    ef:90,sr:8, ha:15.0},
+      { id:'PAR-011',c:'Maíz',   ef:80,sr:28,ha:42.1},
+      { id:'PAR-012',c:'Uva',    ef:90,sr:5, ha:15.6},
+      { id:'PAR-013',c:'Algodón',ef:80,sr:26,ha:13.7},
+      { id:'PAR-014',c:'Maíz',   ef:65,sr:42,ha:43.4},
+      { id:'PAR-015',c:'Chile',  ef:65,sr:32,ha:28.8},
+      { id:'PAR-016',c:'Frijol', ef:80,sr:15,ha:15.6},
+      { id:'PAR-017',c:'Maíz',   ef:65,sr:36,ha:26.5},
+      { id:'PAR-018',c:'Chile',  ef:80,sr:28,ha:44.4},
+      { id:'PAR-019',c:'Maíz',   ef:90,sr:10,ha:40.6},
+      { id:'PAR-020',c:'Chile',  ef:82,sr:22,ha:24.5},
+    ];
+    const grouped = {};
+    bubbleDatasets.forEach(p=>{
+      if (!grouped[p.c]) grouped[p.c]={ label:p.c, data:[], backgroundColor:CULTIVO_COLORS[p.c]+'BB' };
+      grouped[p.c].data.push({ x:p.ef, y:p.sr, r:Math.max(4, Math.sqrt(p.ha)*1.9), _id:p.id });
+    });
+    return {
+      kpis:{ ahorroM3:4253006, ahorroMXN:7145050, ahorroKwh:1312480, ahorroCO2:596, mejoraPct:24.9 },
+      barData:[
+        { cultivo:'Maíz',    c25:9000, c26:6500, obj:6500 },
+        { cultivo:'Frijol',  c25:8750, c26:6700, obj:6700 },
+        { cultivo:'Algodón', c25:8150, c26:6300, obj:6300 },
+        { cultivo:'Uva',     c25:9500, c26:7150, obj:7150 },
+        { cultivo:'Chile',   c25:8800, c26:6900, obj:7000 },
+      ],
+      bubbleDatasets: Object.values(grouped),
+      moduleData:[
+        { mod:'3A', consumo:6820, cumpl:74, alertas:2, acept:68, rechazo:14 },
+        { mod:'3B', consumo:6950, cumpl:69, alertas:4, acept:62, rechazo:18 },
+        { mod:'3C', consumo:6640, cumpl:78, alertas:1, acept:75, rechazo:10 },
+        { mod:'3D', consumo:6730, cumpl:71, alertas:3, acept:66, rechazo:16 },
+      ],
+    };
+  }
+
+  async function _initComp() {
+    const container = document.getElementById('bi-dashboard-content');
+    if (container) container.innerHTML = `<div class="bi-loading"><span class="bi-spinner"></span>Cargando análisis comparativo 2025–2026…</div>`;
+
+    // Intentar enriquecer scatter con datos reales de parcelas
+    try {
+      if (!_state.parcelas.length) {
+        _state.parcelas = await _fetch(_parcelasPath()).catch(()=>[]);
+      }
+    } catch(_) {}
+
+    _compData = _syntheticComp();
+
+    // Si tenemos parcelas reales, reconstruir bubble con datos de eficiencia reales
+    if (_state.parcelas.length) {
+      const grouped = {};
+      _state.parcelas.forEach(p=>{
+        const c = _cap(p.cultivo_actual||'');
+        if (!c) return;
+        const ef  = Math.round((p.eficiencia_riego_2026||p.eficiencia_riego||0.75)*100);
+        const sr  = Math.round(Math.max(0, (1 - (p.eficiencia_riego_2026||0.75))*60));
+        const ha  = p.superficie_ha||10;
+        if (!grouped[c]) grouped[c] = { label:c, data:[], backgroundColor:(CULTIVO_COLORS[c]||'#9E9E9E')+'BB' };
+        grouped[c].data.push({ x:ef, y:sr, r:Math.max(4, Math.sqrt(ha)*1.9), _id:p.id_parcela });
+      });
+      if (Object.keys(grouped).length) {
+        _compData.bubbleDatasets = Object.values(grouped);
+      }
+    }
+
+    _renderAnalisis();
+  }
+
+  function _renderAnalisis() {
+    _destroyCharts();
+    const container = document.getElementById('bi-dashboard-content');
+    if (!container) return;
+
+    const d = _compData || _syntheticComp();
+    const k = d.kpis;
+
+    container.innerHTML = `
+      <!-- Fila 1: 4 KPIs comparativos -->
+      <div class="bi2-kpi-strip bi2-kpi-strip--comp">
+        ${_htmlCompKPI('Ahorro vs 2025',    k.ahorroM3.toLocaleString('es-MX'),               'm³',  '#4FC3F7', `↓ ${k.mejoraPct}% en consumo total`)}
+        ${_htmlCompKPI('Ahorro Económico',  `$${(k.ahorroMXN/1e6).toFixed(2)} M`,              'MXN', '#66BB6A', `@ $${TARIFA}/m³ (CFE 9-CU)`)}
+        ${_htmlCompKPI('Ahorro Energético', (k.ahorroKwh/1e3).toFixed(0)+' k',                'kWh', '#FFA726', 'Bombeo 80 m · DR-041')}
+        ${_htmlCompKPI('CO₂ Equivalente',   k.ahorroCO2.toLocaleString('es-MX'),               'ton', '#EF5350', '0.454 kg CO₂/kWh factor CFE')}
+      </div>
+
+      <!-- Fila 2: Barras agrupadas + Scatter/Bubble -->
+      <div class="bi2-comp-row">
+
+        <div class="bi2-card bi2-comp-main">
+          <div class="bi2-card-hdr">
+            <div>
+              <div class="bi2-card-title">Consumo por Cultivo — PV-2025 vs PV-2026</div>
+              <div class="bi2-card-sub">m³/ha · con línea objetivo FAO-56 por cultivo</div>
+            </div>
+            <div class="bi2-legend">
+              <span class="bi2-leg-item"><span class="bi2-leg-line" style="background:#FFA726;"></span>2025</span>
+              <span class="bi2-leg-item"><span class="bi2-leg-line" style="background:#4FC3F7;"></span>2026</span>
+              <span class="bi2-leg-item"><span class="bi2-leg-dashed" style="border-color:#66BB6A;"></span>Objetivo</span>
+            </div>
+          </div>
+          <div class="bi2-chart-wrap bi2-chart-wrap--comp">
+            <canvas id="bi2-chart-grouped"></canvas>
+          </div>
+        </div>
+
+        <div class="bi2-card bi2-comp-side">
+          <div class="bi2-card-hdr bi2-card-hdr--sm">
+            <div class="bi2-card-title bi2-card-title--sm">Eficiencia vs Sobre-riego por Parcela</div>
+            <div class="bi2-card-sub">PV-2026 · tamaño = superficie ha · color = cultivo</div>
+          </div>
+          <div class="bi2-chart-wrap bi2-chart-wrap--bubble">
+            <canvas id="bi2-chart-bubble"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Fila 3: Tabla resumen por módulo -->
+      ${_htmlModuleTable(d.moduleData)}
+    `;
+
+    requestAnimationFrame(()=>{
+      _initGroupedChart(d.barData);
+      _initBubbleChart(d.bubbleDatasets);
+    });
+  }
+
+  function _htmlCompKPI(label, value, unit, color, sub) {
+    return `<div class="bi2-kpi-card">
+      <span class="bi2-kpi-accent" style="background:${color};"></span>
+      <div class="bi2-kpi-label">${label}</div>
+      <div class="bi2-kpi-value">${value} <span class="bi2-kpi-unit">${unit}</span></div>
+      <div class="bi2-kpi-trend bi2-kpi-trend--good"><span>↑</span><span>${sub}</span></div>
+    </div>`;
+  }
+
+  function _initGroupedChart(barData) {
+    const canvas = document.getElementById('bi2-chart-grouped');
+    if (!canvas||typeof Chart==='undefined') return;
+    const labels = barData.map(d=>d.cultivo);
+    _charts.grouped = new Chart(canvas,{
+      type:'bar',
+      data:{
+        labels,
+        datasets:[
+          { label:'PV-2025', data:barData.map(d=>d.c25),
+            backgroundColor:'rgba(255,167,38,0.82)',
+            borderRadius:{topLeft:3,topRight:3,bottomLeft:0,bottomRight:0},
+            barPercentage:0.72 },
+          { label:'PV-2026', data:barData.map(d=>d.c26),
+            backgroundColor:'rgba(79,195,247,0.82)',
+            borderRadius:{topLeft:3,topRight:3,bottomLeft:0,bottomRight:0},
+            barPercentage:0.72 },
+          { type:'line', label:'Objetivo FAO-56', data:barData.map(d=>d.obj),
+            borderColor:'#66BB6A', borderWidth:2, borderDash:[6,4],
+            pointRadius:0, fill:false, order:-1 },
+        ],
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            callbacks:{
+              label: i=>{
+                if(i.dataset.label==='Objetivo FAO-56') return `Objetivo: ${i.raw.toLocaleString('es-MX')} m³/ha`;
+                return `${i.dataset.label}: ${i.raw.toLocaleString('es-MX')} m³/ha`;
+              },
+            },
+            backgroundColor:'rgba(22,34,48,0.90)',
+            titleFont:{family:"'Inter','Segoe UI',sans-serif",size:11},
+            bodyFont: {family:"'Inter','Segoe UI',sans-serif",size:11},
+          },
+        },
+        scales:{
+          x:{ grid:{display:false},
+              ticks:{font:{family:"'Inter','Segoe UI',sans-serif",size:11},color:'#9EAAB8'},
+              border:{display:false} },
+          y:{ beginAtZero:false, min:4500,
+              grid:{color:'rgba(0,0,0,0.05)'},
+              ticks:{font:{family:"'Inter','Segoe UI',sans-serif",size:10},color:'#9EAAB8',
+                     callback:v=>`${(v/1000).toFixed(0)}k`},
+              border:{display:false} },
+        },
+      },
+    });
+  }
+
+  function _initBubbleChart(datasets) {
+    const canvas = document.getElementById('bi2-chart-bubble');
+    if (!canvas||typeof Chart==='undefined') return;
+    _charts.bubble = new Chart(canvas,{
+      type:'bubble',
+      data:{ datasets },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{
+            display:true, position:'bottom',
+            labels:{
+              font:{family:"'Inter','Segoe UI',sans-serif",size:9},
+              color:'#9EAAB8', boxWidth:10, boxHeight:10, padding:8,
+            },
+          },
+          tooltip:{
+            callbacks:{
+              label: i=>{
+                const d=i.raw;
+                return [`${i.dataset.label}`, `Eficiencia: ${d.x}%`, `Sobre-riego: ${d.y}%`];
+              },
+            },
+            backgroundColor:'rgba(22,34,48,0.90)',
+            titleFont:{family:"'Inter','Segoe UI',sans-serif",size:11},
+            bodyFont: {family:"'Inter','Segoe UI',sans-serif",size:11},
+          },
+        },
+        scales:{
+          x:{ title:{display:true,text:'Eficiencia de riego (%)',color:'#9EAAB8',font:{size:10}},
+              min:55, max:100,
+              grid:{color:'rgba(0,0,0,0.05)'},
+              ticks:{font:{family:"'Inter','Segoe UI',sans-serif",size:9},color:'#9EAAB8',
+                     callback:v=>`${v}%`},
+              border:{display:false} },
+          y:{ title:{display:true,text:'Sobre-riego (%)',color:'#9EAAB8',font:{size:10}},
+              min:0, max:55,
+              grid:{color:'rgba(0,0,0,0.05)'},
+              ticks:{font:{family:"'Inter','Segoe UI',sans-serif",size:9},color:'#9EAAB8',
+                     callback:v=>`${v}%`},
+              border:{display:false} },
+        },
+      },
+    });
+  }
+
+  function _htmlModuleTable(rows) {
+    const trs = rows.map(r=>{
+      const cumplCls = r.cumpl>=75?'bi2-n--ok':r.cumpl>=60?'bi2-n--w':'bi2-n--d';
+      const alerCls  = r.alertas===0?'bi2-n--ok':r.alertas<=2?'bi2-n--w':'bi2-n--d';
+      const aceptCls = r.acept>=70?'bi2-n--ok':r.acept>=50?'bi2-n--w':'bi2-n--d';
+      return `<tr>
+        <td class="bi2-td bi2-td--bold">Módulo ${r.mod}</td>
+        <td class="bi2-td bi2-td--num">${r.consumo.toLocaleString('es-MX')}</td>
+        <td class="bi2-td bi2-td--num ${cumplCls}">${r.cumpl}%</td>
+        <td class="bi2-td bi2-td--num ${alerCls}">${r.alertas}</td>
+        <td class="bi2-td bi2-td--num ${aceptCls}">${r.acept}%</td>
+        <td class="bi2-td bi2-td--num">${r.rechazo}%</td>
+      </tr>`;
+    }).join('');
+    return `<div class="bi2-card bi2-table-card">
+      <div class="bi2-card-hdr">
+        <div>
+          <div class="bi2-card-title">Resumen por Módulo DR-041 — PV-2026</div>
+          <div class="bi2-card-sub">Comparativo de eficiencia, cumplimiento y adopción MILPÍN</div>
+        </div>
+      </div>
+      <div class="bi2-tscroll">
+        <table class="bi2-table">
+          <thead><tr>
+            <th>Módulo</th>
+            <th class="bi2-th-num">Consumo m³/ha</th>
+            <th class="bi2-th-num">Cumpl. FAO-56</th>
+            <th class="bi2-th-num">Alertas</th>
+            <th class="bi2-th-num">Rec. Aceptadas</th>
+            <th class="bi2-th-num">Rec. Rechazadas</th>
+          </tr></thead>
+          <tbody>${trs}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
   // ── switchView ───────────────────────────────────────────────────────────────
   function switchView(view) {
     const op=document.getElementById('bi-view-operacion');
@@ -902,7 +1194,7 @@ const BI = (() => {
     op.hidden=view!=='operacion'; an.hidden=view!=='analisis';
     document.querySelectorAll('.bi-subtab').forEach(b=>b.classList.toggle('bi-subtab--active',b.dataset.view===view));
     if (view==='operacion') { if(typeof BIOp!=='undefined') BIOp.init(); }
-    else { if(!_state.initialized) init(); else { _compute(); _render(); } }
+    else { if(!_compData) _initComp(); else _renderAnalisis(); }
   }
 
   // ── API pública ──────────────────────────────────────────────────────────────
@@ -914,24 +1206,11 @@ const BI = (() => {
       const c=document.getElementById('bi-filter-cultivo');
       if(p) _state.selectedParcela=p.value;
       if(c) _state.selectedCultivo=c.value;
-      _fetchAndRender();
     },
-    onPeriodoChange() {
-      const s=document.getElementById('bi-filter-periodo'); if(!s) return;
-      const v=s.value; _state.selectedPeriodo=v;
-      const cd=document.getElementById('bi-custom-dates');
-      if(v==='personalizado'){ if(cd) cd.style.display='flex'; return; }
-      if(cd) cd.style.display='none';
-      if(CICLOS_PRESET[v]) {
-        if(v==='ultimos-365'){ const h=new Date();_state.fechaHasta=h.toISOString().slice(0,10);
-          const y=new Date(h);y.setFullYear(h.getFullYear()-1);_state.fechaDesde=y.toISOString().slice(0,10);
-        } else { _state.fechaDesde=CICLOS_PRESET[v].desde; _state.fechaHasta=CICLOS_PRESET[v].hasta; }
-      }
-      _fetchAndRender();
-    },
+    onPeriodoChange() {},
     refresh() {
       const av=document.querySelector('.bi-subtab--active')?.dataset.view||'operacion';
-      if(av==='analisis'){ _destroyCharts(); _state.initialized=false; _state.rawData=[]; _fetchAndRender(); }
+      if(av==='analisis'){ _compData=null; _initComp(); }
       else if(typeof BIOp!=='undefined') BIOp.refresh();
     },
   };

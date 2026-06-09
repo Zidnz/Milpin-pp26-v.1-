@@ -3919,6 +3919,21 @@ body #main-container {
 
 .bi2-chart-wrap--bars { height: 168px; padding: 2px 10px 8px; }
 
+/* ── Vista Ejecutiva Comparativa ───────────────────────────────── */
+.bi2-kpi-strip--comp { grid-template-columns: repeat(4,1fr); }
+
+.bi2-comp-row {
+  display: grid;
+  grid-template-columns: 60% 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+.bi2-comp-main  { min-width: 0; }
+.bi2-comp-side  { min-width: 0; }
+
+.bi2-chart-wrap--comp   { height: 280px; padding: 4px 14px 12px; }
+.bi2-chart-wrap--bubble { height: 280px; padding: 4px 10px 8px; }
+
 /* ── Chart legend ──────────────────────────────────────────────── */
 .bi2-legend {
     display: flex;
@@ -4273,17 +4288,23 @@ body #main-container {
 
 /* ── Responsive bi2 ────────────────────────────────────────────── */
 @media (max-width: 1100px) {
-    .bi2-mid-grid { grid-template-columns: 1fr; }
-    .bi2-sidebar  { display: grid; grid-template-columns: repeat(3,1fr); gap:12px; }
+    .bi2-mid-grid  { grid-template-columns: 1fr; }
+    .bi2-sidebar   { display: grid; grid-template-columns: repeat(3,1fr); gap:12px; }
+    .bi2-comp-row  { grid-template-columns: 1fr; }
 }
 @media (max-width: 860px) {
-    .bi2-kpi-strip { grid-template-columns: repeat(3,1fr); }
-    .bi2-sidebar   { grid-template-columns: 1fr 1fr; }
+    .bi2-kpi-strip      { grid-template-columns: repeat(3,1fr); }
+    .bi2-kpi-strip--comp{ grid-template-columns: repeat(2,1fr); }
+    .bi2-sidebar        { grid-template-columns: 1fr 1fr; }
+    .bi2-comp-row       { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
-    .bi2-kpi-strip { grid-template-columns: repeat(2,1fr); gap:10px; }
-    .bi2-sidebar   { grid-template-columns: 1fr; }
-    .bi2-chart-wrap--main { height: 220px; }
+    .bi2-kpi-strip       { grid-template-columns: repeat(2,1fr); gap:10px; }
+    .bi2-kpi-strip--comp { grid-template-columns: repeat(2,1fr); gap:10px; }
+    .bi2-sidebar         { grid-template-columns: 1fr; }
+    .bi2-chart-wrap--main   { height: 220px; }
+    .bi2-chart-wrap--comp   { height: 220px; }
+    .bi2-chart-wrap--bubble { height: 220px; }
     .bi2-kpi-value { font-size: 1.3rem; }
 }
 
@@ -6873,23 +6894,4 @@ body #main-container {
     font-size: 0.84rem;
 }
 
-/* ── Responsive ──────────────────────────────────────────────── */
-@media (max-width: 900px) {
-    .bi-intel-row   { grid-template-columns: 1fr; }
-    .bi-estado-row  { grid-template-columns: 1fr; }
-    .bi-kpi-grid--5 { grid-template-columns: repeat(3, 1fr); }
-    .bi-ciclo-kpis  { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 600px) {
-    .bi-kpi-grid--5 { grid-template-columns: repeat(2, 1fr); }
-    .bi-abar-row    { grid-template-columns: 52px 1fr 32px; }
-    .bi-hm-grid     { gap: 3px; }
-    .bi-hm-cell     { padding: 5px 2px 4px; }
-    .bi-hm-val      { font-size: 0.64rem; }
-}
-
-/* ── Análisis view: contenedor ───────────────────────────────── */
-#bi-view-analisis #bi-dashboard-content {
-    padding-top: 14px;
-}
+/* ── Responsive ─────
