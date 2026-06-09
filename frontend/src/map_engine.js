@@ -1,4 +1,4 @@
-// ==========================================
+﻿// ==========================================
 // map_engine.js: Motor Geoespacial Leaflet
 // MILPÍN AgTech v2.1
 //
@@ -18,8 +18,13 @@ let capaPozos    = null;
 let capaAnalisis = null;
 
 // ── Capas base (necesarias para el panel de capas fuera del mapa) ─────
-let _baseSatelite = null;
-let _baseTopo     = null;
+let _baseSatelite  = null;
+let _baseTopo      = null;
+let _baseDark      = null;
+
+// ── Estado del colorizador de variables ──────────────────────────────
+let _colorizerVar     = 'ndvi';
+let _datosLotesCache  = null;
 
 // ── Centro por defecto (Cajeme, Valle del Yaqui) ─────────────────────
 const DEFAULT_CENTER = [27.3670, -109.9310];
@@ -75,7 +80,9 @@ const ESTILOS = {
     canal: {
         color: '#00E5FF',
         weight: 3,
-        opacity: 0.8
+        opacity: 0.8,
+        dashArray: '12, 8',
+        className: 'canal-flow'
     },
     pozo_activo: {
         radius: 6,
@@ -179,7 +186,7 @@ async function cargarGeoJSON(ruta) {
  */
 async function cargarParcelasAPI() {
     const query = window.MILPIN_AUTH?.getParcelasQuery?.() || '';
-    const API_URL = `https://milpin-pp26-v1-production.up.railway.app/api/parcelas/geojson${query}`;
+    const API_URL = `https://milpin-pp26-v-1.onrender.com/api/parcelas/geojson${query}`;
     try {
         const res = await fetch(API_URL);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -208,6 +215,134 @@ window._milpinResetMapSession = function() {
     capaPozos = null;
     capaAnalisis = null;
 };
+
+// ── Colorizador: escalas por variable ────────────────────────────────
+const COLORIZER_VARS = {
+    ndvi: {
+        label: 'Índice NDVI',
+        getColor: (p) => obtenerColorNDVI(getNDVI(p)),
+        getLevels: () => [
+            { color: '#00a600', nombre: 'Excelente', label: '≥ 80%'  },
+            { color: '#4cbb17', nombre: 'Saludable', label: '60–79%' },
+            { color: '#d4c000', nombre: 'Moderado',  label: '40–59%' },
+            { color: '#e07000', nombre: 'Alerta',    label: '25–39%' },
+            { color: '#cc1800', nombre: 'Crítico',   label: '< 25%'  },
+        ]
+    },
+    deficit: {
+        label: 'Déficit Hídrico',
+        getColor: (p) => {
+            const v = p.deficit_hidrico;
+            if (v == null)  return '#aaa';
+            if (v <= 20)    return '#00a600';
+            if (v <= 50)    return '#d4c000';
+            if (v <= 80)    return '#e07000';
+            return '#cc1800';
+        },
+        getLevels: () => [
+            { color: '#00a600', nombre: 'Óptimo',   label: '≤ 20 mm'   },
+            { color: '#d4c000', nombre: 'Moderado', label: '21–50 mm'  },
+            { color: '#e07000', nombre: 'Alto',     label: '51–80 mm'  },
+            { color: '#cc1800', nombre: 'Crítico',  label: '> 80 mm'   },
+        ]
+    },
+    dias_sin_riego: {
+        label: 'Días sin Riego',
+        getColor: (p) => {
+            const v = p.dias_sin_riego;
+            if (v == null) return '#aaa';
+            if (v <= 7)    return '#00a600';
+            if (v <= 14)   return '#d4c000';
+            if (v <= 21)   return '#e07000';
+            return '#cc1800';
+        },
+        getLevels: () => [
+            { color: '#00a600', nombre: 'Reciente', label: '≤ 7 días'   },
+            { color: '#d4c000', nombre: 'Normal',   label: '8–14 días'  },
+            { color: '#e07000', nombre: 'Atención', label: '15–21 días' },
+            { color: '#cc1800', nombre: 'Urgente',  label: '> 21 días'  },
+        ]
+    },
+    consumo: {
+        label: 'Consumo m³/ha',
+        getColor: (p) => {
+            const v = p.consumo_ciclo_m3ha;
+            if (v == null)  return '#aaa';
+            if (v <= 5500)  return '#00a600';
+            if (v <= 6500)  return '#4cbb17';
+            if (v <= 7500)  return '#e07000';
+            return '#cc1800';
+        },
+        getLevels: () => [
+            { color: '#00a600', nombre: 'Bajo objetivo',  label: '≤ 5,500 m³/ha'       },
+            { color: '#4cbb17', nombre: 'En objetivo',    label: '5,501–6,500 m³/ha'    },
+            { color: '#e07000', nombre: 'Sobre objetivo', label: '6,501–7,500 m³/ha'    },
+            { color: '#cc1800', nombre: 'Exceso',         label: '> 7,500 m³/ha'        },
+        ]
+    }
+};
+
+// Cuenta parcelas por color-bucket para la leyenda
+function _contarPorColor(parcelas, getColor, levels) {
+    const counts = {};
+    levels.forEach(l => { counts[l.color] = 0; });
+    if (parcelas) {
+        parcelas.features.forEach(f => {
+            const c = getColor(f.properties);
+            if (counts[c] !== undefined) counts[c]++;
+        });
+    }
+    return counts;
+}
+
+// Renderiza la leyenda DOM para cualquier variable
+function _renderLeyendaGeneral(variable, parcelas) {
+    const el = document.getElementById('map-leyenda-ndvi');
+    if (!el) return;
+    const cfg    = COLORIZER_VARS[variable];
+    const levels = cfg.getLevels();
+    const total  = parcelas ? parcelas.features.length : 0;
+    const counts = total > 0 ? _contarPorColor(parcelas, cfg.getColor, levels) : {};
+    el.innerHTML = `
+        <div class="map-widget-title">${cfg.label}</div>
+        <div class="map-ndvi-levels">
+            ${levels.map(e => `
+            <div class="map-ndvi-row">
+                <span class="map-ndvi-dot" style="background:${e.color}"></span>
+                <span class="map-ndvi-nombre">${e.nombre}</span>
+                <span class="map-ndvi-rango">${e.label}</span>
+                ${total > 0 ? `<span class="map-ndvi-count" style="color:${e.color}">${counts[e.color] || 0}</span>` : ''}
+            </div>`).join('')}
+        </div>
+        ${total > 0 ? `<div class="map-ndvi-total">Total: ${total} parcelas</div>` : ''}`;
+}
+
+// Re-pinta capaLotes con la variable elegida y actualiza leyenda + chips
+function _colorearPorVariable(variable) {
+    if (!capaLotes || !COLORIZER_VARS[variable]) return;
+    _colorizerVar = variable;
+    const cfg = COLORIZER_VARS[variable];
+
+    capaLotes.setStyle((feature) => {
+        const p         = feature.properties;
+        const ndvi      = getNDVI(p);
+        const esCritico = variable === 'ndvi' && ndvi < 0.25;
+        return {
+            fillColor:   cfg.getColor(p),
+            fillOpacity: 0.82,
+            weight:      esCritico ? 2.5 : 1.5,
+            color:       esCritico ? '#ff4400' : 'rgba(255,255,255,0.7)',
+            dashArray:   esCritico ? '5,3'     : null,
+            className:   esCritico ? 'parcela-critica' : ''
+        };
+    });
+
+    _renderLeyendaGeneral(variable, _datosLotesCache);
+
+    document.querySelectorAll('.map-colorizer-chip').forEach(chip => {
+        chip.classList.toggle('map-colorizer-chip--active', chip.dataset.var === variable);
+    });
+}
 
 // ── Leyenda NDVI como control Leaflet ─────────────────────────────────
 function crearLeyendaNDVI(parcelas) {
@@ -329,6 +464,10 @@ async function inicializarMapa() {
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
         { attribution: 'Tiles &copy; Esri — Esri, DeLorme, NAVTEQ', maxZoom: 18 }
     );
+    _baseDark = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        { attribution: '&copy; OpenStreetMap contributors &copy; CARTO', maxZoom: 19, subdomains: 'abcd' }
+    );
 
     _baseSatelite.addTo(map);
 
@@ -386,7 +525,9 @@ async function inicializarMapa() {
 
         map.fitBounds(capaLotes.getBounds(), { padding: [30, 30] });
 
-        // Widgets fuera del mapa (panel DOM debajo del NDVI)
+        // Cache para el colorizador + chips + leyenda/badge DOM
+        _datosLotesCache = datosLotes;
+        _renderColorizerBar();
         _renderLeyendaDOM(datosLotes);
         _renderBadgeDOM(datosLotes);
     }
@@ -442,7 +583,8 @@ async function inicializarMapa() {
     // ── Control de capas (dentro del mapa) ───────────────────────────
     const baseMaps = {
         "Satélite (Esri)": _baseSatelite,
-        "Topográfico":     _baseTopo
+        "Topográfico":     _baseTopo,
+        "Oscuro (CARTO)":  _baseDark
     };
     const overlays = {};
     if (capaLotes)   overlays["Parcelas (NDVI)"]     = capaLotes;
@@ -464,6 +606,7 @@ async function inicializarMapa() {
         }
     };
 
+    window._colorearPorVariable = _colorearPorVariable;
     console.log("[GIS] Mapa v2.1 inicializado — NDVI mejorado, Cajeme delimitado.");
 }
 
@@ -499,39 +642,27 @@ function _renderBadgeDOM(parcelas) {
 }
 
 function _renderLeyendaDOM(parcelas) {
-    const el = document.getElementById('map-leyenda-ndvi');
-    if (!el) return;
-    const conteos = { excelente: 0, saludable: 0, moderado: 0, alerta: 0, critico: 0 };
-    const total = parcelas ? parcelas.features.length : 0;
-    if (parcelas) {
-        parcelas.features.forEach(f => {
-            const ndvi = getNDVI(f.properties);
-            if      (ndvi >= 0.80) conteos.excelente++;
-            else if (ndvi >= 0.60) conteos.saludable++;
-            else if (ndvi >= 0.40) conteos.moderado++;
-            else if (ndvi >= 0.25) conteos.alerta++;
-            else                   conteos.critico++;
-        });
-    }
-    const niveles = [
-        { color: '#00a600', label: '≥ 80%',  nombre: 'Excelente', n: conteos.excelente },
-        { color: '#4cbb17', label: '60–79%', nombre: 'Saludable', n: conteos.saludable },
-        { color: '#d4c000', label: '40–59%', nombre: 'Moderado',  n: conteos.moderado  },
-        { color: '#e07000', label: '25–39%', nombre: 'Alerta',    n: conteos.alerta    },
-        { color: '#cc1800', label: '< 25%',  nombre: 'Crítico',   n: conteos.critico   },
+    _renderLeyendaGeneral('ndvi', parcelas);
+}
+
+function _renderColorizerBar() {
+    const mapEl = document.getElementById('map');
+    if (!mapEl || document.getElementById('map-colorizer-bar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'map-colorizer-bar';
+    bar.className = 'map-colorizer-bar';
+    const chips = [
+        { key: 'ndvi',           label: 'NDVI' },
+        { key: 'deficit',        label: 'Déficit' },
+        { key: 'dias_sin_riego', label: 'Días sin riego' },
+        { key: 'consumo',        label: 'Consumo' },
     ];
-    el.innerHTML = `
-        <div class="map-widget-title">Índice NDVI</div>
-        <div class="map-ndvi-levels">
-            ${niveles.map(e => `
-            <div class="map-ndvi-row">
-                <span class="map-ndvi-dot" style="background:${e.color}"></span>
-                <span class="map-ndvi-nombre">${e.nombre}</span>
-                <span class="map-ndvi-rango">${e.label}</span>
-                ${total > 0 ? `<span class="map-ndvi-count" style="color:${e.color}">${e.n}</span>` : ''}
-            </div>`).join('')}
-        </div>
-        ${total > 0 ? `<div class="map-ndvi-total">Total: ${total} parcelas</div>` : ''}`;
+    bar.innerHTML = chips.map(c =>
+        `<button class="map-colorizer-chip${c.key === _colorizerVar ? ' map-colorizer-chip--active' : ''}"
+                 data-var="${c.key}"
+                 onclick="window._colorearPorVariable('${c.key}')">${c.label}</button>`
+    ).join('');
+    mapEl.insertAdjacentElement('beforebegin', bar);
 }
 
 // ── Panel de detalle de parcela (bajo el mapa) ────────────────────────
@@ -628,7 +759,7 @@ async function ejecutarAnalisisSIG() {
     if (capaAnalisis) capaAnalisis.clearLayers();
 
     try {
-        const response = await fetch('https://milpin-pp26-v1-production.up.railway.app/api/logistica_inteligente');
+        const response = await fetch('https://milpin-pp26-v-1.onrender.com/api/logistica_inteligente');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 

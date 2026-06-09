@@ -1,9 +1,9 @@
-// bi_operacion.js — Dashboard Operacional MILPÍN v2
+﻿// bi_operacion.js — Dashboard Operacional MILPÍN v2
 // Secciones: Resumen Agronómico · Inteligencia de Parcela · Estado Agronómico · Cumplimiento Ciclo
 
 const BIOp = (() => {
 
-  const API          = 'https://milpin-pp26-v1-production.up.railway.app/api';
+  const API          = 'https://milpin-pp26-v-1.onrender.com/api';
   const TIMEOUT      = 12000;
   const CICLO_LABEL  = 'OI 2025-26';
   const BASELINE_M3  = 8000;

@@ -1,9 +1,9 @@
-// admin_panel.js — Panel de administración MILPÍN
+﻿// admin_panel.js — Panel de administración MILPÍN
 // Visible solo para usuarios con rol="admin".
 // Consume: GET /api/parcelas (sin filtro → todas), GET /api/usuarios
 
 const ADMIN = (() => {
-  const API = 'https://milpin-pp26-v1-production.up.railway.app/api';
+  const API = 'https://milpin-pp26-v-1.onrender.com/api';
 
   // ── Estado ──────────────────────────────────────────────────────────────────
   let _parcelas  = [];

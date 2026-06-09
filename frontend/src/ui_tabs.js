@@ -1,8 +1,8 @@
-// ==========================================
+﻿// ==========================================
 // ui_tabs.js: Controladores de Interfaz y Recomendaciones
 // ==========================================
 
-const API_BASE = "https://milpin-pp26-v1-production.up.railway.app/api";
+const API_BASE = "https://milpin-pp26-v-1.onrender.com/api";
 
 // Mapa cultivo → imagen local en frontend/imagenes/
 const _IMG_BASE = "imagenes";

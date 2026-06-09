@@ -1,11 +1,11 @@
-// bi_dashboard.js — Vista Análisis (Power BI-style, Chart.js 4.x)
+﻿// bi_dashboard.js — Vista Análisis (Power BI-style, Chart.js 4.x)
 // Conectado a: /api/parcelas, /api/parcelas/{id}/kpi,
 //              /api/riego/parcela/{id}, /api/recomendaciones/parcela/{id}
 
 const BI = (() => {
   'use strict';
 
-  const API      = 'https://milpin-pp26-v1-production.up.railway.app/api';
+  const API      = 'https://milpin-pp26-v-1.onrender.com/api';
   const BASELINE = 8000;
   const TARIFA   = 1.68;
 
