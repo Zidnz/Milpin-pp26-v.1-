@@ -32,6 +32,14 @@ DATABASE_URL: str = os.getenv(
     "postgresql+asyncpg://milpin:milpin_pass@localhost:5432/milpin_mvp",
 )
 
+# Render (y otros PaaS) entregan DATABASE_URL con prefijo "postgresql://" o
+# "postgres://", pero SQLAlchemy async requiere "postgresql+asyncpg://".
+# Esta conversión es idempotente: si ya tiene el driver, no cambia nada.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 # Detectar si se está usando SQLite (para desarrollo sin PostgreSQL)
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
 

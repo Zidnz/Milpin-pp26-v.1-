@@ -1,0 +1,56 @@
+# render.yaml — Render Blueprint para MILPÍN AgTech
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Despliega:
+#   - milpin-backend  → Web Service (FastAPI + Uvicorn)
+#   - milpin-db       → PostgreSQL 15 (con PostGIS habilitado vía init script)
+#
+# Uso:
+#   1. Conecta el repo en https://dashboard.render.com → New → Blueprint
+#   2. Render detecta este archivo y crea ambos recursos automáticamente.
+#   3. Agrega GROQ_API_KEY y ELEVENLABS_API_KEY manualmente en el dashboard
+#      (Environment → Add Environment Variable) — nunca van en este archivo.
+
+services:
+  - type: web
+    name: milpin-backend
+    env: python
+    region: oregon          # Cambia a "frankfurt" si necesitas latencia EU
+    plan: free
+    rootDir: .              # Render instala desde requirements.txt en raíz
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+
+    envVars:
+      # DATABASE_URL lo inyecta Render automáticamente desde milpin-db
+      - key: DATABASE_URL
+        fromDatabase:
+          name: milpin-db
+          property: connectionString
+
+      # Claves secretas — agregar manualmente en el dashboard de Render
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+
+      # ElevenLabs voice ID (no es secreto)
+      - key: ELEVENLABS_VOICE_ID
+        value: qWWAqFomnJ99VwQLREfT
+
+      # Python version
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+databases:
+  - name: milpin-db
+    databaseName: milpin_mvp
+    user: milpin
+    plan: free
+    # NOTA: después de crear la BD, habilitar PostGIS manualmente:
+    #   psql $DATABASE_URL -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+    # Luego correr migraciones:
+    #   cd backend && alembic upgrade head
+    # Luego seeders:
+    #   cd backend && python init_db.py
