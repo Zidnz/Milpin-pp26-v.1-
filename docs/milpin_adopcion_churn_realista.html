@@ -1,0 +1,556 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+  .milpin-widget * {
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .milpin-widget {
+    background: #F5F9FC;
+    border-radius: 16px;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .mp-header {
+    background: linear-gradient(135deg, #0A3D62 0%, #0F6CBD 100%);
+    padding: 20px 24px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .mp-header::after {
+    content: '';
+    position: absolute;
+    right: -40px; top: -40px;
+    width: 160px; height: 160px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+  }
+  .mp-header::before {
+    content: '';
+    position: absolute;
+    right: 60px; bottom: -30px;
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    background: rgba(67,179,107,0.12);
+  }
+  .mp-header-text h1 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 2px;
+    letter-spacing: 0.2px;
+  }
+  .mp-header-text p {
+    font-size: 11px;
+    color: rgba(168,221,181,0.9);
+    margin: 0;
+    font-weight: 400;
+  }
+
+  /* Body padding */
+  .mp-body {
+    padding: 20px 24px 24px;
+  }
+
+  /* KPI Cards */
+  .mp-kpis {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .mp-kpi {
+    background: #fff;
+    border-radius: 12px;
+    padding: 14px 12px;
+    text-align: center;
+    box-shadow: 0 1px 8px rgba(10,61,98,0.08);
+    border-top: 3px solid #0F6CBD;
+    transition: box-shadow 0.2s;
+  }
+  .mp-kpi:hover { box-shadow: 0 4px 16px rgba(10,61,98,0.13); }
+  .mp-kpi-label {
+    font-size: 10px;
+    color: #6B7C93;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .mp-kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #0F6CBD;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .mp-kpi-sub {
+    font-size: 10px;
+    color: #6B7C93;
+  }
+
+  /* Controls section */
+  .mp-controls {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 1px 8px rgba(10,61,98,0.07);
+    margin-bottom: 18px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .mp-control-row {}
+  .mp-control-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .mp-control-label {
+    font-size: 12px;
+    color: #1F2D3D;
+    font-weight: 500;
+  }
+  .mp-control-label small {
+    font-size: 10px;
+    color: #6B7C93;
+    font-weight: 400;
+  }
+  .mp-control-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0F6CBD;
+    background: #F0F7FF;
+    padding: 1px 8px;
+    border-radius: 6px;
+  }
+  .mp-control-val.churn-val { color: #E65C5C; background: #FEF2F2; }
+
+  /* Range inputs */
+  input[type=range].mp-range {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    background: linear-gradient(to right, #0F6CBD 0%, #0F6CBD var(--val,50%), #D6E8F7 var(--val,50%), #D6E8F7 100%);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range].mp-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #0F6CBD;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 2px #0F6CBD, 0 2px 6px rgba(15,108,189,0.3);
+    cursor: pointer;
+    transition: box-shadow 0.15s;
+  }
+  input[type=range].mp-range:hover::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px #0F6CBD, 0 2px 10px rgba(15,108,189,0.4);
+  }
+  input[type=range].mp-range.churn-range {
+    background: linear-gradient(to right, #E65C5C 0%, #E65C5C var(--val,50%), #FDDCDC var(--val,50%), #FDDCDC 100%);
+  }
+  input[type=range].mp-range.churn-range::-webkit-slider-thumb {
+    background: #E65C5C;
+    box-shadow: 0 0 0 2px #E65C5C, 0 2px 6px rgba(230,92,92,0.3);
+  }
+  .mp-range-hints {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #6B7C93;
+    margin-top: 4px;
+  }
+
+  /* Stack buttons */
+  .mp-stack-btns {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .mp-btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Poppins', sans-serif;
+    border: 2px solid transparent;
+  }
+  .mp-btn-active {
+    background: linear-gradient(135deg, #0A3D62, #0F6CBD);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 3px 10px rgba(15,108,189,0.3);
+  }
+  .mp-btn-inactive {
+    background: transparent;
+    color: #6B7C93;
+    border-color: #D6E8F7;
+  }
+  .mp-btn-inactive:hover {
+    border-color: #0F6CBD;
+    color: #0F6CBD;
+  }
+
+  /* Chart section */
+  .mp-chart-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 1px 8px rgba(10,61,98,0.07);
+    margin-bottom: 14px;
+  }
+  .mp-legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .mp-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #1F2D3D;
+    font-weight: 500;
+    background: #F5F9FC;
+    padding: 4px 10px 4px 6px;
+    border-radius: 20px;
+  }
+  .mp-legend-line {
+    width: 20px;
+    height: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .mp-chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 280px;
+  }
+
+  /* Insight */
+  .mp-insight {
+    background: linear-gradient(135deg, rgba(15,108,189,0.06), rgba(67,179,107,0.06));
+    border-left: 3px solid #0F6CBD;
+    border-radius: 0 10px 10px 0;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #1F2D3D;
+    line-height: 1.8;
+    font-weight: 400;
+  }
+
+  /* Divider label */
+  .mp-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: #6B7C93;
+    margin-bottom: 10px;
+  }
+</style>
+
+<h2 class="sr-only">Modelo realista MILPÍN: hectáreas activas con churn mensual — adquisición vs abandono en 48 meses</h2>
+
+<div class="milpin-widget">
+
+  <!-- Header -->
+  <div class="mp-header">
+    <!-- Logo SVG inline -->
+    <svg width="48" height="54" viewBox="0 0 48 54" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.25))">
+      <!-- Water drop shape -->
+      <path d="M24 2 C24 2, 4 22, 4 34 C4 44.5 13 52 24 52 C35 52 44 44.5 44 34 C44 22 24 2 24 2Z" fill="url(#dropGrad)" opacity="0.95"/>
+      <!-- Leaf -->
+      <path d="M11 36 C11 36, 14 24, 22 22 C20 30, 16 34, 11 36Z" fill="#43B36B" opacity="0.9"/>
+      <path d="M11 36 C16 33, 20 29, 22 22" stroke="#2E9E5B" stroke-width="1" fill="none" stroke-linecap="round"/>
+      <!-- Bar chart -->
+      <rect x="23" y="38" width="4" height="8" rx="1" fill="white" opacity="0.9"/>
+      <rect x="29" y="32" width="4" height="14" rx="1" fill="white" opacity="0.9"/>
+      <rect x="35" y="27" width="4" height="19" rx="1" fill="white" opacity="0.9"/>
+      <!-- Trend line -->
+      <polyline points="25,37 31,31 37,26" stroke="#A8DDB5" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="25" cy="37" r="1.5" fill="#A8DDB5"/>
+      <circle cx="31" cy="31" r="1.5" fill="#A8DDB5"/>
+      <circle cx="37" cy="26" r="1.5" fill="#A8DDB5"/>
+      <defs>
+        <linearGradient id="dropGrad" x1="24" y1="2" x2="24" y2="52" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#1A6BB5"/>
+          <stop offset="100%" stop-color="#0A3D62"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="mp-header-text">
+      <h1>MILPÍN — Modelo de Adopción con Churn</h1>
+      <p>Proyección 48 meses · hectáreas activas por escenario · Valle del Yaqui DR-041</p>
+    </div>
+  </div>
+
+  <div class="mp-body">
+
+    <!-- KPI Cards -->
+    <div class="mp-section-label">Equilibrio del sistema (escenario base)</div>
+    <div class="mp-kpis">
+      <div class="mp-kpi">
+        <div class="mp-kpi-label">Ha en equilibrio real</div>
+        <div class="mp-kpi-value" id="eq-ha">—</div>
+        <div class="mp-kpi-sub">escenario base</div>
+      </div>
+      <div class="mp-kpi" style="border-top-color:#43B36B;">
+        <div class="mp-kpi-label">% del techo alcanzable</div>
+        <div class="mp-kpi-value" id="eq-pct" style="color:#43B36B;">—</div>
+        <div class="mp-kpi-sub">en escenario base</div>
+      </div>
+      <div class="mp-kpi" style="border-top-color:#0A3D62;">
+        <div class="mp-kpi-label">Ingreso mensual estable</div>
+        <div class="mp-kpi-value" id="eq-rev" style="color:#0A3D62;">—</div>
+        <div class="mp-kpi-sub">MXN/mes (base)</div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="mp-section-label">Parámetros del modelo</div>
+    <div class="mp-controls">
+
+      <div class="mp-control-row">
+        <div class="mp-control-header">
+          <span class="mp-control-label">Techo de mercado — ha máximas posibles</span>
+          <span class="mp-control-val" id="cap-out">5,000 ha</span>
+        </div>
+        <input type="range" id="cap" class="mp-range" min="500" max="40000" step="500" value="5000"
+          oninput="document.getElementById('cap-out').textContent=parseInt(this.value).toLocaleString('es-MX')+' ha'; updateRangeStyle(this); calc()">
+        <div class="mp-range-hints"><span>500 ha</span><span>40,000 ha</span></div>
+      </div>
+
+      <div class="mp-control-row">
+        <div class="mp-control-header">
+          <span class="mp-control-label">Tasa de adquisición mensual <small>(% del mercado disponible que entra cada mes)</small></span>
+          <span class="mp-control-val" id="acq-out">3.0%</span>
+        </div>
+        <input type="range" id="acq" class="mp-range" min="0.5" max="15" step="0.5" value="3"
+          oninput="document.getElementById('acq-out').textContent=parseFloat(this.value).toFixed(1)+'%'; updateRangeStyle(this); calc()">
+        <div class="mp-range-hints"><span>0.5% (muy lento)</span><span>15% (viral)</span></div>
+      </div>
+
+      <div class="mp-control-row">
+        <div class="mp-control-header">
+          <span class="mp-control-label">Churn mensual <small>(% de ha activas que no renuevan cada mes)</small></span>
+          <span class="mp-control-val churn-val" id="churn-out">5.0%</span>
+        </div>
+        <input type="range" id="churn" class="mp-range churn-range" min="0.5" max="20" step="0.5" value="5"
+          oninput="
+            const v = parseFloat(this.value);
+            const el = document.getElementById('churn-out');
+            el.textContent = v.toFixed(1)+'%';
+            el.style.color = v>8 ? '#A32D2D' : v>4 ? '#E65C5C' : '#2E9E5B';
+            el.style.background = v>8 ? '#FECACA' : v>4 ? '#FEF2F2' : '#DCFCE7';
+            updateRangeStyle(this); calc()">
+        <div class="mp-range-hints">
+          <span style="color:#2E9E5B;font-weight:500;">0.5% (producto excelente)</span>
+          <span style="color:#A32D2D;font-weight:500;">20% (producto malo)</span>
+        </div>
+      </div>
+
+      <div class="mp-control-row">
+        <div class="mp-control-header" style="margin-bottom:8px;">
+          <span class="mp-control-label">Stack de infraestructura</span>
+        </div>
+        <div class="mp-stack-btns">
+          <button id="btn-act" class="mp-btn mp-btn-active" onclick="setStack('actual')">Stack actual ~$1,613/mes</button>
+          <button id="btn-az"  class="mp-btn mp-btn-inactive" onclick="setStack('azure')">Azure ~$24,390/mes</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Chart -->
+    <div class="mp-section-label">Proyección de ingresos</div>
+    <div class="mp-chart-section">
+      <div class="mp-legend">
+        <div class="mp-legend-item"><span class="mp-legend-line" style="background:#E65C5C;"></span>Pesimista (churn ×2)</div>
+        <div class="mp-legend-item"><span class="mp-legend-line" style="background:#F5A623;"></span>Base</div>
+        <div class="mp-legend-item"><span class="mp-legend-line" style="background:#43B36B;"></span>Optimista (churn ÷2)</div>
+        <div class="mp-legend-item"><span class="mp-legend-line" style="background:#0F6CBD; background: repeating-linear-gradient(90deg, #0F6CBD 0, #0F6CBD 5px, transparent 5px, transparent 9px);"></span>Costo fijo mensual</div>
+      </div>
+      <div class="mp-chart-wrap">
+        <canvas id="churnChart" role="img" aria-label="Hectáreas activas por escenario con churn mensual vs costo fijo durante 48 meses"></canvas>
+      </div>
+    </div>
+
+    <!-- Insight -->
+    <div class="mp-insight" id="insight"></div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+let stack = 'actual';
+let chart = null;
+const MONTHS = 48;
+const PRICE_HA_MONTH = 240 / 12;
+const INFRA = { actual: 19360/12, azure: 292680/12 };
+
+function updateRangeStyle(el) {
+  const min = parseFloat(el.min), max = parseFloat(el.max), val = parseFloat(el.value);
+  const pct = ((val - min) / (max - min) * 100).toFixed(1) + '%';
+  el.style.setProperty('--val', pct);
+  if (el.classList.contains('churn-range')) {
+    el.style.background = `linear-gradient(to right, #E65C5C 0%, #E65C5C ${pct}, #FDDCDC ${pct}, #FDDCDC 100%)`;
+  } else {
+    el.style.background = `linear-gradient(to right, #0F6CBD 0%, #0F6CBD ${pct}, #D6E8F7 ${pct}, #D6E8F7 100%)`;
+  }
+}
+
+// Init range styles
+document.querySelectorAll('.mp-range').forEach(updateRangeStyle);
+
+function setStack(s) {
+  stack = s;
+  const bA = document.getElementById('btn-act');
+  const bZ = document.getElementById('btn-az');
+  if (s === 'actual') {
+    bA.className = 'mp-btn mp-btn-active';
+    bZ.className = 'mp-btn mp-btn-inactive';
+  } else {
+    bZ.className = 'mp-btn mp-btn-active';
+    bA.className = 'mp-btn mp-btn-inactive';
+  }
+  calc();
+}
+
+function simulate(cap, acqRate, churnRate) {
+  let ha = 0;
+  const haArr = [];
+  for (let m = 0; m < MONTHS; m++) {
+    const newHa = acqRate * (cap - ha);
+    const lost  = churnRate * ha;
+    ha = Math.max(0, ha + newHa - lost);
+    haArr.push(ha);
+  }
+  return haArr;
+}
+
+function equilibrium(cap, acqRate, churnRate) {
+  if (acqRate + churnRate === 0) return 0;
+  return cap * acqRate / (acqRate + churnRate);
+}
+
+function findBreakeven(haArr, monthlyCost) {
+  for (let i = 0; i < haArr.length; i++) {
+    if (haArr[i] * PRICE_HA_MONTH >= monthlyCost) return i + 1;
+  }
+  return null;
+}
+
+function calc() {
+  const cap    = parseInt(document.getElementById('cap').value);
+  const acq    = parseFloat(document.getElementById('acq').value) / 100;
+  const churn  = parseFloat(document.getElementById('churn').value) / 100;
+  const monthlyCost = INFRA[stack];
+
+  const haBase = simulate(cap, acq, churn);
+  const haPes  = simulate(cap, acq * 0.6, churn * 2);
+  const haOpt  = simulate(cap, acq * 1.5, churn * 0.5);
+
+  const eqBase = equilibrium(cap, acq, churn);
+  const eqPct  = eqBase / cap * 100;
+  const eqRev  = eqBase * PRICE_HA_MONTH;
+
+  document.getElementById('eq-ha').textContent  = Math.round(eqBase).toLocaleString('es-MX') + ' ha';
+  document.getElementById('eq-pct').textContent = eqPct.toFixed(1) + '%';
+  document.getElementById('eq-rev').textContent = '$' + Math.round(eqRev).toLocaleString('es-MX');
+
+  const labels = Array.from({length: MONTHS}, (_, i) => 'M' + (i+1));
+  const revBase = haBase.map(h => Math.round(h * PRICE_HA_MONTH));
+  const revPes  = haPes.map(h => Math.round(h * PRICE_HA_MONTH));
+  const revOpt  = haOpt.map(h => Math.round(h * PRICE_HA_MONTH));
+  const costLine = Array(MONTHS).fill(Math.round(monthlyCost));
+
+  const ctx = document.getElementById('churnChart').getContext('2d');
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Pesimista', data: revPes,  borderColor: '#E65C5C', borderWidth: 1.8, pointRadius: 0, fill: false, tension: 0.35 },
+        { label: 'Base',      data: revBase, borderColor: '#F5A623', borderWidth: 2.2, pointRadius: 0, fill: false, tension: 0.35 },
+        { label: 'Optimista', data: revOpt,  borderColor: '#43B36B', borderWidth: 1.8, pointRadius: 0, fill: false, tension: 0.35 },
+        { label: 'Costo fijo',data: costLine,borderColor: '#0F6CBD', borderDash: [6,4],borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index', intersect: false,
+          backgroundColor: '#0A3D62',
+          titleColor: '#A8DDB5',
+          bodyColor: '#fff',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          padding: 10,
+          titleFont: { family: 'Poppins', size: 11, weight: '600' },
+          bodyFont: { family: 'Poppins', size: 11 },
+          callbacks: {
+            label: ctx => ctx.dataset.label + ': $' + ctx.raw.toLocaleString('es-MX') + ' MXN/mes'
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Mes desde lanzamiento', font:{size:11, family:'Poppins'}, color:'#6B7C93' },
+          ticks: { maxTicksLimit: 12, color:'#6B7C93', font:{size:10, family:'Poppins'} },
+          grid: { color:'rgba(10,61,98,0.06)' },
+          border: { color: 'rgba(10,61,98,0.1)' }
+        },
+        y: {
+          title: { display: true, text: 'MXN/mes (ingreso Plan 1)', font:{size:11, family:'Poppins'}, color:'#6B7C93' },
+          ticks: {
+            color:'#6B7C93', font:{size:10, family:'Poppins'},
+            callback: v => v>=1000000 ? '$'+(v/1000000).toFixed(1)+'M' : v>=1000 ? '$'+(v/1000).toFixed(0)+'k' : '$'+v
+          },
+          grid: { color:'rgba(10,61,98,0.06)' },
+          border: { color: 'rgba(10,61,98,0.1)' }
+        }
+      }
+    }
+  });
+
+  const beBase = findBreakeven(haBase, monthlyCost);
+  const bePes  = findBreakeven(haPes,  monthlyCost);
+  const beOpt  = findBreakeven(haOpt,  monthlyCost);
+
+  const churnAnnual = (churn * 100).toFixed(1);
+  let txt = `Con ${churnAnnual}% de churn mensual, el equilibrio real del sistema es ${Math.round(eqBase).toLocaleString('es-MX')} ha — el ${eqPct.toFixed(1)}% del techo. El churn no deja que llegues al 100% del mercado disponible: por cada ha que entra, parte de las existentes se van. `;
+
+  if (eqRev < monthlyCost) {
+    txt += `⚠ Incluso en el equilibrio, el ingreso de Plan 1 ($${Math.round(eqRev).toLocaleString('es-MX')}/mes) no cubre el costo fijo ($${Math.round(monthlyCost).toLocaleString('es-MX')}/mes). El modelo no es viable solo con Plan 1 bajo estos parámetros — necesitas reducir churn, subir precio, o traer ingresos de Plan 2/3.`;
+  } else {
+    txt += beBase ? `Escenario base: breakeven en mes ${beBase}. ` : `Escenario base no llega al breakeven antes del mes 48. `;
+    txt += bePes  ? `Pesimista: mes ${bePes}. ` : `Pesimista: no alcanza. `;
+    txt += beOpt  ? `Optimista: mes ${beOpt}.` : `Optimista: tampoco alcanza.`;
+  }
+
+  document.getElementById('insight').textContent = txt;
+}
+
+calc();
+</script>
