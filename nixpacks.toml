@@ -1,0 +1,11 @@
+# nixpacks.toml — Configuración de build para Railway
+# Railway usa Nixpacks; este archivo fuerza Python 3.11 y define los comandos.
+
+[phases.setup]
+nixPkgs = ["python311"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
