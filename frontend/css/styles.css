@@ -7034,3 +7034,364 @@ body #main-container {
     .map-widgets-panel              { flex-direction: column; }
     .map-widget-card--half          { width: 100%; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SIM3D — Simulador 3D de parcela (overlay de pantalla completa)
+   ═══════════════════════════════════════════════════════════════════ */
+
+#sim3d-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: none;
+    background: #0d1b26;
+    font-family: 'Poppins', sans-serif;
+}
+
+#sim3d-canvas-wrap { position: absolute; inset: 0; }
+#sim3d-canvas-wrap canvas { display: block; }
+
+/* ── Barra superior ── */
+.sim3d-topbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: linear-gradient(180deg, rgba(10, 25, 38, 0.85), rgba(10, 25, 38, 0));
+    z-index: 5;
+    pointer-events: none;
+}
+.sim3d-topbar > * { pointer-events: auto; }
+
+.sim3d-btn-volver {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+}
+
+.sim3d-topbar-tit {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    color: #fff;
+}
+#sim3d-titulo {
+    font-weight: 700;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sim3d-topbar-sub { font-size: 0.72rem; opacity: 0.75; text-transform: capitalize; }
+
+.sim3d-esc-toggle {
+    display: flex;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 3px;
+    backdrop-filter: blur(6px);
+}
+.sim3d-esc-toggle button {
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 16px;
+    cursor: pointer;
+    font-family: inherit;
+}
+.sim3d-esc-toggle button.activo { background: var(--agri-green); color: #fff; }
+
+/* ── HUD (estado del día) ── */
+.sim3d-hud {
+    position: absolute;
+    top: 64px; left: 12px;
+    width: min(290px, calc(100vw - 24px));
+    background: rgba(10, 25, 38, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 10px 12px;
+    color: #fff;
+    z-index: 4;
+    backdrop-filter: blur(8px);
+}
+.sim3d-hud-fila { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.sim3d-chip {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.14);
+}
+.sim3d-chip--dia   { background: var(--primary-blue); }
+.sim3d-chip--riego { background: #2f8fd8; }
+
+.sim3d-hud-hum-lbl {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    opacity: 0.85;
+    margin-bottom: 4px;
+}
+.sim3d-hud-hum-track {
+    position: relative;
+    height: 9px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.15);
+    overflow: hidden;
+}
+#sim3d-hud-hum-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 5px;
+    background: var(--primary-blue);
+    transition: width 0.25s ease;
+}
+#sim3d-hud-hum-umbral {
+    position: absolute;
+    top: -2px; bottom: -2px;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.85);
+}
+.sim3d-hud-detalle { font-size: 0.72rem; margin-top: 8px; opacity: 0.9; }
+.sim3d-estres { color: #ffb4a8; font-weight: 600; }
+
+/* ── KPIs comparativos ── */
+.sim3d-kpis {
+    position: absolute;
+    top: 64px; right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 4;
+}
+.sim3d-kpi-card {
+    background: rgba(10, 25, 38, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 8px 12px;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    backdrop-filter: blur(8px);
+    min-width: 150px;
+}
+.sim3d-kpi-lbl   { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.7; }
+.sim3d-kpi-comp  { font-size: 0.84rem; }
+.sim3d-kpi-comp s { opacity: 0.55; margin-right: 2px; }
+.sim3d-kpi-delta { font-size: 0.72rem; font-weight: 700; }
+.sim3d-kpi-delta.ok  { color: #7fe0a0; }
+.sim3d-kpi-delta.mal { color: #ffb4a8; }
+
+/* ── Controles de reproducción ── */
+.sim3d-controles {
+    position: absolute;
+    left: 12px; right: 12px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(10, 25, 38, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    padding: 10px 14px;
+    z-index: 5;
+    backdrop-filter: blur(8px);
+}
+.sim3d-btn-play {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: none;
+    background: var(--agri-green);
+    color: #fff;
+    font-size: 1rem;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.sim3d-btn-vel {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: transparent;
+    color: #fff;
+    border-radius: 10px;
+    padding: 7px 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-family: inherit;
+}
+#sim3d-slider {
+    flex: 1;
+    accent-color: var(--agri-green);
+    min-width: 0;
+}
+
+/* ── Panel de configuración ── */
+.sim3d-config {
+    position: absolute;
+    left: 12px; right: 12px;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    max-width: 360px;
+    margin: 0 auto;
+    background: var(--white);
+    border-radius: 16px;
+    padding: 16px;
+    z-index: 6;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+.sim3d-config-tit { font-weight: 700; font-size: 0.9rem; color: var(--primary-text); margin-bottom: 10px; }
+.sim3d-config-lbl {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    margin: 8px 0 4px;
+}
+.sim3d-config-input {
+    width: 100%;
+    border: 1px solid var(--border-input);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    color: var(--primary-text);
+    background: var(--white);
+    box-sizing: border-box;
+}
+.sim3d-btn-reiniciar {
+    width: 100%;
+    margin-top: 12px;
+    border: none;
+    border-radius: 10px;
+    background: var(--primary-blue);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 10px;
+    cursor: pointer;
+    font-family: inherit;
+}
+.sim3d-config-nota { font-size: 0.68rem; color: var(--secondary-text); margin: 10px 0 0; line-height: 1.5; }
+
+/* ── Resultados del ciclo ── */
+.sim3d-resultados {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(420px, calc(100vw - 28px));
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    background: var(--white);
+    border-radius: 18px;
+    padding: 18px;
+    z-index: 7;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.sim3d-res-cerrar {
+    position: absolute;
+    top: 10px; right: 12px;
+    border: none;
+    background: none;
+    font-size: 1rem;
+    color: var(--secondary-text);
+    cursor: pointer;
+}
+.sim3d-res-tit { font-weight: 700; font-size: 0.95rem; color: var(--primary-text); margin-bottom: 8px; }
+.sim3d-res-headline {
+    background: var(--green-bg);
+    border: 1px solid var(--green-border);
+    color: var(--green-dark);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+.sim3d-res-cab,
+.sim3d-res-fila {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 4px;
+    font-size: 0.8rem;
+}
+.sim3d-res-cab {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--secondary-text);
+    border-bottom: 1px solid var(--border-divider);
+}
+.sim3d-res-fila { border-bottom: 1px solid var(--border-subtle); }
+.sim3d-res-lbl    { color: var(--secondary-text); font-size: 0.75rem; }
+.sim3d-res-trad   { color: var(--primary-text); }
+.sim3d-res-milpin { color: var(--green-dark); font-weight: 700; }
+.sim3d-res-beneficio {
+    margin-top: 12px;
+    background: var(--accent-bg);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 0.82rem;
+    color: var(--primary-text);
+    line-height: 1.55;
+}
+.sim3d-res-desglose { display: block; font-size: 0.7rem; color: var(--secondary-text); margin-top: 4px; }
+.sim3d-res-nota { font-size: 0.68rem; color: var(--secondary-text); line-height: 1.5; margin: 10px 0 0; }
+
+/* ── Loading ── */
+.sim3d-cargando {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #fff;
+    font-size: 0.9rem;
+    background: rgba(10, 25, 38, 0.85);
+    z-index: 8;
+}
+
+/* Botón "Simular en 3D" en la tarjeta de detalle del mapa */
+.map-btn-sim3d {
+    width: 100%;
+    margin-top: 12px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary-blue), #0a5a9e);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+@media (max-width: 640px) {
+    .sim3d-hud { width: min(240px, calc(100vw - 24px)); }
+    .sim3d-kpis {
+        top: auto;
+        bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+        right: 12px;
+        left: auto;
+        flex-direction: column;
+    }
+    .sim3d-kpi-card { min-width: 132px; padding: 6px 10px; }
+    .sim3d-config { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+}

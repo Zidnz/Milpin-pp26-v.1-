@@ -13,9 +13,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="css/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <!-- DEBUG MÓVIL: quitar antes de producción final -->
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
 </head>
 <body>
 <div id="login-screen" class="login-screen" style="display:flex;">
@@ -245,7 +242,7 @@
             <button class="map-search-clear" onclick="_toggleMapSearch()" aria-label="Cerrar">✕</button>
         </div>
 
-        <div id="map" style="width: 100%; border-radius: 15px; border: 2px solid var(--agri-green);"></div>
+        <div id="map" style="border-radius: 15px; border: 2px solid var(--agri-green);"></div>
         <div id="parcela-detalle-card" style="display:none;"></div>
         <!-- ── Widgets del mapa (debajo del mapa) ── -->
         <div class="map-widgets-panel">
@@ -1155,6 +1152,7 @@
 <script src="src/tecnico_workload.js"></script>
 <script src="src/ui_tabs.js?v=2"></script>
 <script src="src/voice_client.js"></script>
+<script src="src/sim3d.js"></script>
 <script>
 async function descargarDataset() {
     const select = document.getElementById('ajustes-parcela-select');
