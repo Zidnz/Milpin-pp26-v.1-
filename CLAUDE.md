@@ -188,7 +188,7 @@ milpin/
 │   ├── generar_datos_sinteticos.py
 │   └── cargar_datos_sinteticos.py
 │
-├── frontend/                         # Sin cambios
+├── frontend/
 │   ├── index.html
 │   ├── src/
 │   │   ├── map_engine.js
@@ -196,7 +196,13 @@ milpin/
 │   │   ├── bi_dashboard.js
 │   │   ├── voice_client.js
 │   │   ├── auth.js
-│   │   └── admin_panel.js
+│   │   ├── admin_panel.js
+│   │   └── sim3d.js                  # Simulador 3D de ciclo (2026-06-10).
+│   │                                 #   Three.js r147 UMD vía unpkg, carga lazy.
+│   │                                 #   Motor FAO-56/33 espejo de balance_hidrico.py:
+│   │                                 #   compara Tradicional (calendario gravedad)
+│   │                                 #   vs MILPÍN (demanda) sobre el mismo clima.
+│   │                                 #   Entrada: botón en detalle de parcela (mapa).
 │   ├── css/styles.css
 │   └── data/                         # GeoJSON estáticos (fallback)
 │
