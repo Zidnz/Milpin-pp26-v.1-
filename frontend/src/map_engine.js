@@ -186,7 +186,7 @@ async function cargarGeoJSON(ruta) {
  */
 async function cargarParcelasAPI() {
     const query = window.MILPIN_AUTH?.getParcelasQuery?.() || '';
-    const API_URL = `https://milpin-pp26-v-1.onrender.com/api/parcelas/geojson${query}`;
+    const API_URL = `https://milpin-pp26-v1-production.up.railway.app/api/parcelas/geojson${query}`;
     try {
         const res = await fetch(API_URL);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -759,7 +759,7 @@ async function ejecutarAnalisisSIG() {
     if (capaAnalisis) capaAnalisis.clearLayers();
 
     try {
-        const response = await fetch('https://milpin-pp26-v-1.onrender.com/api/logistica_inteligente');
+        const response = await fetch('https://milpin-pp26-v1-production.up.railway.app/api/logistica_inteligente');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 

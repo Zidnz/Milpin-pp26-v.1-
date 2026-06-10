@@ -3,7 +3,7 @@
 
 const BIOp = (() => {
 
-  const API          = 'https://milpin-pp26-v-1.onrender.com/api';
+  const API          = 'https://milpin-pp26-v1-production.up.railway.app/api';
   const TIMEOUT      = 12000;
   const CICLO_LABEL  = 'OI 2025-26';
   const BASELINE_M3  = 8000;

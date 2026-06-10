@@ -3,7 +3,7 @@
 // Fallback: DEMO_DATA cuando el backend no está disponible.
 
 const WORKLOAD = (() => {
-  const API = 'https://milpin-pp26-v-1.onrender.com/api';
+  const API = 'https://milpin-pp26-v1-production.up.railway.app/api';
 
   let _data          = null;
   let _filtroUrgencia = 'todos';

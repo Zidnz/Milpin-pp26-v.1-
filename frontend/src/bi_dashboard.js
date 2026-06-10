@@ -5,7 +5,7 @@
 const BI = (() => {
   'use strict';
 
-  const API      = 'https://milpin-pp26-v-1.onrender.com/api';
+  const API      = 'https://milpin-pp26-v1-production.up.railway.app/api';
   const BASELINE = 8000;
   const TARIFA   = 1.68;
 
