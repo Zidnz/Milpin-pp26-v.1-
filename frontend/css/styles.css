@@ -3740,11 +3740,11 @@ body #main-container {
 }
 
 /* ── 7. Mapa: altura dinámica con dvh ───────────────────────────── */
-/*    56px topbar + 75px nav + safe-area + 24px margen inferior        */
+/*    56px topbar + 44px filtros + 75px nav + 90px detalle + safe-area + 16px margen */
 #map {
-    height: calc(100dvh - 56px - 75px - env(safe-area-inset-bottom, 0px) - 24px) !important;
-    min-height: 280px !important;
-    max-height: 62dvh;
+    height: calc(100dvh - 56px - 44px - 75px - 90px - env(safe-area-inset-bottom, 0px) - 16px) !important;
+    min-height: 220px !important;
+    max-height: 52dvh;
     border-radius: 12px !important;
 }
 
@@ -5627,6 +5627,55 @@ body #main-container {
     color: var(--primary-text);
 }
 
+/* ── Parcelas críticas: pulso de borde SVG ── */
+@keyframes parcela-pulse {
+    0%, 100% { stroke-width: 2.5px; stroke-opacity: 1; }
+    50%       { stroke-width: 5px;   stroke-opacity: 0.4; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .parcela-critica { animation: parcela-pulse 2.2s ease-in-out infinite; }
+}
+
+/* ── Canales: flujo animado ── */
+@keyframes canal-flow {
+    to { stroke-dashoffset: -40; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .canal-flow { animation: canal-flow 1.8s linear infinite; }
+}
+
+/* ── Selector de variable de coloreo ── */
+.map-colorizer-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 2px 6px;
+}
+.map-colorizer-chip {
+    padding: 5px 11px;
+    border-radius: 20px;
+    border: 1.5px solid var(--border-card);
+    background: var(--accent-bg);
+    color: var(--secondary-text);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+.map-colorizer-chip:hover:not(.map-colorizer-chip--active) {
+    border-color: var(--primary-green);
+    color: var(--primary-text);
+}
+.map-colorizer-chip--active {
+    background: rgba(46,158,91,0.12);
+    border-color: rgba(46,158,91,0.4);
+    color: var(--green-dark);
+    font-weight: 700;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════
    COLORES ACTIVOS POR MÓDULO (navbar data-tab)
    Cada tab tiene su identidad cromática. El inactive state queda siempre gris.
@@ -6360,8 +6409,9 @@ body #main-container {
     margin: 0;
 }
 
-/* Responsive: colapsar a 1 columna en pantallas estrechas */
-@media (max-width: 380px) {
+/* Responsive: colapsar a 1 columna en teléfonos */
+@media (max-width: 640px) {
+    .ml-grid-2,
     .ml-xai-grid,
     .ml-metricas-grid {
         grid-template-columns: 1fr;
@@ -6894,4 +6944,93 @@ body #main-container {
     font-size: 0.84rem;
 }
 
-/* ── Responsive ─────
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .bi-intel-row   { grid-template-columns: 1fr; }
+    .bi-estado-row  { grid-template-columns: 1fr; }
+    .bi-kpi-grid--5 { grid-template-columns: repeat(3, 1fr); }
+    .bi-ciclo-kpis  { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+    .bi-kpi-grid--5 { grid-template-columns: repeat(2, 1fr); }
+    .bi-abar-row    { grid-template-columns: 52px 1fr 32px; }
+    .bi-hm-grid     { gap: 3px; }
+    .bi-hm-cell     { padding: 5px 2px 4px; }
+    .bi-hm-val      { font-size: 0.64rem; }
+
+    /* Riego manual: apila los campos en una columna */
+    .riego-manual-fields    { grid-template-columns: 1fr; }
+
+    /* Selects sin ancho mínimo fijo */
+    .costos-select,
+    .riego-select           { min-width: 0; width: 100%; box-sizing: border-box; }
+
+    /* Headers de sección: columna única */
+    .costos-header,
+    .riego-header           { flex-direction: column; align-items: stretch; gap: 12px; }
+
+    /* Barras de costos: columnas más compactas */
+    .costos-barra-fila      { grid-template-columns: 90px 1fr 78px 38px; }
+}
+
+/* ── Análisis view: contenedor ───────────────────────────────── */
+#bi-view-analisis #bi-dashboard-content {
+    padding-top: 14px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RESPONSIVE MÓVIL — Ajustes para teléfonos ≤ 480px
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+    /* BI Operación: doble seguro de columna única */
+    .bi-intel-row  { grid-template-columns: 1fr; }
+    .bi-estado-row { grid-template-columns: 1fr; }
+
+    /* KPI cards: más compactos y legibles */
+    .bi-kpi-card                    { padding: 10px 10px 8px; border-radius: 12px; }
+    .bi-dash-root .bi-kpi-value     { font-size: 1.28rem; }
+    .bi-dash-root .bi-kpi-label     { font-size: 0.6rem; }
+    .bi-kpi-unit                    { font-size: 0.62rem; }
+
+    /* Sparkline: un poco más corta */
+    .bi-spark-svg                   { height: 26px; }
+
+    /* Chart de consumo: altura reducida */
+    .bi-svg-chart                   { height: 130px; }
+
+    /* Padding interno de la vista BI */
+    .bi-view                        { padding: 10px 10px 0; }
+
+    /* Encabezados de sección */
+    .bi-dash-sec-hdr                { padding: 12px 12px 8px; }
+    .bi-chart-wrap                  { padding: 2px 10px 10px; }
+    .bi-heatmap-block,
+    .bi-pulso-block                 { padding: 0 10px 10px; }
+
+    /* Pulso climático: separador más ajustado */
+    .bi-pulso-row                   { grid-template-columns: 44px 1fr 42px; gap: 6px; }
+
+    /* Ciclo de cumplimiento: padding compacto */
+    .bi-ciclo-kpis                  { padding: 0 10px; gap: 6px; }
+    .bi-ciclo-kpi                   { padding: 8px 10px; }
+    .bi-ciclo-kval                  { font-size: 1rem; }
+
+    /* FAO table: asegurar scroll horizontal */
+    .bi-fao-scroll                  { -webkit-overflow-scrolling: touch; }
+
+    /* Ajustes riego/costos: select de parcela */
+    .costos-selector-wrap,
+    .riego-selector-wrap            { width: 100%; }
+    .costos-select-sm               { min-width: 0; width: 100%; }
+
+    /* ML tab: asegurar stack en móvil */
+    .ml-grid-2,
+    .ml-xai-grid,
+    .ml-metricas-grid               { grid-template-columns: 1fr; }
+    .ml-selector-wrap               { padding: 0 12px 8px; }
+
+    /* Mapa: widgets apilados */
+    .map-widgets-panel              { flex-direction: column; }
+    .map-widget-card--half          { width: 100%; }
+}
