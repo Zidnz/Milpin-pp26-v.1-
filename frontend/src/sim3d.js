@@ -58,14 +58,119 @@
     const PRECIO_TON_MXN = { maiz: 5800, frijol: 24000, algodon: 11500, uva: 26000, chile: 9500 };
     const NOMBRE_CULTIVO = { maiz: "Maíz", frijol: "Frijol", algodon: "Algodón", uva: "Uva", chile: "Chile" };
 
-    // Apariencia 3D por cultivo: altura máx (m), forma y colores de planta
+    // Altura máxima de la planta adulta (m, antes de escalar al espaciamiento)
     const VISUAL_CULTIVO = {
-        maiz:    { hMax: 2.3, forma: "cono",   verde: 0x2f8f46, fruto: null },
-        frijol:  { hMax: 0.55, forma: "esfera", verde: 0x3ba55d, fruto: null },
-        algodon: { hMax: 1.25, forma: "esfera", verde: 0x4f9e5f, fruto: 0xf4f2ec },
-        uva:     { hMax: 1.8, forma: "esfera", verde: 0x3e7d3a, fruto: 0x5b2d7e },
-        chile:   { hMax: 0.85, forma: "esfera", verde: 0x2e8b57, fruto: 0xd63a2f },
+        maiz:    { hMax: 2.3 },
+        frijol:  { hMax: 0.6 },
+        algodon: { hMax: 1.25 },
+        uva:     { hMax: 1.8 },
+        chile:   { hMax: 0.9 },
     };
+
+    /**
+     * Modelo de planta por cultivo como lista declarativa de "partes".
+     * Cada parte = 1 InstancedMesh (geometría compartida + material propio)
+     * con k offsets por planta, en coordenadas normalizadas:
+     *   p = [x·w, y·h, z·w]   s = [sx·w, sy·h, sz·w]   r = Euler (rad)
+     * (w = ancho adulto de copa, h = altura adulta de planta)
+     * Flags:
+     *   esFollaje    → el color se tiñe con estrés hídrico y senescencia
+     *   esFruto      → escala con la madurez (aparece de mediados en adelante);
+     *                  su sy se interpreta sobre w para mantener proporción
+     *   esEstructura → tamaño fijo todo el ciclo (postes de espaldera)
+     *   frutoMadura  → [colorInmaduro, colorMaduro] interpolado con la madurez
+     */
+    function _partesCultivo(key) {
+        const cil = new THREE.CylinderGeometry(0.4, 0.5, 1, 6);
+        const esf = new THREE.SphereGeometry(0.5, 8, 6);
+        const cono = new THREE.ConeGeometry(0.5, 1, 7);
+
+        switch (key) {
+            case "maiz": return [
+                { geo: cil, color: 0x4f8f3c, esFollaje: true, offsets: [
+                    { p: [0, 0.5, 0], s: [0.05, 1.0, 0.05] },
+                ]},
+                // Hojas: elipsoides muy aplanados, arqueados hacia afuera
+                { geo: esf, color: 0x2f8f46, esFollaje: true, offsets: [
+                    { p: [0.24, 0.35, 0],  s: [0.52, 0.05, 0.11], r: [0, 0, -0.45] },
+                    { p: [-0.24, 0.48, 0], s: [0.52, 0.05, 0.11], r: [0, 0, 0.45] },
+                    { p: [0, 0.6, 0.24],   s: [0.11, 0.05, 0.52], r: [0.45, 0, 0] },
+                    { p: [0, 0.72, -0.24], s: [0.11, 0.05, 0.52], r: [-0.45, 0, 0] },
+                ]},
+                // Espiga (floración) y mazorca pegada al tallo
+                { geo: cono, color: 0xd9c068, esFruto: true, offsets: [
+                    { p: [0, 1.06, 0], s: [0.07, 0.30, 0.07] },
+                ]},
+                { geo: esf, color: 0xe8c83c, esFruto: true, offsets: [
+                    { p: [0.08, 0.55, 0], s: [0.10, 0.20, 0.10], r: [0, 0, -0.25] },
+                ]},
+            ];
+
+            case "frijol": return [
+                { geo: esf, color: 0x3ba55d, esFollaje: true, offsets: [
+                    { p: [0, 0.5, 0],        s: [0.85, 0.75, 0.85] },
+                    { p: [0.18, 0.35, 0.12], s: [0.55, 0.5, 0.55] },
+                ]},
+                // Vainas colgantes en el borde exterior de la mata
+                { geo: cil, color: 0x86b958, esFruto: true, offsets: [
+                    { p: [0.44, 0.32, 0.14],   s: [0.035, 0.24, 0.035], r: [0, 0, 0.25] },
+                    { p: [-0.40, 0.28, -0.18], s: [0.035, 0.21, 0.035], r: [0.2, 0, 0] },
+                    { p: [0.10, 0.30, -0.45],  s: [0.035, 0.23, 0.035], r: [-0.25, 0, 0] },
+                ]},
+            ];
+
+            case "algodon": return [
+                { geo: cil, color: 0x6b4a2f, offsets: [
+                    { p: [0, 0.22, 0], s: [0.05, 0.45, 0.05] },
+                ]},
+                { geo: esf, color: 0x4f9e5f, esFollaje: true, offsets: [
+                    { p: [0, 0.6, 0], s: [0.9, 0.75, 0.9] },
+                ]},
+                // Cápsulas abiertas en la superficie de la copa, hacia el final
+                { geo: esf, color: 0xf2efe6, esFruto: true, offsets: [
+                    { p: [0.40, 0.74, 0.20],   s: [0.14, 0.14, 0.14] },
+                    { p: [-0.36, 0.60, 0.28],  s: [0.13, 0.13, 0.13] },
+                    { p: [0.14, 0.92, -0.26],  s: [0.14, 0.14, 0.14] },
+                    { p: [-0.26, 0.86, -0.18], s: [0.12, 0.12, 0.12] },
+                    { p: [0.44, 0.50, -0.12],  s: [0.13, 0.13, 0.13] },
+                ]},
+            ];
+
+            case "uva": return [
+                // Poste de espaldera: presente todo el ciclo, no crece
+                { geo: cil, color: 0x8a7a64, esEstructura: true, offsets: [
+                    { p: [0.35, 0.5, 0], s: [0.025, 1.0, 0.025] },
+                ]},
+                { geo: cil, color: 0x5d4126, offsets: [
+                    { p: [0, 0.28, 0], s: [0.09, 0.55, 0.09], r: [0, 0, 0.12] },
+                ]},
+                { geo: esf, color: 0x3e7d3a, esFollaje: true, offsets: [
+                    { p: [0, 0.78, 0], s: [1.15, 0.5, 0.85] },
+                ]},
+                // Racimos colgando bajo la copa
+                { geo: esf, color: 0x5b2d7e, esFruto: true, offsets: [
+                    { p: [0.26, 0.46, 0.16],   s: [0.13, 0.22, 0.13] },
+                    { p: [-0.30, 0.48, -0.10], s: [0.11, 0.19, 0.11] },
+                ]},
+            ];
+
+            case "chile": default: return [
+                { geo: esf, color: 0x2e8b57, esFollaje: true, offsets: [
+                    { p: [0, 0.5, 0],         s: [0.9, 0.85, 0.9] },
+                    { p: [-0.15, 0.38, 0.14], s: [0.55, 0.55, 0.55] },
+                ]},
+                // Chiles colgantes (cono punta abajo) en el borde de la mata;
+                // viran de verde a rojo al madurar
+                { geo: cono, color: 0x4caf50, esFruto: true,
+                  frutoMadura: [0x4caf50, 0xd63a2f], offsets: [
+                    { p: [0.46, 0.36, 0.16],   s: [0.06, 0.24, 0.06], r: [Math.PI, 0, 0] },
+                    { p: [-0.42, 0.32, -0.18], s: [0.06, 0.21, 0.06], r: [Math.PI, 0, 0.2] },
+                    { p: [0.12, 0.28, -0.46],  s: [0.06, 0.22, 0.06], r: [Math.PI, 0.4, 0] },
+                    { p: [-0.10, 0.40, 0.44],  s: [0.06, 0.20, 0.06], r: [Math.PI, 0, -0.2] },
+                ]},
+            ];
+        }
+    }
 
     // ── Estado del módulo ───────────────────────────────────────────────
     let _threeListo = false;
@@ -82,6 +187,7 @@
     let _relojPrev = null;
     let _aguaOpacidad = 0;
     let _ultimoG = -1;                // growth aplicado a las matrices
+    let _ultimaMad = -1;              // madurez de fruto aplicada
 
     // ════════════════════════════════════════════════════════════════
     //  UTILIDADES
@@ -460,29 +566,30 @@
         const diamCopaM = paso * 0.85;
         const escAltura = Math.min(3.0, Math.max(1, paso / 2.5));
 
-        const matTallo = new THREE.MeshLambertMaterial({ color: 0x6d8f3a });
-        const matCopa = new THREE.MeshLambertMaterial({ color: vis.verde });
-        const tallos = new THREE.InstancedMesh(
-            new THREE.CylinderGeometry(0.05, 0.09, 1, 5), matTallo, n);
-        const geoCopa = vis.forma === "cono"
-            ? new THREE.ConeGeometry(0.45, 1.2, 7)
-            : new THREE.SphereGeometry(0.5, 8, 6);
-        const copas = new THREE.InstancedMesh(geoCopa, matCopa, n);
-        copas.castShadow = true;
-
-        let frutos = null, matFruto = null;
-        if (vis.fruto != null) {
-            matFruto = new THREE.MeshLambertMaterial({ color: vis.fruto });
-            frutos = new THREE.InstancedMesh(new THREE.SphereGeometry(0.11, 6, 5), matFruto, n);
-        }
-        _scene.add(tallos, copas);
-        if (frutos) _scene.add(frutos);
+        // Una InstancedMesh por parte del modelo del cultivo (tallo, hojas,
+        // frutos, postes…) → pocos draw calls aun con miles de plantas.
+        const partes = _partesCultivo(cultivoKey).map(def => {
+            const k = def.offsets.length;
+            const mesh = new THREE.InstancedMesh(
+                def.geo,
+                new THREE.MeshLambertMaterial({ color: def.color }),
+                n * k);
+            mesh.castShadow = !def.esFruto;          // frutos sin sombra: ahorro
+            // Precomputar quaternions de los offsets (no cambian en el ciclo)
+            def.offsets.forEach(o => {
+                const e = o.r || [0, 0, 0];
+                o.q = new THREE.Quaternion().setFromEuler(new THREE.Euler(e[0], e[1], e[2]));
+            });
+            _scene.add(mesh);
+            return { ...def, mesh, verdeBase: def.color };
+        });
 
         _campo = {
-            suelo, matSuelo, aguaMesh, tallos, copas, frutos, matCopa, matFruto,
+            suelo, matSuelo, aguaMesh, partes,
             posiciones, vis, tam, cx, cz, diamCopaM, escAltura,
         };
         _ultimoG = -1;
+        _ultimaMad = -1;
 
         // Resize handler
         _campo.onResize = () => {
@@ -512,50 +619,55 @@
     }
 
     // Reconstruye las matrices de instancias para una fracción de
-    // crecimiento g (0–1). Solo se llama cuando g cambió lo suficiente.
-    function _aplicarCrecimiento(g) {
-        const { tallos, copas, frutos, posiciones, vis, diamCopaM, escAltura } = _campo;
-        const m = new THREE.Matrix4();
-        const q = new THREE.Quaternion();
-        const ejeY = new THREE.Vector3(0, 1, 0);
+    // crecimiento g (0–1) y madurez de fruto mad (0–1). Solo se llama
+    // cuando alguna de las dos cambió lo suficiente.
+    function _aplicarCrecimiento(g, mad) {
+        const { partes, posiciones, vis, diamCopaM, escAltura } = _campo;
         const gn = Math.max(0.06, g);
-        const hTotal = vis.hMax * gn * escAltura;
-        const hTallo = hTotal * 0.45;
-        const hCopa = hTotal * 0.8;
-        // Diámetro de la geometría base: cono r=0.45 → 0.9 m; esfera r=0.5 → 1 m
-        const diamGeo = vis.forma === "cono" ? 0.9 : 1.0;
-        const sXZ = (diamCopaM * gn) / diamGeo;
-        const yEscCopa = hCopa / (vis.forma === "cono" ? 1.2 : 1.0);
+        const hAdulta = vis.hMax * escAltura;     // altura de planta adulta (m)
+        const w = diamCopaM;                       // ancho de copa adulto (m)
         const base = ALTURA_SUELO;
 
-        for (let i = 0; i < posiciones.length; i++) {
-            const p = posiciones[i];
-            q.setFromAxisAngle(ejeY, p.rot);
+        const mPlanta = new THREE.Matrix4();
+        const mLocal = new THREE.Matrix4();
+        const mFinal = new THREE.Matrix4();
+        const qPlanta = new THREE.Quaternion();
+        const ejeY = new THREE.Vector3(0, 1, 0);
+        const vPos = new THREE.Vector3();
+        const vEsc = new THREE.Vector3();
+        const UNO = new THREE.Vector3(1, 1, 1);
 
-            m.compose(
-                new THREE.Vector3(p.x, base + (hTallo * p.esc) / 2, p.z),
-                q, new THREE.Vector3(sXZ * 0.22 * p.esc, hTallo * p.esc, sXZ * 0.22 * p.esc));
-            tallos.setMatrixAt(i, m);
+        for (const parte of partes) {
+            const k = parte.offsets.length;
+            for (let i = 0; i < posiciones.length; i++) {
+                const p = posiciones[i];
+                qPlanta.setFromAxisAngle(ejeY, p.rot);
+                mPlanta.compose(vPos.set(p.x, base, p.z), qPlanta, UNO);
 
-            const yCopa = vis.forma === "cono"
-                ? base + hTallo * p.esc + (hCopa * p.esc) / 2
-                : base + hTallo * p.esc + (hCopa * p.esc) * 0.35;
-            m.compose(
-                new THREE.Vector3(p.x, yCopa, p.z),
-                q, new THREE.Vector3(sXZ * p.esc, yEscCopa * p.esc, sXZ * p.esc));
-            copas.setMatrixAt(i, m);
+                // Factor de tamaño de la parte:
+                //   estructura → fija; fruto → madurez; resto → crecimiento
+                let f = gn;
+                if (parte.esEstructura) f = 1;
+                else if (parte.esFruto) f = mad > 0.05 ? mad : 0.0001;
+                const fv = f * p.esc;
 
-            if (frutos) {
-                const escF = _campo.frutoVisible ? p.esc * sXZ * 0.32 : 0.0001;
-                m.compose(
-                    new THREE.Vector3(p.x + sXZ * 0.3 * p.esc, yCopa - hCopa * 0.15, p.z + sXZ * 0.25),
-                    q, new THREE.Vector3(escF, escF, escF));
-                frutos.setMatrixAt(i, m);
+                for (let j = 0; j < k; j++) {
+                    const o = parte.offsets[j];
+                    // sy de frutos sobre w (proporción esférica/colgante estable)
+                    const syBase = parte.esFruto ? o.s[1] * w : o.s[1] * hAdulta;
+                    mLocal.compose(
+                        vPos.set(o.p[0] * w * fv, o.p[1] * hAdulta * fv, o.p[2] * w * fv),
+                        o.q,
+                        vEsc.set(
+                            Math.max(1e-4, o.s[0] * w * fv),
+                            Math.max(1e-4, syBase * fv),
+                            Math.max(1e-4, o.s[2] * w * fv)));
+                    mFinal.multiplyMatrices(mPlanta, mLocal);
+                    parte.mesh.setMatrixAt(i * k + j, mFinal);
+                }
             }
+            parte.mesh.instanceMatrix.needsUpdate = true;
         }
-        tallos.instanceMatrix.needsUpdate = true;
-        copas.instanceMatrix.needsUpdate = true;
-        if (frutos) frutos.instanceMatrix.needsUpdate = true;
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -571,27 +683,40 @@
         const cat = _sim.cfg.cat;
         const { ccPct, pmpPct } = _sim.cfg;
 
-        // 1) Crecimiento: fracción de desarrollo de copa desde la curva Kc
+        // 1) Crecimiento: fracción de desarrollo de copa desde la curva Kc.
+        //    Madurez de fruto: 0 al terminar desarrollo → 1 a media etapa final
         const [kIni, kMed] = [cat.kc[0], cat.kc[1]];
         const g = Math.max(0, Math.min(1, (dia.kc - kIni) / Math.max(0.01, kMed - kIni)));
-        const visible = _campo.frutoVisible;
-        const [dIni, dDes] = cat.etapas;
-        _campo.frutoVisible = dia.dia > dIni + dDes;      // frutos desde mediados
-        if (Math.abs(g - _ultimoG) > 0.02 || visible !== _campo.frutoVisible) {
-            _aplicarCrecimiento(g);
+        const [dIni, dDes, dMed, dFin] = cat.etapas;
+        const finDes = dIni + dDes;
+        const mad = Math.max(0, Math.min(1, (dia.dia - finDes) / (dMed + dFin * 0.5)));
+        if (Math.abs(g - _ultimoG) > 0.02 || Math.abs(mad - _ultimaMad) > 0.04) {
+            _aplicarCrecimiento(g, mad);
             _ultimoG = g;
+            _ultimaMad = mad;
         }
 
-        // 2) Color de copa: estrés seca, senescencia dora
-        const verde = new THREE.Color(_campo.vis.verde);
+        // 2) Color del follaje: el estrés seca, la senescencia dora.
+        //    Cada parte conserva su verde base (tonos distintos por cultivo).
         const seco = new THREE.Color(0x9a7b34);
         const dorado = new THREE.Color(0xc8a14b);
         const estres = 1 - dia.ks;                         // 0 sano → 1 marchito
-        const finMed = cat.etapas[0] + cat.etapas[1] + cat.etapas[2];
+        const finMed = finDes + dMed;
         const sen = dia.dia > finMed
-            ? Math.min(1, (dia.dia - finMed) / cat.etapas[3]) : 0;
-        const col = verde.clone().lerp(seco, Math.min(1, estres * 1.3)).lerp(dorado, sen * 0.85);
-        _campo.matCopa.color.copy(col);
+            ? Math.min(1, (dia.dia - finMed) / dFin) : 0;
+        for (const parte of _campo.partes) {
+            if (parte.esFollaje) {
+                parte.mesh.material.color
+                    .setHex(parte.verdeBase)
+                    .lerp(seco, Math.min(1, estres * 1.3))
+                    .lerp(dorado, sen * 0.85);
+            } else if (parte.frutoMadura) {
+                // Frutos que viran de color al madurar (chile verde → rojo)
+                parte.mesh.material.color
+                    .setHex(parte.frutoMadura[0])
+                    .lerp(new THREE.Color(parte.frutoMadura[1]), mad);
+            }
+        }
 
         // 3) Suelo: húmedo oscuro ↔ seco claro según θ relativo
         const fHum = Math.max(0, Math.min(1, (dia.theta - pmpPct) / (ccPct - pmpPct)));
@@ -849,6 +974,7 @@
         document.getElementById("sim3d-esc-trad")?.classList.toggle("activo", esc === "tradicional");
         document.getElementById("sim3d-esc-milpin")?.classList.toggle("activo", esc === "milpin");
         _ultimoG = -1;                       // fuerza rebuild de matrices
+        _ultimaMad = -1;
         _aplicarDia(_diaActual, true);
     }
 
