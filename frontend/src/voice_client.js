@@ -83,7 +83,7 @@ let reconociendoVoz = false;
 let _sttReintentos = 0;
 const _STT_MAX_REINTENTOS = 2;
 let _sttTimeout = null;
-const _isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const _isMobile = /Android|iPhone|iPad|iPod|HarmonyOS/i.test(navigator.userAgent);
 const _STT_TIMEOUT_MS = _isMobile ? 7000 : 12000; // móvil más corto — UX y bug Chrome Android
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -322,9 +322,24 @@ async function _iniciarMobile() {
 
     // Desbloquear audio DURANTE el gesto táctil — los browsers móviles bloquean
     // Audio.play() si no se llama en el contexto directo de un user gesture.
-    // 1) AudioContext: desbloquea Web Audio API.
-    // 2) _ttsAudio.play(): desbloquea el elemento HTML Audio que se reutilizará
-    //    asincrónicamente para ElevenLabs (iOS exige play() en el mismo gesto).
+    //
+    // ORDEN CRÍTICO (especialmente iOS):
+    // _ttsAudio.play() debe llamarse ANTES de cualquier `await` — iOS considera
+    // que el contexto de gesto termina en el primer `await`, y bloquea play()
+    // con NotAllowedError si se llama después. Una vez que play() se inició
+    // sincrónicamente, el elemento queda desbloqueado para usos async posteriores.
+    //
+    // 1) _ttsAudio.play() primero — desbloquea el elemento HTML Audio para ElevenLabs.
+    // 2) AudioContext después — puede esperar su await sin restricciones de gesto.
+    try {
+        _ttsAudio.muted = true;
+        // 1 frame de silencio en base64 (MP3 válido, 44 bytes)
+        _ttsAudio.src = 'data:audio/mpeg;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sQxAADgnABGiAAQBCqgCRMAAgEAH///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////';
+        _ttsAudio.play()
+            .then(() => { _ttsAudio.muted = false; })
+            .catch(() => {});
+    } catch (_) {}
+
     try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const buf = ctx.createBuffer(1, 1, 22050);
@@ -333,17 +348,6 @@ async function _iniciarMobile() {
         src.connect(ctx.destination);
         src.start(0);
         await ctx.resume();
-    } catch (_) {}
-
-    // Pre-desbloquear _ttsAudio con un MP3 silencioso mínimo (44 bytes).
-    // Después de este play(), iOS permitirá que el mismo elemento reproduzca
-    // audio generado asincrónicamente (fetch → blob → src → play).
-    try {
-        _ttsAudio.muted = true;
-        // 1 frame de silencio en base64 (MP3 válido, 44 bytes)
-        _ttsAudio.src = 'data:audio/mpeg;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sQxAADgnABGiAAQBCqgCRMAAgEAH///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////';
-        await _ttsAudio.play();
-        _ttsAudio.muted = false;
     } catch (_) {}
 
     try {
@@ -445,9 +449,10 @@ function alternarGrabacion() {
         _iniciarMobile();
         return;
     }
-    // Desktop: Web Speech API
+    // Desktop sin Web Speech API (ej. Huawei con UA no detectado) — fallback a MediaRecorder
     if (!recognition) {
-        console.error("[MILPÍN] Web Speech API no disponible.");
+        console.warn("[MILPÍN] Web Speech API no disponible — usando MediaRecorder como fallback.");
+        _iniciarMobile();
         return;
     }
     if (!reconociendoVoz) {

@@ -32,7 +32,7 @@ _AUDIO_CONTENT_TYPES: set[str] = {
 
 # Extensiones válidas para el archivo temporal (Whisper las usa para decodificar).
 _AUDIO_EXTENSIONS: set[str] = {
-    ".wav", ".mp3", ".ogg", ".webm", ".m4a", ".flac", ".opus",
+    ".wav", ".mp3", ".ogg", ".webm", ".m4a", ".mp4", ".flac", ".opus",
 }
 
 # 25 MB — suficiente para ~15 min en MP3 128 kbps, razonable para un comando de voz.
