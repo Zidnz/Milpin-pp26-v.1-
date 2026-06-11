@@ -178,8 +178,10 @@
     let _overlay = null;              // raíz DOM
     let _scene, _camera, _renderer, _controls, _rafId = null;
     let _campo = null;                // { sueloMesh, aguaMesh, plantas, frutos, ... }
-    let _sim = null;                  // { clima, tradicional, milpin, cfg }
-    let _escenario = "milpin";        // escenario que se ve en 3D
+    let _sim = null;                  // { clima, res: {id → sim}, ciclo, cfg }
+    let _escenario = "fao56";         // sistema que se ve en 3D
+    let _chart = null;                // Chart.js comparativo (lazy)
+    let _chartMetrica = "theta";      // 'theta' | 'agua' | 'ks'
     let _diaActual = 0;
     let _reproduciendo = false;
     let _velocidad = 3;               // días por segundo
@@ -389,15 +391,34 @@
         };
     }
 
+    // ── Sistemas de recomendación comparables en el simulador ──────────
+    // Espejo conceptual de los motores reales del repo:
+    //   tradicional → práctica actual DR-041 (baseline, sin recomendador)
+    //   fao56       → riego_api: balance hídrico, umbral fijo 50% ADT
+    //   xgboost     → ml_api: política por etapa fenológica (el modelo
+    //                 aprende cuánto agotamiento tolera cada etapa) con
+    //                 llenado parcial a 90% CC para aprovechar lluvias
+    const SISTEMAS = [
+        { id: "tradicional", nombre: "Tradicional", color: "#E65C5C",
+          desc: "Calendario fijo por gravedad" },
+        { id: "fao56", nombre: "FAO-56", color: "#43B36B",
+          desc: "Riego por demanda · umbral 50% ADT" },
+        { id: "xgboost", nombre: "ML XGBoost", color: "#7B2FBE",
+          desc: "Umbral por etapa fenológica · llenado 90% CC" },
+    ];
+
     function _correrComparativa(cfg) {
         const cat = cfg.cat;
         const ciclo = cat.etapas.reduce((a, b) => a + b, 0);
         const semilla = _hashStr((cfg.idParcela || "demo") + cfg.fechaSiembra.toISOString().slice(0, 10));
         const clima = _generarClima(cfg.fechaSiembra, ciclo, semilla);
         const suelo = { ccPct: cfg.ccPct, pmpPct: cfg.pmpPct, profM: cfg.profM };
+        const ef = EFICIENCIA_RIEGO[cfg.sistema] ?? 0.75;
+
+        const res = {};
 
         // Tradicional: calendario fijo, siempre gravedad (práctica actual)
-        const tradicional = _simularEstrategia(cat, clima, suelo, EFICIENCIA_RIEGO.gravedad,
+        res.tradicional = _simularEstrategia(cat, clima, suelo, EFICIENCIA_RIEGO.gravedad,
             (d) => {
                 const ultimo = ciclo - TRAD_ULTIMO_RIEGO_MARGEN;
                 if (d >= TRAD_PRIMER_RIEGO_DIA && d <= ultimo &&
@@ -407,16 +428,31 @@
                 return 0;
             });
 
-        // MILPÍN: riega solo al cruzar el umbral, la lámina justa hasta CC
-        const efMilpin = EFICIENCIA_RIEGO[cfg.sistema] ?? 0.75;
-        const milpin = _simularEstrategia(cat, clima, suelo, efMilpin,
+        // FAO-56: riega al cruzar el umbral (p=0.5), la lámina justa hasta CC
+        res.fao56 = _simularEstrategia(cat, clima, suelo, ef,
             (d, theta, ctx) => {
                 if (theta > ctx.umbral) return 0;
-                const netaMm = (ctx.ccPct - theta) * ctx.profM * 10;
-                return netaMm / efMilpin;
+                return (ctx.ccPct - theta) * ctx.profM * 10 / ef;
             });
 
-        return { clima, tradicional, milpin, ciclo, cfg };
+        // ML XGBoost: fracción de agotamiento permitida (p) aprendida por
+        // etapa — protege mediados (floración/llenado, p=0.40) y tolera más
+        // en etapas poco sensibles (inicial 0.65, final 0.60). Llena solo a
+        // 90% de CC: deja espacio para lluvia (menos pérdida por exceso).
+        const [dIni, dDes, dMed] = cat.etapas;
+        res.xgboost = _simularEstrategia(cat, clima, suelo, ef,
+            (d, theta, ctx) => {
+                const p = d <= dIni ? 0.65
+                    : d <= dIni + dDes ? 0.50
+                    : d <= dIni + dDes + dMed ? 0.40
+                    : 0.60;
+                const umbralEtapa = ctx.ccPct - p * (ctx.ccPct - ctx.pmpPct);
+                if (theta > umbralEtapa) return 0;
+                const objetivo = ctx.pmpPct + 0.90 * (ctx.ccPct - ctx.pmpPct);
+                return Math.max(0, objetivo - theta) * ctx.profM * 10 / ef;
+            });
+
+        return { clima, res, ciclo, cfg };
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -676,7 +712,7 @@
 
     function _aplicarDia(idx, esSalto) {
         if (!_sim || !_campo) return;
-        const datos = _sim[_escenario].dias;
+        const datos = _sim.res[_escenario].dias;
         idx = Math.max(0, Math.min(idx, datos.length - 1));
         _diaActual = idx;
         const dia = datos[idx];
@@ -726,6 +762,11 @@
         if (dia.riegoBruto > 0 && !esSalto) _aguaOpacidad = 0.55;
 
         _actualizarHUD(dia, idx, datos.length);
+
+        // Mover el cursor de día en la gráfica comparativa (si está abierta)
+        if (_chart && document.getElementById("sim3d-grafica")?.style.display !== "none") {
+            _chart.draw();
+        }
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -789,9 +830,11 @@
                 <span id="sim3d-titulo">Simulador 3D</span>
                 <span id="sim3d-subtitulo" class="sim3d-topbar-sub">—</span>
             </div>
-            <div class="sim3d-esc-toggle">
-                <button id="sim3d-esc-trad" onclick="SIM3D._setEscenario('tradicional')">Tradicional</button>
-                <button id="sim3d-esc-milpin" class="activo" onclick="SIM3D._setEscenario('milpin')">MILPÍN</button>
+            <div class="sim3d-esc-toggle" id="sim3d-esc-toggle">
+                ${SISTEMAS.map(s => `
+                <button data-sistema="${s.id}" class="${s.id === "fao56" ? "activo" : ""}"
+                        title="${s.desc}"
+                        onclick="SIM3D._setEscenario('${s.id}')">${s.nombre}</button>`).join("")}
             </div>
         </div>
 
@@ -821,7 +864,32 @@
             <input id="sim3d-slider" type="range" min="0" max="100" value="0"
                    oninput="SIM3D._irADia(parseInt(this.value))">
             <button id="sim3d-btn-vel" class="sim3d-btn-vel" onclick="SIM3D._cicloVelocidad()">3×</button>
+            <button class="sim3d-btn-vel" onclick="SIM3D._toggleGrafica()"
+                    aria-label="Comparar sistemas de recomendación">📈</button>
             <button class="sim3d-btn-vel" onclick="SIM3D._toggleConfig()" aria-label="Configurar simulación">⚙</button>
+        </div>
+
+        <div id="sim3d-grafica" class="sim3d-grafica" style="display:none;">
+            <div class="sim3d-graf-head">
+                <span class="sim3d-graf-tit">Sistemas de recomendación · día a día</span>
+                <button class="sim3d-res-cerrar" style="position:static;"
+                        onclick="SIM3D._toggleGrafica()">✕</button>
+            </div>
+            <div class="sim3d-graf-metricas">
+                <button data-met="theta" class="activo"
+                        onclick="SIM3D._setMetrica('theta')">Humedad del suelo</button>
+                <button data-met="agua"
+                        onclick="SIM3D._setMetrica('agua')">Agua acumulada</button>
+                <button data-met="ks"
+                        onclick="SIM3D._setMetrica('ks')">Estrés (Ks)</button>
+            </div>
+            <div class="sim3d-graf-canvas-wrap">
+                <canvas id="sim3d-chart"></canvas>
+            </div>
+            <p class="sim3d-graf-nota">
+                Mismo clima para los tres sistemas. Los puntos marcan eventos de riego;
+                la línea vertical es el día visible en 3D.
+            </p>
         </div>
 
         <div id="sim3d-config" class="sim3d-config" style="display:none;">
@@ -881,82 +949,189 @@
     function _renderKPIs() {
         const el = document.getElementById("sim3d-kpis");
         if (!el || !_sim) return;
-        const t = _sim.tradicional.totales, m = _sim.milpin.totales;
-        const dAgua = t.volumenM3Ha > 0 ? (1 - m.volumenM3Ha / t.volumenM3Ha) * 100 : 0;
-        const dRend = m.rendTonHa - t.rendTonHa;
+        // Mini-tabla: los 3 sistemas lado a lado, el visible en 3D resaltado
         el.innerHTML = `
-            <div class="sim3d-kpi-card">
-                <span class="sim3d-kpi-lbl">Agua · m³/ha</span>
-                <span class="sim3d-kpi-comp">
-                    <s>${_fmt(t.volumenM3Ha)}</s> → <b>${_fmt(m.volumenM3Ha)}</b>
-                </span>
-                <span class="sim3d-kpi-delta ${dAgua >= 0 ? "ok" : "mal"}">
-                    ${dAgua >= 0 ? "−" : "+"}${_fmt(Math.abs(dAgua), 0)}% agua</span>
-            </div>
-            <div class="sim3d-kpi-card">
-                <span class="sim3d-kpi-lbl">Rendimiento · ton/ha</span>
-                <span class="sim3d-kpi-comp">
-                    <s>${_fmt(t.rendTonHa, 1)}</s> → <b>${_fmt(m.rendTonHa, 1)}</b>
-                </span>
-                <span class="sim3d-kpi-delta ${dRend >= 0 ? "ok" : "mal"}">
-                    ${dRend >= 0 ? "+" : "−"}${_fmt(Math.abs(dRend), 1)} ton/ha</span>
+            <div class="sim3d-kpi-card sim3d-kpi-card--tabla">
+                <div class="sim3d-kpi-fila sim3d-kpi-fila--cab">
+                    <span>Sistema</span><span>m³/ha</span><span>ton/ha</span>
+                </div>
+                ${SISTEMAS.map(s => {
+                    const t = _sim.res[s.id].totales;
+                    return `
+                <div class="sim3d-kpi-fila ${s.id === _escenario ? "sim3d-kpi-fila--activa" : ""}"
+                     onclick="SIM3D._setEscenario('${s.id}')" title="${s.desc}">
+                    <span><i class="sim3d-kpi-dot" style="background:${s.color}"></i>${s.nombre}</span>
+                    <span>${_fmt(t.volumenM3Ha)}</span>
+                    <span>${_fmt(t.rendTonHa, 1)}</span>
+                </div>`;
+                }).join("")}
             </div>`;
     }
 
     function _mostrarResultados() {
         const el = document.getElementById("sim3d-resultados");
         if (!el || !_sim) return;
-        const t = _sim.tradicional.totales, m = _sim.milpin.totales;
         const cfg = _sim.cfg;
         const area = cfg.areaHa || 1;
         const precio = PRECIO_TON_MXN[cfg.cultivoKey] || 6000;
+        const tot = id => _sim.res[id].totales;
+        const t = tot("tradicional");
 
-        const ahorroAguaM3 = (t.volumenM3Ha - m.volumenM3Ha) * area;
-        const ahorroCostoMxn = (t.costoAguaMxnHa - m.costoAguaMxnHa) * area;
-        const ingresoExtraMxn = (m.rendTonHa - t.rendTonHa) * precio * area;
-        const beneficio = ahorroCostoMxn + ingresoExtraMxn;
+        // Mejor sistema de recomendación: máximo beneficio económico vs baseline
+        const beneficio = id => {
+            const m = tot(id);
+            return (t.costoAguaMxnHa - m.costoAguaMxnHa) * area
+                 + (m.rendTonHa - t.rendTonHa) * precio * area;
+        };
+        const mejor = ["fao56", "xgboost"].reduce((a, b) => beneficio(b) > beneficio(a) ? b : a);
+        const m = tot(mejor);
+        const nombreMejor = SISTEMAS.find(s => s.id === mejor).nombre;
         const pctAgua = t.volumenM3Ha > 0 ? ((1 - m.volumenM3Ha / t.volumenM3Ha) * 100) : 0;
+        const ahorroAguaM3 = (t.volumenM3Ha - m.volumenM3Ha) * area;
 
-        const fila = (lbl, vt, vm, unidad = "") => `
-            <div class="sim3d-res-fila">
+        const fila = (lbl, fmt, unidad = "") => `
+            <div class="sim3d-res-fila sim3d-res-fila--3">
                 <span class="sim3d-res-lbl">${lbl}</span>
-                <span class="sim3d-res-trad">${vt}${unidad}</span>
-                <span class="sim3d-res-milpin">${vm}${unidad}</span>
+                ${SISTEMAS.map(s => `
+                <span class="${s.id === mejor ? "sim3d-res-milpin" : "sim3d-res-trad"}">
+                    ${fmt(tot(s.id))}${unidad}</span>`).join("")}
             </div>`;
 
         el.innerHTML = `
             <button class="sim3d-res-cerrar" onclick="document.getElementById('sim3d-resultados').style.display='none'">✕</button>
             <div class="sim3d-res-tit">Resultados del ciclo · ${NOMBRE_CULTIVO[cfg.cultivoKey] || cfg.cultivoKey}</div>
             <div class="sim3d-res-headline">
-                MILPÍN vs práctica tradicional:
+                Mejor sistema: <b>${nombreMejor}</b> —
                 <b>${pctAgua >= 0 ? "−" : "+"}${_fmt(Math.abs(pctAgua), 0)}% agua</b> y
                 <b>${m.rendTonHa >= t.rendTonHa ? "+" : "−"}${_fmt(Math.abs(m.rendTonHa - t.rendTonHa), 1)} ton/ha</b>
+                vs práctica tradicional
             </div>
-            <div class="sim3d-res-cab">
-                <span></span><span>Tradicional</span><span>MILPÍN</span>
+            <div class="sim3d-res-cab sim3d-res-fila--3">
+                <span></span>${SISTEMAS.map(s => `<span>${s.nombre}</span>`).join("")}
             </div>
-            ${fila("Agua aplicada", _fmt(t.volumenM3Ha), _fmt(m.volumenM3Ha), " m³/ha")}
-            ${fila("Eventos de riego", t.nRiegos, m.nRiegos)}
-            ${fila("Días con estrés hídrico", t.diasEstres, m.diasEstres)}
-            ${fila("ETa/ETc (satisfacción hídrica)", _fmt(t.relEt * 100, 0) + "%", _fmt(m.relEt * 100, 0) + "%")}
-            ${fila("Rendimiento estimado", _fmt(t.rendTonHa, 1), _fmt(m.rendTonHa, 1), " ton/ha")}
-            ${fila("Costo de agua (${TARIFA} MXN/m³)".replace("${TARIFA}", TARIFA_M3_MXN),
-                   "$" + _fmt(t.costoAguaMxnHa), "$" + _fmt(m.costoAguaMxnHa), "/ha")}
+            ${fila("Agua aplicada (m³/ha)", x => _fmt(x.volumenM3Ha))}
+            ${fila("Eventos de riego", x => x.nRiegos)}
+            ${fila("Días con estrés", x => x.diasEstres)}
+            ${fila("ETa/ETc", x => _fmt(x.relEt * 100, 0) + "%")}
+            ${fila("Rendimiento (ton/ha)", x => _fmt(x.rendTonHa, 1))}
+            ${fila("Costo agua (MXN/ha)", x => "$" + _fmt(x.costoAguaMxnHa))}
             <div class="sim3d-res-beneficio">
-                Beneficio del ciclo en <b>${_fmt(area, 1)} ha</b>:
+                Beneficio del ciclo en <b>${_fmt(area, 1)} ha</b> con ${nombreMejor}:
                 ahorro de <b>${_fmt(Math.max(0, ahorroAguaM3))} m³</b> de agua
-                ≈ <b>$${_fmt(Math.max(0, beneficio))} MXN</b>
+                ≈ <b>$${_fmt(Math.max(0, beneficio(mejor)))} MXN</b>
                 <span class="sim3d-res-desglose">
-                    ($${_fmt(Math.max(0, ahorroCostoMxn))} en agua + $${_fmt(Math.max(0, ingresoExtraMxn))} por rendimiento,
-                    precio est. $${_fmt(precio)}/ton)
+                    (agua a $${TARIFA_M3_MXN}/m³ + rendimiento a precio est. $${_fmt(precio)}/ton)
                 </span>
             </div>
             <p class="sim3d-res-nota">
                 Simulación FAO-56 / FAO-33 con clima sintético del Valle del Yaqui
-                (determinista: ambos escenarios reciben el mismo clima). Herramienta
-                de apoyo a decisiones — no sustituye el juicio agronómico.
+                (determinista: los tres sistemas reciben el mismo clima). El sistema
+                ML aproxima la política del modelo XGBoost del repo, no lo ejecuta.
+                Herramienta de apoyo a decisiones — no sustituye el juicio agronómico.
             </p>`;
         el.style.display = "block";
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  GRÁFICA COMPARATIVA (Chart.js, ya cargado globalmente en index.html)
+    // ════════════════════════════════════════════════════════════════
+
+    // Línea vertical punteada en el día visible en 3D (se redibuja con draw())
+    const _pluginCursorDia = {
+        id: "cursorDia",
+        afterDatasetsDraw(chart) {
+            const x = chart.scales.x.getPixelForValue(_diaActual);
+            if (!isFinite(x)) return;
+            const { top, bottom } = chart.chartArea;
+            const c = chart.ctx;
+            c.save();
+            c.strokeStyle = "rgba(31,45,61,0.6)";
+            c.lineWidth = 1.5;
+            c.setLineDash([4, 3]);
+            c.beginPath(); c.moveTo(x, top); c.lineTo(x, bottom); c.stroke();
+            c.restore();
+        },
+    };
+
+    function _construirGrafica() {
+        if (!_sim || typeof Chart === "undefined") return;
+        const canvas = document.getElementById("sim3d-chart");
+        if (!canvas) return;
+        if (_chart) { _chart.destroy(); _chart = null; }
+
+        const labels = _sim.res.fao56.dias.map(d => d.dia);
+        const datasets = SISTEMAS.map(s => {
+            const dias = _sim.res[s.id].dias;
+            let serie;
+            if (_chartMetrica === "agua") {
+                let acc = 0;
+                serie = dias.map(d => Math.round(acc += d.riegoBruto * 10));
+            } else if (_chartMetrica === "ks") {
+                serie = dias.map(d => d.ks);
+            } else {
+                serie = dias.map(d => d.theta);
+            }
+            return {
+                label: s.nombre, data: serie,
+                borderColor: s.color, backgroundColor: s.color,
+                pointRadius: dias.map(d => d.riegoBruto > 0 ? 3 : 0),
+                pointHoverRadius: 4, borderWidth: 2, tension: 0.25,
+            };
+        });
+
+        // Líneas guía del suelo solo en la vista de humedad
+        if (_chartMetrica === "theta") {
+            const { ccPct, pmpPct } = _sim.cfg;
+            const umbral = pmpPct + 0.5 * (ccPct - pmpPct);
+            [[ccPct, "CC"], [umbral, "Umbral 50% ADT"], [pmpPct, "PMP"]].forEach(([v, lbl]) =>
+                datasets.push({
+                    label: lbl, data: labels.map(() => v),
+                    borderColor: "rgba(107,124,147,0.5)", borderDash: [5, 4],
+                    borderWidth: 1, pointRadius: 0,
+                }));
+        }
+
+        const tituloY = _chartMetrica === "agua" ? "Agua aplicada acumulada (m³/ha)"
+            : _chartMetrica === "ks" ? "Ks (1 = sin estrés)"
+            : "Humedad del suelo θ (%)";
+
+        _chart = new Chart(canvas, {
+            type: "line",
+            data: { labels, datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                interaction: { mode: "index", intersect: false },
+                scales: {
+                    x: { title: { display: true, text: "Día del ciclo" },
+                         ticks: { maxTicksLimit: 12 } },
+                    y: { title: { display: true, text: tituloY } },
+                },
+                plugins: { legend: { labels: { boxWidth: 14, boxHeight: 2 } } },
+            },
+            plugins: [_pluginCursorDia],
+        });
+    }
+
+    function _toggleGrafica() {
+        const p = document.getElementById("sim3d-grafica");
+        if (!p) return;
+        const abrirPanel = p.style.display === "none";
+        p.style.display = abrirPanel ? "block" : "none";
+        if (abrirPanel && !_chart) _construirGrafica();
+    }
+
+    function _setMetrica(met) {
+        _chartMetrica = met;
+        document.querySelectorAll(".sim3d-graf-metricas button").forEach(b =>
+            b.classList.toggle("activo", b.dataset.met === met));
+        _construirGrafica();
+    }
+
+    // Tras reiniciar (otro cultivo/fecha) los datos cambian: rehacer si está abierta
+    function _resetGrafica() {
+        if (_chart) { _chart.destroy(); _chart = null; }
+        const p = document.getElementById("sim3d-grafica");
+        if (p && p.style.display !== "none") _construirGrafica();
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -970,11 +1145,13 @@
     }
 
     function _setEscenario(esc) {
+        if (!SISTEMAS.some(s => s.id === esc)) esc = "fao56";
         _escenario = esc;
-        document.getElementById("sim3d-esc-trad")?.classList.toggle("activo", esc === "tradicional");
-        document.getElementById("sim3d-esc-milpin")?.classList.toggle("activo", esc === "milpin");
+        document.querySelectorAll("#sim3d-esc-toggle button").forEach(b =>
+            b.classList.toggle("activo", b.dataset.sistema === esc));
         _ultimoG = -1;                       // fuerza rebuild de matrices
         _ultimaMad = -1;
+        _renderKPIs();
         _aplicarDia(_diaActual, true);
     }
 
@@ -1001,6 +1178,7 @@
         // El cambio de cultivo cambia la forma de las plantas → reconstruir
         _crearEscena(document.getElementById("sim3d-canvas-wrap"), cfg.poligono, cfg.cultivoKey);
         _renderKPIs();
+        _resetGrafica();
         _aplicarDia(0, true);
         _setReproduciendo(true);
         if (!_rafId) { _relojPrev = null; _rafId = requestAnimationFrame(_animar); }
@@ -1063,8 +1241,8 @@
             document.getElementById("sim3d-slider").max = _sim.ciclo - 1;
 
             _crearEscena(document.getElementById("sim3d-canvas-wrap"), cfg.poligono, cultivoKey);
-            _escenario = "milpin";
-            _setEscenario("milpin");
+            if (_chart) { _chart.destroy(); _chart = null; }
+            _setEscenario("fao56");
             _renderKPIs();
             _aplicarDia(0, true);
             _setReproduciendo(true);
@@ -1084,6 +1262,9 @@
     function cerrar() {
         _setReproduciendo(false);
         _destruirEscena();
+        if (_chart) { _chart.destroy(); _chart = null; }
+        const graf = document.getElementById("sim3d-grafica");
+        if (graf) graf.style.display = "none";
         if (_overlay) _overlay.style.display = "none";
     }
 
@@ -1094,6 +1275,8 @@
         _irADia: (d) => { _setReproduciendo(false); _aplicarDia(d, true); },
         _setEscenario,
         _reiniciar,
+        _toggleGrafica,
+        _setMetrica,
         _toggleConfig: () => {
             const c = document.getElementById("sim3d-config");
             if (c) c.style.display = c.style.display === "none" ? "block" : "none";
