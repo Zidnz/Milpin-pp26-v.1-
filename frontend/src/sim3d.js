@@ -437,15 +437,17 @@
 
         // ML XGBoost: fracción de agotamiento permitida (p) aprendida por
         // etapa — protege mediados (floración/llenado, p=0.40) y tolera más
-        // en etapas poco sensibles (inicial 0.65, final 0.60). Llena solo a
-        // 90% de CC: deja espacio para lluvia (menos pérdida por exceso).
+        // en etapas poco sensibles (inicial 0.65, final 0.55). Llena solo a
+        // 90% de CC (deja espacio para lluvia) y aplica corte de agua
+        // pre-cosecha: sin riegos en los últimos 12 días del ciclo.
         const [dIni, dDes, dMed] = cat.etapas;
         res.xgboost = _simularEstrategia(cat, clima, suelo, ef,
             (d, theta, ctx) => {
+                if (d > ciclo - 12) return 0;          // corte pre-cosecha
                 const p = d <= dIni ? 0.65
                     : d <= dIni + dDes ? 0.50
                     : d <= dIni + dDes + dMed ? 0.40
-                    : 0.60;
+                    : 0.55;
                 const umbralEtapa = ctx.ccPct - p * (ctx.ccPct - ctx.pmpPct);
                 if (theta > umbralEtapa) return 0;
                 const objetivo = ctx.pmpPct + 0.90 * (ctx.ccPct - ctx.pmpPct);
@@ -500,7 +502,139 @@
 
     const ALTURA_SUELO = 1.4;
 
-    function _crearEscena(canvasWrap, poligono, cultivoKey) {
+    /**
+     * Infraestructura y efectos de agua propios de cada sistema de riego
+     * (escenario MILPÍN). El equipo es visible todo el ciclo; los efectos
+     * (fxMats) son materiales transparentes cuya opacidad pulsa al regar.
+     *   gravedad       → sin equipo: lámina de inundación (aguaMesh)
+     *   goteo          → cinta por hilera + bulbos de mojado por planta
+     *   aspersion      → cañones altos + cono de rociado translúcido
+     *   microaspersion → estacas bajas + rociado circular + bulbos
+     * Devuelve { equipo: [Mesh], fxMats: [{ mat, max }] } ya agregados a _scene.
+     */
+    function _construirInfraRiego(sistema, posiciones, paso, poligono, lim, escAltura, hMaxCultivo) {
+        const equipo = [];
+        const fxMats = [];
+        const y0 = ALTURA_SUELO;
+        const m = new THREE.Matrix4();
+        const Q_ID = new THREE.Quaternion();
+        const Q_TUMBADO = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+        const Q_PLANO = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+        const Q_INVERTIDO = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0));
+        const v = new THREE.Vector3();
+        const e = new THREE.Vector3();
+
+        const instanciar = (geo, mat, items) => {
+            const mesh = new THREE.InstancedMesh(geo, mat, items.length);
+            items.forEach((it, i) => {
+                m.compose(v.set(it.x, it.y, it.z), it.q || Q_ID, e.set(it.sx, it.sy, it.sz));
+                mesh.setMatrixAt(i, m);
+            });
+            _scene.add(mesh);
+            return mesh;
+        };
+
+        // Bulbos de mojado bajo cada planta (goteo y microaspersión)
+        if (sistema === "goteo" || sistema === "microaspersion") {
+            const matBulbo = new THREE.MeshBasicMaterial({
+                color: 0x2e5d8a, transparent: true, opacity: 0, depthWrite: false });
+            const r = paso * (sistema === "goteo" ? 0.30 : 0.42);
+            equipo.push(instanciar(
+                new THREE.CircleGeometry(1, 10), matBulbo,
+                posiciones.map(p => ({ x: p.x, y: y0 + 0.06, z: p.z, q: Q_PLANO, sx: r, sy: r, sz: 1 }))));
+            fxMats.push({ mat: matBulbo, max: 0.65 });
+        }
+
+        if (sistema === "goteo") {
+            // Una cinta de goteo por hilera (las hileras corren a lo largo de z).
+            // La clave se ancla al origen del grid: el jitter en x (±12% del
+            // paso) no puede partir una hilera en dos cintas.
+            const x0 = lim.minX + paso / 2;
+            const hileras = new Map();
+            posiciones.forEach(p => {
+                const clave = Math.round((p.x - x0) / paso);
+                const h = hileras.get(clave) || { x: x0 + clave * paso, minZ: Infinity, maxZ: -Infinity };
+                h.minZ = Math.min(h.minZ, p.z); h.maxZ = Math.max(h.maxZ, p.z);
+                hileras.set(clave, h);
+            });
+            const grosor = Math.max(0.08, paso * 0.035);
+            equipo.push(instanciar(
+                new THREE.CylinderGeometry(0.5, 0.5, 1, 6),
+                new THREE.MeshLambertMaterial({ color: 0x221b13 }),
+                [...hileras.values()].map(h => ({
+                    x: h.x, y: y0 + grosor, z: (h.minZ + h.maxZ) / 2, q: Q_TUMBADO,
+                    sx: grosor * 2, sy: h.maxZ - h.minZ + paso * 0.6, sz: grosor * 2,
+                }))));
+        }
+
+        if (sistema === "aspersion" || sistema === "microaspersion") {
+            const esMicro = sistema === "microaspersion";
+            // Aspersión: cañones altos cada ~3.5 pasos; micro: estaca por 2 plantas
+            let puntos;
+            const hEquipo = esMicro
+                ? 0.4 + paso * 0.08
+                : hMaxCultivo * escAltura * 1.25;
+            if (esMicro) {
+                puntos = posiciones.filter((_, i) => i % 2 === 0)
+                    .map(p => ({ x: p.x + paso * 0.4, z: p.z }));
+            } else {
+                puntos = [];
+                const sep = paso * 3.5;
+                for (let x = lim.minX + sep / 2; x < lim.maxX; x += sep) {
+                    for (let z = lim.minZ + sep / 2; z < lim.maxZ; z += sep) {
+                        if (_puntoEnPoligono(x, z, poligono)) puntos.push({ x, z });
+                    }
+                }
+            }
+            const grosorPoste = esMicro ? 0.06 : Math.max(0.12, paso * 0.04);
+            equipo.push(instanciar(
+                new THREE.CylinderGeometry(0.5, 0.5, 1, 6),
+                new THREE.MeshLambertMaterial({ color: esMicro ? 0x2a2a2a : 0x9aa3ab }),
+                puntos.map(p => ({
+                    x: p.x, y: y0 + hEquipo / 2, z: p.z,
+                    sx: grosorPoste * 2, sy: hEquipo, sz: grosorPoste * 2,
+                }))));
+            // Cabezal
+            equipo.push(instanciar(
+                new THREE.SphereGeometry(0.5, 6, 5),
+                new THREE.MeshLambertMaterial({ color: esMicro ? 0xe07b2a : 0x4d565e }),
+                puntos.map(p => ({
+                    x: p.x, y: y0 + hEquipo, z: p.z,
+                    sx: grosorPoste * 4, sy: grosorPoste * 4, sz: grosorPoste * 4,
+                }))));
+            // Cono / disco de rociado translúcido (FX)
+            const matRociado = new THREE.MeshBasicMaterial({
+                color: 0x9fd4f5, transparent: true, opacity: 0,
+                depthWrite: false, side: THREE.DoubleSide });
+            const rRociado = esMicro ? paso * 0.85 : paso * 1.8;
+            const hRociado = esMicro ? hEquipo * 0.9 : hEquipo;
+            equipo.push(instanciar(
+                new THREE.ConeGeometry(1, 1, 12, 1, true), matRociado,
+                puntos.map(p => ({
+                    x: p.x, y: y0 + hEquipo - hRociado / 2, z: p.z, q: Q_INVERTIDO,
+                    sx: rRociado, sy: hRociado, sz: rRociado,
+                }))));
+            fxMats.push({ mat: matRociado, max: esMicro ? 0.35 : 0.30 });
+        }
+
+        return { equipo, fxMats };
+    }
+
+    // Aplica el pulso de agua al efecto del sistema activo en el 3D.
+    // El escenario Tradicional siempre se ve como gravedad (lámina).
+    function _aplicarOpacidadFX(op) {
+        if (!_campo || !_sim) return;
+        const sistema = _escenario === "tradicional" ? "gravedad" : _sim.cfg.sistema;
+        const laminaMax = sistema === "gravedad" ? 0.55
+            : sistema === "aspersion" ? 0.12 : 0;   // aspersión moja parejo, leve
+        _campo.aguaMesh.material.opacity = Math.min(laminaMax, op);
+        const moderno = _escenario !== "tradicional";
+        _campo.fxMats.forEach(f => {
+            f.mat.opacity = moderno ? Math.min(f.max, op * (f.max / 0.55)) : 0;
+        });
+    }
+
+    function _crearEscena(canvasWrap, poligono, cultivoKey, sistemaRiego) {
         // Limpieza de escena previa (reabrir / reiniciar)
         _destruirEscena();
 
@@ -620,8 +754,13 @@
             return { ...def, mesh, verdeBase: def.color };
         });
 
+        // Infraestructura del sistema de riego (cintas, aspersores, estacas)
+        const { equipo, fxMats } = _construirInfraRiego(
+            sistemaRiego || "gravedad", posiciones, paso, poligono,
+            { minX, maxX, minZ, maxZ }, escAltura, vis.hMax);
+
         _campo = {
-            suelo, matSuelo, aguaMesh, partes,
+            suelo, matSuelo, aguaMesh, partes, equipo, fxMats,
             posiciones, vis, tam, cx, cz, diamCopaM, escAltura,
         };
         _ultimoG = -1;
@@ -793,12 +932,14 @@
             }
         }
 
-        // Decaimiento de la lámina de agua tras un riego
+        // Decaimiento del efecto de riego (lámina, rociado o bulbos):
+        // ~5 s visibles — un riego dura horas, que se alcance a apreciar
         if (_aguaOpacidad > 0.005) {
-            _aguaOpacidad *= Math.pow(0.35, dt);
-            _campo.aguaMesh.material.opacity = _aguaOpacidad;
-        } else if (_campo?.aguaMesh.material.opacity !== 0) {
-            _campo.aguaMesh.material.opacity = 0;
+            _aguaOpacidad *= Math.pow(0.55, dt);
+            _aplicarOpacidadFX(_aguaOpacidad);
+        } else if (_aguaOpacidad !== 0) {
+            _aguaOpacidad = 0;
+            _aplicarOpacidadFX(0);
         }
 
         _controls.update();
@@ -1151,6 +1292,11 @@
             b.classList.toggle("activo", b.dataset.sistema === esc));
         _ultimoG = -1;                       // fuerza rebuild de matrices
         _ultimaMad = -1;
+        // El Tradicional riega por gravedad: ocultar el equipo moderno
+        if (_campo?.equipo) {
+            _campo.equipo.forEach(mesh => { mesh.visible = esc !== "tradicional"; });
+        }
+        _aguaOpacidad = 0.5;                 // pulso demo del efecto de riego
         _renderKPIs();
         _aplicarDia(_diaActual, true);
     }
@@ -1175,9 +1321,10 @@
         document.getElementById("sim3d-subtitulo").textContent =
             `${NOMBRE_CULTIVO[cfg.cultivoKey]} · ${_fmt(cfg.areaHa, 1)} ha · ${cfg.sistema}`;
 
-        // El cambio de cultivo cambia la forma de las plantas → reconstruir
-        _crearEscena(document.getElementById("sim3d-canvas-wrap"), cfg.poligono, cfg.cultivoKey);
-        _renderKPIs();
+        // El cambio de cultivo o sistema cambia la escena → reconstruir.
+        // _setEscenario reaplica visibilidad del equipo de riego y KPIs.
+        _crearEscena(document.getElementById("sim3d-canvas-wrap"), cfg.poligono, cfg.cultivoKey, cfg.sistema);
+        _setEscenario(_escenario);
         _resetGrafica();
         _aplicarDia(0, true);
         _setReproduciendo(true);
@@ -1240,7 +1387,7 @@
             _sim = _correrComparativa(cfg);
             document.getElementById("sim3d-slider").max = _sim.ciclo - 1;
 
-            _crearEscena(document.getElementById("sim3d-canvas-wrap"), cfg.poligono, cultivoKey);
+            _crearEscena(document.getElementById("sim3d-canvas-wrap"), cfg.poligono, cultivoKey, cfg.sistema);
             if (_chart) { _chart.destroy(); _chart = null; }
             _setEscenario("fao56");
             _renderKPIs();
