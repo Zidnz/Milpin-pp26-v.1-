@@ -190,6 +190,7 @@
     let _aguaOpacidad = 0;
     let _ultimoG = -1;                // growth aplicado a las matrices
     let _ultimaMad = -1;              // madurez de fruto aplicada
+    let _camTween = null;             // transición suave entre vistas de cámara
 
     // ════════════════════════════════════════════════════════════════
     //  UTILIDADES
@@ -502,6 +503,55 @@
 
     const ALTURA_SUELO = 1.4;
 
+    // Perfil del subsuelo (diorama). Profundidades base simbólicas que se
+    // escalan al tamaño del lote en _crearEscena — un corte de 7 m junto a
+    // un campo de 400 m sería una línea invisible.
+    const PROF_ARABLE = 2.2;
+    const PROF_RAICES = 2.4;
+    const PROF_ACUIFERO = 2.8;
+
+    // Rampa del heatmap de humedad: f = (θ−PMP)/(CC−PMP)
+    //   🔴 estrés → 🟡 déficit → 🟢 óptimo → 🔵 alta humedad
+    const _RAMPA_HUM = [
+        [0.00, 0xc2, 0x3a, 0x2e],
+        [0.32, 0xd8, 0xb8, 0x32],
+        [0.55, 0x3f, 0x9b, 0x4f],
+        [0.78, 0x3f, 0x9b, 0x4f],
+        [1.00, 0x2f, 0x7f, 0xc1],
+    ];
+
+    function _colorHumedad(f) {
+        f = Math.max(0, Math.min(1, f));
+        for (let i = 1; i < _RAMPA_HUM.length; i++) {
+            if (f <= _RAMPA_HUM[i][0]) {
+                const [f0, r0, g0, b0] = _RAMPA_HUM[i - 1];
+                const [f1, r1, g1, b1] = _RAMPA_HUM[i];
+                const k = (f - f0) / Math.max(1e-6, f1 - f0);
+                return [r0 + (r1 - r0) * k, g0 + (g1 - g0) * k, b0 + (b1 - b0) * k];
+            }
+        }
+        return [_RAMPA_HUM[4][1], _RAMPA_HUM[4][2], _RAMPA_HUM[4][3]];
+    }
+
+    // Heterogeneidad espacial del suelo: value noise suave y determinista
+    // (misma semilla → mismo patrón). Representa variación de textura/CE
+    // dentro del lote; la media sigue el θ del balance hídrico del día.
+    function _crearRuidoCampo(semilla) {
+        const rnd = _mulberry32(semilla);
+        const g = 8;
+        const grid = Array.from({ length: (g + 1) * (g + 1) }, () => rnd() * 2 - 1);
+        const en = (x, y) => grid[Math.min(y, g) * (g + 1) + Math.min(x, g)];
+        return (u, v) => {
+            const x = u * g, y = v * g;
+            const x0 = Math.floor(x), y0 = Math.floor(y);
+            const fx = x - x0, fy = y - y0;
+            const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+            const a = en(x0, y0) * (1 - sx) + en(x0 + 1, y0) * sx;
+            const b = en(x0, y0 + 1) * (1 - sx) + en(x0 + 1, y0 + 1) * sx;
+            return a * (1 - sy) + b * sy;
+        };
+    }
+
     /**
      * Infraestructura y efectos de agua propios de cada sistema de riego
      * (escenario MILPÍN). El equipo es visible todo el ciclo; los efectos
@@ -632,6 +682,16 @@
         _campo.fxMats.forEach(f => {
             f.mat.opacity = moderno ? Math.min(f.max, op * (f.max / 0.55)) : 0;
         });
+
+        // Frente de infiltración: desciende de la superficie a la zona de
+        // raíces conforme el pulso decae (el agua "entra" al perfil)
+        if (_campo.frenteInfiltra && _campo.perfil) {
+            const prog = 1 - Math.min(1, op / 0.55);
+            const { arable, raices } = _campo.perfil;
+            _campo.frenteInfiltra.position.y =
+                ALTURA_SUELO - 0.05 * arable - prog * (arable + raices * 0.8);
+            _campo.frenteInfiltra.material.opacity = Math.min(0.5, op);
+        }
     }
 
     function _crearEscena(canvasWrap, poligono, cultivoKey, sistemaRiego) {
@@ -665,7 +725,7 @@
         _controls = new THREE.OrbitControls(_camera, _renderer.domElement);
         _controls.target.set(cx, ALTURA_SUELO, cz);
         _controls.maxPolarAngle = 1.45;
-        _controls.minDistance = tam * 0.15;
+        _controls.minDistance = Math.max(3, tam * 0.02);   // permite vista a ras
         _controls.maxDistance = tam * 4;
         _controls.enableDamping = true;
         _controls.dampingFactor = 0.08;
@@ -683,23 +743,115 @@
         sol.target.position.set(cx, 0, cz);
         _scene.add(sol, sol.target);
 
-        // Terreno circundante (desierto sonorense)
+        // Profundidades del perfil proporcionales al lote (corte legible)
+        const escPerfil = Math.max(1, tam * 0.016);
+        const perfil = {
+            arable: PROF_ARABLE * escPerfil,
+            raices: PROF_RAICES * escPerfil,
+            acuifero: PROF_ACUIFERO * escPerfil,
+        };
+        perfil.fondo = ALTURA_SUELO - perfil.arable - perfil.raices - perfil.acuifero;
+
+        // Terreno circundante (desierto sonorense), hundido: la parcela
+        // queda como diorama y el perfil del subsuelo se ve de costado
         const piso = new THREE.Mesh(
             new THREE.CircleGeometry(tam * 8, 48),
             new THREE.MeshLambertMaterial({ color: 0xc9b287 })
         );
         piso.rotation.x = -Math.PI / 2;
+        piso.position.y = perfil.fondo - 0.2;
         piso.receiveShadow = true;
         _scene.add(piso);
 
-        // Bloque de suelo de la parcela: extrusión del polígono real
+        // Perfil del subsuelo: tres extrusiones apiladas del mismo polígono
+        //   Suelo (arable, tinte por humedad) / Raíces / Agua subterránea
         const forma = new THREE.Shape(poligono.map(p => new THREE.Vector2(p[0], p[1])));
-        const geoSuelo = new THREE.ExtrudeGeometry(forma, { depth: ALTURA_SUELO, bevelEnabled: false });
-        const matSuelo = new THREE.MeshLambertMaterial({ color: 0x4a3a2a });
-        const suelo = new THREE.Mesh(geoSuelo, matSuelo);
-        suelo.rotation.x = -Math.PI / 2;   // shape XY → plano XZ, extrusión hacia +Y
+        const capas = [
+            { depth: perfil.arable, color: 0x4a3a2a, opacidad: 1.0 },
+            { depth: perfil.raices, color: 0x7a5c3f, opacidad: 1.0 },
+            { depth: perfil.acuifero, color: 0x1f5f8f, opacidad: 0.55 },
+        ];
+        let topYCapa = ALTURA_SUELO;
+        const meshCapas = capas.map(c => {
+            const mesh = new THREE.Mesh(
+                new THREE.ExtrudeGeometry(forma, { depth: c.depth, bevelEnabled: false }),
+                new THREE.MeshLambertMaterial({
+                    color: c.color, transparent: c.opacidad < 1, opacity: c.opacidad }));
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.y = topYCapa - c.depth;
+            topYCapa -= c.depth;
+            _scene.add(mesh);
+            return mesh;
+        });
+        const suelo = meshCapas[0];
+        const matSuelo = suelo.material;
         suelo.receiveShadow = true;
-        _scene.add(suelo);
+
+        // Etiquetas flotantes del perfil (sprites siempre de cara a cámara)
+        const etiquetaPerfil = (texto, y) => {
+            const cv = document.createElement("canvas");
+            cv.width = 256; cv.height = 64;
+            const c2 = cv.getContext("2d");
+            c2.fillStyle = "rgba(10,25,38,0.78)";
+            c2.beginPath();
+            c2.roundRect ? c2.roundRect(2, 2, 252, 60, 18) : c2.rect(2, 2, 252, 60);
+            c2.fill();
+            c2.font = "600 30px Poppins, sans-serif";
+            c2.fillStyle = "#fff";
+            c2.textAlign = "center"; c2.textBaseline = "middle";
+            c2.fillText(texto, 128, 34);
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: new THREE.CanvasTexture(cv), transparent: true }));
+            sp.scale.set(tam * 0.085, tam * 0.021, 1);
+            sp.position.set(maxX + tam * 0.055, y, maxZ + tam * 0.02);
+            _scene.add(sp);
+        };
+        etiquetaPerfil("Suelo", ALTURA_SUELO - perfil.arable / 2);
+        etiquetaPerfil("Raíces", ALTURA_SUELO - perfil.arable - perfil.raices / 2);
+        etiquetaPerfil("Agua", perfil.fondo + perfil.acuifero / 2);
+
+        // Frente de infiltración: anillo que desciende por el perfil tras
+        // cada riego (polígono inflado 2.5% para asomar por los costados)
+        const cShapeX = poligono.reduce((s, p) => s + p[0], 0) / poligono.length;
+        const cShapeY = poligono.reduce((s, p) => s + p[1], 0) / poligono.length;
+        const formaExp = new THREE.Shape(poligono.map(p => new THREE.Vector2(
+            cShapeX + (p[0] - cShapeX) * 1.025,
+            cShapeY + (p[1] - cShapeY) * 1.025)));
+        const frenteInfiltra = new THREE.Mesh(
+            new THREE.ExtrudeGeometry(formaExp, { depth: 0.22 * escPerfil, bevelEnabled: false }),
+            new THREE.MeshBasicMaterial({
+                color: 0x4fa3e0, transparent: true, opacity: 0, depthWrite: false }));
+        frenteInfiltra.rotation.x = -Math.PI / 2;
+        frenteInfiltra.position.y = ALTURA_SUELO - 0.3 * escPerfil;
+        _scene.add(frenteInfiltra);
+
+        // Heatmap de humedad: plano con la silueta del lote + DataTexture.
+        // La media espacial es el θ del balance; el patrón es heterogeneidad
+        // de suelo simulada (determinista por parcela).
+        const heatN = 64;
+        const heatData = new Uint8Array(heatN * heatN * 4);
+        const heatTex = new THREE.DataTexture(heatData, heatN, heatN, THREE.RGBAFormat);
+        const geoHeat = new THREE.ShapeGeometry(forma);
+        {   // UVs normalizadas al bbox del polígono (ShapeGeometry trae UVs crudas)
+            const posAttr = geoHeat.attributes.position;
+            const uvAttr = geoHeat.attributes.uv;
+            for (let i = 0; i < posAttr.count; i++) {
+                uvAttr.setXY(i,
+                    (posAttr.getX(i) - minX) / Math.max(1e-6, maxX - minX),
+                    (posAttr.getY(i) - minZ) / Math.max(1e-6, maxZ - minZ));
+            }
+        }
+        // Lambert (no Basic): el heatmap recibe luz y sombras de las plantas
+        const heatMesh = new THREE.Mesh(geoHeat, new THREE.MeshLambertMaterial({
+            map: heatTex, transparent: true, opacity: 0.78, depthWrite: false }));
+        heatMesh.rotation.x = -Math.PI / 2;
+        heatMesh.position.y = ALTURA_SUELO + 0.04;
+        heatMesh.receiveShadow = true;
+        _scene.add(heatMesh);
+        const heat = {
+            n: heatN, data: heatData, tex: heatTex,
+            sampler: _crearRuidoCampo(_hashStr(cultivoKey + tam.toFixed(0))),
+        };
 
         // Lámina de agua (animación de riego): misma silueta, casi a ras
         const aguaMesh = new THREE.Mesh(
@@ -761,6 +913,7 @@
 
         _campo = {
             suelo, matSuelo, aguaMesh, partes, equipo, fxMats,
+            heat, heatMesh, frenteInfiltra, perfil,
             posiciones, vis, tam, cx, cz, diamCopaM, escAltura,
         };
         _ultimoG = -1;
@@ -893,9 +1046,26 @@
             }
         }
 
-        // 3) Suelo: húmedo oscuro ↔ seco claro según θ relativo
+        // 3) Suelo: húmedo oscuro ↔ seco claro según θ relativo (costados)
         const fHum = Math.max(0, Math.min(1, (dia.theta - pmpPct) / (ccPct - pmpPct)));
         _campo.matSuelo.color.copy(new THREE.Color(0xa3814f).lerp(new THREE.Color(0x3a2c1e), fHum));
+
+        // 3b) Heatmap: θ del día ± heterogeneidad espacial del lote.
+        //     🔴 estrés · 🟡 déficit · 🟢 óptimo · 🔵 alta humedad
+        if (_campo.heat) {
+            const { n, data, tex, sampler } = _campo.heat;
+            const rango = Math.max(1e-6, ccPct - pmpPct);
+            for (let j = 0; j < n; j++) {
+                for (let i = 0; i < n; i++) {
+                    const ruido = sampler(i / (n - 1), j / (n - 1));
+                    const f = (dia.theta + ruido * 0.30 * rango - pmpPct) / rango;
+                    const c = _colorHumedad(f);
+                    const k = (j * n + i) * 4;
+                    data[k] = c[0]; data[k + 1] = c[1]; data[k + 2] = c[2]; data[k + 3] = 235;
+                }
+            }
+            tex.needsUpdate = true;
+        }
 
         // 4) Animación de riego (solo en reproducción, no al arrastrar slider)
         if (dia.riegoBruto > 0 && !esSalto) _aguaOpacidad = 0.55;
@@ -942,8 +1112,43 @@
             _aplicarOpacidadFX(0);
         }
 
+        // Transición suave entre vistas de cámara (dron)
+        if (_camTween && _camera) {
+            _camTween.t += dt / 0.9;
+            const k = Math.min(1, _camTween.t);
+            const s = k * k * (3 - 2 * k);           // smoothstep
+            _camera.position.lerpVectors(_camTween.p0, _camTween.p1, s);
+            _controls.target.lerpVectors(_camTween.o0, _camTween.o1, s);
+            if (k >= 1) _camTween = null;
+        }
+
         _controls.update();
         _renderer.render(_scene, _camera);
+    }
+
+    // Vistas de cámara predefinidas: 🛰 satélite (cenital), 🚜 parcela
+    // (diagonal elevada, la default) y 🌱 cultivo (a ras, entre plantas)
+    function _setVista(id) {
+        if (!_campo || !_camera) return;
+        const { tam, cx, cz, vis, escAltura } = _campo;
+        const hPlanta = ALTURA_SUELO + vis.hMax * escAltura;
+        const vistas = {
+            satelite: { p: [cx + tam * 0.02, tam * 1.55, cz + tam * 0.02],
+                        o: [cx, ALTURA_SUELO, cz] },
+            parcela:  { p: [cx + tam * 0.85, tam * 0.65, cz + tam * 0.85],
+                        o: [cx, ALTURA_SUELO, cz] },
+            cultivo:  { p: [cx, hPlanta * 0.85, cz + tam * 0.28],
+                        o: [cx, hPlanta * 0.45, cz - tam * 0.1] },
+        };
+        const v = vistas[id];
+        if (!v) return;
+        _camTween = {
+            t: 0,
+            p0: _camera.position.clone(), p1: new THREE.Vector3(...v.p),
+            o0: _controls.target.clone(), o1: new THREE.Vector3(...v.o),
+        };
+        document.querySelectorAll(".sim3d-cams button[data-vista]").forEach(b =>
+            b.classList.toggle("activo", b.dataset.vista === id));
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -996,6 +1201,23 @@
                 </div>
             </div>
             <div id="sim3d-hud-detalle" class="sim3d-hud-detalle"></div>
+            <div class="sim3d-heat-leyenda" id="sim3d-heat-leyenda">
+                <span><i style="background:#2f7fc1"></i>Alta</span>
+                <span><i style="background:#3f9b4f"></i>Óptimo</span>
+                <span><i style="background:#d8b832"></i>Déficit</span>
+                <span><i style="background:#c23a2e"></i>Estrés</span>
+            </div>
+        </div>
+
+        <div class="sim3d-cams">
+            <button data-vista="satelite" title="Vista satélite"
+                    onclick="SIM3D._setVista('satelite')">🛰</button>
+            <button data-vista="parcela" class="activo" title="Vista parcela"
+                    onclick="SIM3D._setVista('parcela')">🚜</button>
+            <button data-vista="cultivo" title="Vista cultivo"
+                    onclick="SIM3D._setVista('cultivo')">🌱</button>
+            <button id="sim3d-btn-heat" class="activo" title="Mapa de humedad"
+                    onclick="SIM3D._toggleHeatmap()">🌡</button>
         </div>
 
         <div class="sim3d-kpis" id="sim3d-kpis"></div>
@@ -1424,6 +1646,15 @@
         _reiniciar,
         _toggleGrafica,
         _setMetrica,
+        _setVista,
+        _toggleHeatmap: () => {
+            if (!_campo?.heatMesh) return;
+            _campo.heatMesh.visible = !_campo.heatMesh.visible;
+            document.getElementById("sim3d-btn-heat")
+                ?.classList.toggle("activo", _campo.heatMesh.visible);
+            const ley = document.getElementById("sim3d-heat-leyenda");
+            if (ley) ley.style.display = _campo.heatMesh.visible ? "" : "none";
+        },
         _toggleConfig: () => {
             const c = document.getElementById("sim3d-config");
             if (c) c.style.display = c.style.display === "none" ? "block" : "none";

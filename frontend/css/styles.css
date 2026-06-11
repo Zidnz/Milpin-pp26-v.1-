@@ -7484,3 +7484,56 @@ body #main-container {
     .sim3d-graf-canvas-wrap { height: 30vh; }
     .sim3d-res-fila--3 { font-size: 0.7rem; gap: 3px; }
 }
+
+/* ── SIM3D: botones de vista de cámara (dron) ── */
+.sim3d-cams {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 4;
+}
+.sim3d-cams button {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(10, 25, 38, 0.72);
+    font-size: 1.05rem;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+.sim3d-cams button:hover { transform: scale(1.08); }
+.sim3d-cams button.activo {
+    background: var(--agri-green);
+    border-color: var(--agri-green);
+}
+
+/* ── SIM3D: leyenda del heatmap de humedad ── */
+.sim3d-heat-leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 0.62rem;
+    opacity: 0.9;
+}
+.sim3d-heat-leyenda span { display: flex; align-items: center; gap: 4px; }
+.sim3d-heat-leyenda i {
+    display: inline-block;
+    width: 9px; height: 9px;
+    border-radius: 3px;
+}
+
+@media (max-width: 640px) {
+    .sim3d-cams { left: 8px; gap: 6px; }
+    .sim3d-cams button { width: 36px; height: 36px; font-size: 0.92rem; }
+}
