@@ -191,6 +191,7 @@
     let _ultimoG = -1;                // growth aplicado a las matrices
     let _ultimaMad = -1;              // madurez de fruto aplicada
     let _camTween = null;             // transición suave entre vistas de cámara
+    let _v3Tmp = null;                // Vector3 reusado (proyección sensor→pantalla)
 
     // ════════════════════════════════════════════════════════════════
     //  UTILIDADES
@@ -318,7 +319,14 @@
             if (rnd() < pLluvia) {
                 lluvia = Math.min(45, -(monzon ? 8 : 4) * Math.log(Math.max(1e-6, rnd())));
             }
-            clima.push({ fecha: f, eto: +eto.toFixed(2), lluvia: +lluvia.toFixed(1) });
+            // T/HR/viento sintéticos coherentes con la estación del Yaqui:
+            // los leen los sensores 3D y la estación meteorológica al clic
+            const t = 21 + 9.5 * Math.sin(2 * Math.PI * (doy - 81) / 365) + (rnd() - 0.5) * 3;
+            const hr = Math.max(20, Math.min(90, 80 - eto * 6 + (rnd() - 0.5) * 12));
+            clima.push({
+                fecha: f, eto: +eto.toFixed(2), lluvia: +lluvia.toFixed(1),
+                t: +t.toFixed(1), hr: Math.round(hr), viento: +(1.5 + rnd() * 2.8).toFixed(1),
+            });
         }
         return clima;
     }
@@ -367,6 +375,7 @@
             dias.push({
                 dia: d, fecha: clima[i].fecha, kc: +kc.toFixed(2),
                 eto: clima[i].eto, etc: +etc.toFixed(2), lluvia: clima[i].lluvia,
+                t: clima[i].t, hr: clima[i].hr, viento: clima[i].viento,
                 riegoBruto: bruta, ks: +ks.toFixed(3), theta: +theta.toFixed(3),
                 etapa: _etapaDia(cat, d),
             });
@@ -694,11 +703,219 @@
         }
     }
 
+    /**
+     * Red de sensores MILPÍN: 5 sensores de humedad (caja blanca con
+     * letrero, poste corto y dos varillas que entran al suelo) repartidos
+     * por el lote + 1 estación meteorológica al centro (mástil, panel
+     * solar, anemómetro giratorio, pluviómetro y escudo T°/HR).
+     * Escala proporcional al espaciamiento de plantas, como todo el campo.
+     * Devuelve { grupos, anemometro } — los grupos son clicables (popup).
+     */
+    function _construirSensores(posiciones, paso, lim, escAltura, hMaxCultivo, cx, cz) {
+        const f = paso;
+        const matBlanco = new THREE.MeshLambertMaterial({ color: 0xf2f2ee });
+        const matVarilla = new THREE.MeshLambertMaterial({ color: 0x565b62 });
+        const matMastil = new THREE.MeshLambertMaterial({ color: 0xb9c0c7 });
+        const grupos = [];
+
+        // Letrero MILPIN para la cara frontal de la caja del sensor
+        const cv = document.createElement("canvas");
+        cv.width = 128; cv.height = 64;
+        const c2 = cv.getContext("2d");
+        c2.fillStyle = "#f2f2ee"; c2.fillRect(0, 0, 128, 64);
+        c2.fillStyle = "#0F6CBD";
+        c2.font = "700 26px Poppins, sans-serif";
+        c2.textAlign = "center"; c2.textBaseline = "middle";
+        c2.fillText("MILPIN", 64, 33);
+        const matLetrero = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv) });
+
+        // ── 5 sensores esparcidos (índices espaciados del grid de plantas) ──
+        const n = posiciones.length;
+        [0.08, 0.28, 0.50, 0.72, 0.92].forEach((k, i) => {
+            const p = posiciones[Math.min(n - 1, Math.floor(n * k))];
+            const g = new THREE.Group();
+            g.position.set(p.x + paso * 0.45, ALTURA_SUELO, p.z + paso * 0.3);
+
+            const hPoste = f * 0.30;
+            const poste = new THREE.Mesh(
+                new THREE.CylinderGeometry(f * 0.012, f * 0.012, hPoste, 6), matVarilla);
+            poste.position.y = hPoste / 2;
+            const caja = new THREE.Mesh(
+                new THREE.BoxGeometry(f * 0.16, f * 0.10, f * 0.05), matBlanco);
+            caja.position.y = hPoste + f * 0.05;
+            const letrero = new THREE.Mesh(
+                new THREE.PlaneGeometry(f * 0.14, f * 0.08), matLetrero);
+            letrero.position.set(0, hPoste + f * 0.05, f * 0.026);
+            const antena = new THREE.Mesh(
+                new THREE.CylinderGeometry(f * 0.004, f * 0.004, f * 0.12, 4), matVarilla);
+            antena.position.y = hPoste + f * 0.16;
+            g.add(poste, caja, letrero, antena);
+            // Dos varillas que entran al suelo (asoman antes de enterrarse)
+            [-1, 1].forEach(s => {
+                const varilla = new THREE.Mesh(
+                    new THREE.CylinderGeometry(f * 0.008, f * 0.005, f * 0.26, 5), matVarilla);
+                varilla.position.set(s * f * 0.035, f * 0.02, 0);
+                g.add(varilla);
+            });
+            // Hitbox invisible: el equipo es delgado, sin esto sería
+            // imposible clicarlo (sobre todo en táctil)
+            const hitS = new THREE.Mesh(
+                new THREE.SphereGeometry(f * 1.1, 8, 6),
+                new THREE.MeshBasicMaterial({ visible: false }));
+            hitS.position.y = hPoste;
+            g.add(hitS);
+
+            g.userData = {
+                tipo: "sensor", id: "S" + (i + 1),
+                u: (g.position.x - lim.minX) / Math.max(1e-6, lim.maxX - lim.minX),
+                v: (g.position.z - lim.minZ) / Math.max(1e-6, lim.maxZ - lim.minZ),
+            };
+            _scene.add(g);
+            grupos.push(g);
+        });
+
+        // ── Estación meteorológica al centro del lote ──────────────────────
+        const est = new THREE.Group();
+        est.position.set(cx + paso * 0.5, ALTURA_SUELO, cz + paso * 0.5);
+        const hM = Math.max(f * 1.15, hMaxCultivo * escAltura * 1.3);
+
+        const mastil = new THREE.Mesh(
+            new THREE.CylinderGeometry(f * 0.018, f * 0.024, hM, 6), matMastil);
+        mastil.position.y = hM / 2;
+        mastil.castShadow = true;
+        // Panel solar inclinado
+        const panel = new THREE.Mesh(
+            new THREE.BoxGeometry(f * 0.34, f * 0.015, f * 0.24),
+            new THREE.MeshLambertMaterial({ color: 0x1c2e4a }));
+        panel.position.set(f * 0.14, hM * 0.62, 0);
+        panel.rotation.z = -0.5;
+        // Pluviómetro (cilindro abierto en brazo lateral)
+        const pluv = new THREE.Mesh(
+            new THREE.CylinderGeometry(f * 0.045, f * 0.045, f * 0.10, 8, 1, true),
+            new THREE.MeshLambertMaterial({ color: 0xdfe3e6, side: THREE.DoubleSide }));
+        pluv.position.set(-f * 0.16, hM * 0.85, 0);
+        // Escudo de radiación T°/HR (discos apilados)
+        const escudo = new THREE.Mesh(
+            new THREE.CylinderGeometry(f * 0.04, f * 0.04, f * 0.09, 8), matBlanco);
+        escudo.position.set(f * 0.10, hM * 0.42, 0);
+        // Caja datalogger con letrero
+        const cajaEst = new THREE.Mesh(
+            new THREE.BoxGeometry(f * 0.18, f * 0.12, f * 0.06), matBlanco);
+        cajaEst.position.set(0, hM * 0.30, f * 0.03);
+        const letreroEst = new THREE.Mesh(
+            new THREE.PlaneGeometry(f * 0.15, f * 0.09), matLetrero);
+        letreroEst.position.set(0, hM * 0.30, f * 0.062);
+        est.add(mastil, panel, pluv, escudo, cajaEst, letreroEst);
+
+        // Anemómetro: cruz de 3 cazoletas que gira con el viento del día
+        const anemometro = new THREE.Group();
+        anemometro.position.y = hM + f * 0.04;
+        for (let b = 0; b < 3; b++) {
+            const ang = b * Math.PI * 2 / 3;
+            const brazo = new THREE.Mesh(
+                new THREE.CylinderGeometry(f * 0.004, f * 0.004, f * 0.10, 4), matMastil);
+            brazo.rotation.z = Math.PI / 2;
+            brazo.rotation.y = ang;
+            brazo.position.set(Math.cos(ang) * f * 0.05, 0, -Math.sin(ang) * f * 0.05);
+            const cazoleta = new THREE.Mesh(
+                new THREE.SphereGeometry(f * 0.022, 6, 5), matVarilla);
+            cazoleta.position.set(Math.cos(ang) * f * 0.10, 0, -Math.sin(ang) * f * 0.10);
+            anemometro.add(brazo, cazoleta);
+        }
+        est.add(anemometro);
+
+        // Hitbox invisible de la estación (cápsula generosa sobre el mástil)
+        const hitE = new THREE.Mesh(
+            new THREE.CylinderGeometry(f * 1.5, f * 1.5, hM * 1.3, 8),
+            new THREE.MeshBasicMaterial({ visible: false }));
+        hitE.position.y = hM * 0.55;
+        est.add(hitE);
+
+        est.userData = { tipo: "estacion", id: "Estación MILPÍN" };
+        _scene.add(est);
+        grupos.push(est);
+
+        return { grupos, anemometro };
+    }
+
+    // ── Interacción: clic en sensor/estación → popup + línea al dashboard ──
+    let _sensorActivo = null;
+
+    function _cerrarSensor() {
+        _sensorActivo = null;
+        const pop = document.getElementById("sim3d-sensor-pop");
+        const linea = document.getElementById("sim3d-sensor-linea");
+        if (pop) pop.style.display = "none";
+        if (linea) linea.style.display = "none";
+    }
+
+    function _clickEscena(ev) {
+        // Los sensores son equipo MILPÍN: en el escenario tradicional no existen
+        if (!_campo?.clicables?.length || !_camera || _escenario === "tradicional") {
+            _cerrarSensor();
+            return;
+        }
+        const rect = _renderer.domElement.getBoundingClientRect();
+        const ndc = new THREE.Vector2(
+            ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+            -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(ndc, _camera);
+        const hits = ray.intersectObjects(_campo.clicables, true);
+        let obj = hits.length ? hits[0].object : null;
+        while (obj && !obj.userData?.tipo) obj = obj.parent;
+        if (!obj) { _cerrarSensor(); return; }
+        _sensorActivo = obj;
+        _renderPopupSensor();
+    }
+
+    function _renderPopupSensor() {
+        const pop = document.getElementById("sim3d-sensor-pop");
+        if (!pop || !_sensorActivo || !_sim) return;
+        const dia = _sim.res[_escenario].dias[_diaActual];
+        const ud = _sensorActivo.userData;
+
+        if (ud.tipo === "sensor") {
+            // El sensor lee la humedad LOCAL de su zona del heatmap
+            const { ccPct, pmpPct } = _sim.cfg;
+            const rango = Math.max(1e-6, ccPct - pmpPct);
+            const ruido = _campo.heat.sampler(ud.u, ud.v);
+            const thetaLocal = Math.max(pmpPct, Math.min(ccPct, dia.theta + ruido * 0.30 * rango));
+            const fLocal = (thetaLocal - pmpPct) / rango;
+            const [estado, colorEstado] =
+                fLocal > 0.8 ? ["Alta humedad", "#5ab1f0"] :
+                fLocal > 0.5 ? ["Óptimo", "#7fe0a0"] :
+                fLocal > 0.32 ? ["Déficit", "#f3cf63"] : ["Estrés", "#ff9c8f"];
+            const ce = (1.0 + Math.abs(ruido) * 1.2).toFixed(1);
+            pop.innerHTML = `
+                <div class="sim3d-pop-tit">Sensor ${ud.id}
+                    <button onclick="SIM3D._cerrarSensor()">✕</button></div>
+                <div class="sim3d-pop-fila"><span>Humedad</span><b>${thetaLocal.toFixed(1)} %</b></div>
+                <div class="sim3d-pop-fila"><span>Temperatura</span><b>${dia.t} °C</b></div>
+                <div class="sim3d-pop-fila"><span>Conductividad</span><b>${ce} dS/m</b></div>
+                <div class="sim3d-pop-fila"><span>Estado</span>
+                    <b style="color:${colorEstado}">${estado}</b></div>`;
+        } else {
+            pop.innerHTML = `
+                <div class="sim3d-pop-tit">${ud.id}
+                    <button onclick="SIM3D._cerrarSensor()">✕</button></div>
+                <div class="sim3d-pop-fila"><span>ETo</span><b>${dia.eto.toFixed(1)} mm</b></div>
+                <div class="sim3d-pop-fila"><span>Temperatura</span><b>${dia.t} °C</b></div>
+                <div class="sim3d-pop-fila"><span>Humedad rel.</span><b>${dia.hr} %</b></div>
+                <div class="sim3d-pop-fila"><span>Viento</span><b>${dia.viento} m/s</b></div>
+                <div class="sim3d-pop-fila"><span>Lluvia</span><b>${dia.lluvia.toFixed(1)} mm</b></div>`;
+        }
+        pop.style.display = "block";
+    }
+
     function _crearEscena(canvasWrap, poligono, cultivoKey, sistemaRiego) {
         // Limpieza de escena previa (reabrir / reiniciar)
         _destruirEscena();
 
-        const ancho = canvasWrap.clientWidth, alto = canvasWrap.clientHeight;
+        // Fallback a la ventana: el wrap puede medir 0 si el navegador está
+        // minimizado/oculto al abrir (el overlay siempre es pantalla completa)
+        const ancho = canvasWrap.clientWidth || window.innerWidth || 800;
+        const alto = canvasWrap.clientHeight || window.innerHeight || 600;
         _renderer = new THREE.WebGLRenderer({ antialias: true });
         _renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         _renderer.setSize(ancho, alto);
@@ -729,6 +946,10 @@
         _controls.maxDistance = tam * 4;
         _controls.enableDamping = true;
         _controls.dampingFactor = 0.08;
+        // Orientar la cámara YA (lookAt vive en update()): sin esto, el
+        // raycast de clics apunta al vacío hasta el primer frame renderizado
+        _controls.update();
+        _camera.updateMatrixWorld();
 
         // Luces: hemisferio (cielo/desierto) + sol direccional con sombras
         _scene.add(new THREE.HemisphereLight(0xcfe8ff, 0xb59a6a, 0.85));
@@ -911,9 +1132,26 @@
             sistemaRiego || "gravedad", posiciones, paso, poligono,
             { minX, maxX, minZ, maxZ }, escAltura, vis.hMax);
 
+        // Red de sensores + estación meteorológica (clicables, solo MILPÍN)
+        const sensores = _construirSensores(
+            posiciones, paso, { minX, maxX, minZ, maxZ }, escAltura, vis.hMax, cx, cz);
+        equipo.push(...sensores.grupos);
+
+        // Clic corto (no drag de órbita) sobre el canvas → lecturas
+        let pDownX = 0, pDownY = 0;
+        _renderer.domElement.addEventListener("pointerdown", ev => {
+            pDownX = ev.clientX; pDownY = ev.clientY;
+        });
+        _renderer.domElement.addEventListener("pointerup", ev => {
+            if (Math.abs(ev.clientX - pDownX) < 6 && Math.abs(ev.clientY - pDownY) < 6) {
+                _clickEscena(ev);
+            }
+        });
+
         _campo = {
             suelo, matSuelo, aguaMesh, partes, equipo, fxMats,
             heat, heatMesh, frenteInfiltra, perfil,
+            clicables: sensores.grupos, anemometro: sensores.anemometro,
             posiciones, vis, tam, cx, cz, diamCopaM, escAltura,
         };
         _ultimoG = -1;
@@ -1072,6 +1310,9 @@
 
         _actualizarHUD(dia, idx, datos.length);
 
+        // Refrescar lecturas del sensor abierto con el día visible
+        if (_sensorActivo) _renderPopupSensor();
+
         // Mover el cursor de día en la gráfica comparativa (si está abierta)
         if (_chart && document.getElementById("sim3d-grafica")?.style.display !== "none") {
             _chart.draw();
@@ -1110,6 +1351,43 @@
         } else if (_aguaOpacidad !== 0) {
             _aguaOpacidad = 0;
             _aplicarOpacidadFX(0);
+        }
+
+        // Anemómetro de la estación: gira según el viento del día
+        if (_campo?.anemometro && _sim) {
+            const diaHoy = _sim.res[_escenario].dias[_diaActual];
+            _campo.anemometro.rotation.y += dt * (2 + (diaHoy?.viento || 2) * 1.5);
+        }
+
+        // Línea luminosa sensor → panel KPI + popup anclado al sensor
+        if (_sensorActivo && _campo && _camera) {
+            const linea = document.getElementById("sim3d-sensor-linea");
+            const pop = document.getElementById("sim3d-sensor-pop");
+            const kpis = document.getElementById("sim3d-kpis");
+            if (linea && pop && kpis) {
+                _v3Tmp = _v3Tmp || new THREE.Vector3();
+                _sensorActivo.getWorldPosition(_v3Tmp);
+                _v3Tmp.y += _campo.tam * 0.015;
+                _v3Tmp.project(_camera);
+                if (_v3Tmp.z < 1) {
+                    const w = _renderer.domElement.clientWidth;
+                    const h = _renderer.domElement.clientHeight;
+                    const x1 = (_v3Tmp.x + 1) / 2 * w;
+                    const y1 = (1 - _v3Tmp.y) / 2 * h;
+                    const r = kpis.getBoundingClientRect();
+                    const dx = (r.left + r.width / 2) - x1;
+                    const dy = r.bottom - y1;
+                    linea.style.display = "block";
+                    linea.style.left = `${x1}px`;
+                    linea.style.top = `${y1}px`;
+                    linea.style.width = `${Math.hypot(dx, dy)}px`;
+                    linea.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+                    pop.style.left = `${Math.min(w - 210, Math.max(8, x1 + 16))}px`;
+                    pop.style.top = `${Math.min(h - 180, Math.max(64, y1 - 40))}px`;
+                } else {
+                    linea.style.display = "none";
+                }
+            }
         }
 
         // Transición suave entre vistas de cámara (dron)
@@ -1276,6 +1554,9 @@
         </div>
 
         <div id="sim3d-resultados" class="sim3d-resultados" style="display:none;"></div>
+
+        <div id="sim3d-sensor-linea" style="display:none;"></div>
+        <div id="sim3d-sensor-pop" style="display:none;"></div>
 
         <div id="sim3d-cargando" class="sim3d-cargando">
             <span class="bi-spinner"></span> Preparando parcela 3D…
@@ -1515,9 +1796,11 @@
         _ultimoG = -1;                       // fuerza rebuild de matrices
         _ultimaMad = -1;
         // El Tradicional riega por gravedad: ocultar el equipo moderno
+        // (incluidos sensores y estación — no existen sin MILPÍN)
         if (_campo?.equipo) {
             _campo.equipo.forEach(mesh => { mesh.visible = esc !== "tradicional"; });
         }
+        if (esc === "tradicional") _cerrarSensor();
         _aguaOpacidad = 0.5;                 // pulso demo del efecto de riego
         _renderKPIs();
         _aplicarDia(_diaActual, true);
@@ -1630,6 +1913,7 @@
 
     function cerrar() {
         _setReproduciendo(false);
+        _cerrarSensor();
         _destruirEscena();
         if (_chart) { _chart.destroy(); _chart = null; }
         const graf = document.getElementById("sim3d-grafica");
@@ -1647,6 +1931,7 @@
         _toggleGrafica,
         _setMetrica,
         _setVista,
+        _cerrarSensor,
         _toggleHeatmap: () => {
             if (!_campo?.heatMesh) return;
             _campo.heatMesh.visible = !_campo.heatMesh.visible;

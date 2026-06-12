@@ -7537,3 +7537,62 @@ body #main-container {
     .sim3d-cams { left: 8px; gap: 6px; }
     .sim3d-cams button { width: 36px; height: 36px; font-size: 0.92rem; }
 }
+
+/* ── SIM3D: popup de sensor y línea luminosa al dashboard ── */
+#sim3d-sensor-pop {
+    position: absolute;
+    z-index: 6;
+    min-width: 178px;
+    background: rgba(10, 25, 38, 0.88);
+    border: 1px solid rgba(95, 190, 255, 0.45);
+    border-radius: 12px;
+    padding: 10px 12px;
+    color: #fff;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 18px rgba(80, 180, 255, 0.25);
+    pointer-events: auto;
+}
+.sim3d-pop-tit {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #8fd0ff;
+}
+.sim3d-pop-tit button {
+    border: none;
+    background: none;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    font-size: 0.78rem;
+    padding: 0;
+}
+.sim3d-pop-fila {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 0.74rem;
+    padding: 2.5px 0;
+}
+.sim3d-pop-fila span { opacity: 0.7; }
+.sim3d-pop-fila b { font-variant-numeric: tabular-nums; }
+
+#sim3d-sensor-linea {
+    position: absolute;
+    z-index: 5;
+    height: 2px;
+    transform-origin: 0 50%;
+    background: linear-gradient(90deg,
+        rgba(95, 190, 255, 0.95),
+        rgba(95, 190, 255, 0.15));
+    box-shadow: 0 0 8px rgba(95, 190, 255, 0.8);
+    pointer-events: none;
+    animation: sim3dLineaPulso 1.6s ease-in-out infinite;
+}
+@keyframes sim3dLineaPulso {
+    0%, 100% { opacity: 0.95; }
+    50%      { opacity: 0.45; }
+}
