@@ -9,6 +9,10 @@ const BI = (() => {
   const BASELINE = 8000;
   const TARIFA   = 1.68;
 
+  // URL pública del informe Power BI ("Publicar en la web" en app.powerbi.com).
+  // Vacío = la vista Directivo muestra instrucciones en lugar del iframe.
+  const POWERBI_EMBED_URL = 'https://app.powerbi.com/links/zogUnnE-Ta?ctid=5c1246e3-e8f5-4829-9875-8af550afb5b3&pbi_source=linkShare';
+
   const METHOD_COLORS = {
     'gravedad':       '#5C6BC0',
     'goteo':          '#00897B',
@@ -1186,20 +1190,39 @@ const BI = (() => {
     </div>`;
   }
 
+  // ── Vista Directivo (iframe Power BI, carga perezosa) ───────────────────────
+  function _initDirectivo() {
+    const pending=document.getElementById('bi-pbi-pending');
+    const wrap=document.getElementById('bi-pbi-frame-wrap');
+    const iframe=document.getElementById('bi-pbi-iframe');
+    const open=document.getElementById('bi-pbi-open');
+    if (!pending||!wrap||!iframe) return;
+    if (!POWERBI_EMBED_URL) { pending.hidden=false; wrap.hidden=true; if(open) open.hidden=true; return; }
+    pending.hidden=true; wrap.hidden=false;
+    if (open) { open.hidden=false; open.href=POWERBI_EMBED_URL; }
+    if (!iframe.src) iframe.src=POWERBI_EMBED_URL;   // no cargar Power BI hasta abrir la vista
+  }
+
   // ── switchView ───────────────────────────────────────────────────────────────
+  // Las vistas Operación/Análisis se retiraron del HTML (2026-06-12): el tab
+  // Dashboard muestra solo la vista Directivo (Power BI). Los elementos se
+  // resuelven de forma tolerante por si alguna vista se reincorpora.
   function switchView(view) {
     const op=document.getElementById('bi-view-operacion');
     const an=document.getElementById('bi-view-analisis');
-    if (!op||!an) return;
-    op.hidden=view!=='operacion'; an.hidden=view!=='analisis';
+    const di=document.getElementById('bi-view-directivo');
+    if (op) op.hidden=view!=='operacion';
+    if (an) an.hidden=view!=='analisis';
+    if (di) di.hidden=view!=='directivo';
     document.querySelectorAll('.bi-subtab').forEach(b=>b.classList.toggle('bi-subtab--active',b.dataset.view===view));
-    if (view==='operacion') { if(typeof BIOp!=='undefined') BIOp.init(); }
-    else { if(!_compData) _initComp(); else _renderAnalisis(); }
+    if (view==='operacion') { if(op&&typeof BIOp!=='undefined') BIOp.init(); }
+    else if (view==='directivo') { _initDirectivo(); }
+    else if (an) { if(!_compData) _initComp(); else _renderAnalisis(); }
   }
 
   // ── API pública ──────────────────────────────────────────────────────────────
   return {
-    init() { switchView('operacion'); },
+    init() { switchView('directivo'); },
     switchView,
     onFilterChange() {
       const p=document.getElementById('bi-filter-parcela');
@@ -1211,6 +1234,7 @@ const BI = (() => {
     refresh() {
       const av=document.querySelector('.bi-subtab--active')?.dataset.view||'operacion';
       if(av==='analisis'){ _compData=null; _initComp(); }
+      else if(av==='directivo'){ const f=document.getElementById('bi-pbi-iframe'); if(f&&f.src) f.src=f.src; }
       else if(typeof BIOp!=='undefined') BIOp.refresh();
     },
   };

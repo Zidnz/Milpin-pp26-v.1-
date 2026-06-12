@@ -107,107 +107,24 @@
             </button>
         </div>
 
-        <!-- Sub-navegación Operación / Análisis -->
-        <div class="bi-subtab-nav">
-            <button class="bi-subtab bi-subtab--active" data-view="operacion"
-                    onclick="BI.switchView('operacion')">Operación</button>
-            <button class="bi-subtab" data-view="analisis"
-                    onclick="BI.switchView('analisis')">Análisis</button>
-            <div class="bi-subtab-actions">
-                <button class="bi-subtab-refresh-btn" onclick="BI.refresh()" title="Actualizar vista actual">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                    </svg>
-                </button>
+        <!-- ── Vista Directivo (Power BI publicado, datos de simulación DR-041) ── -->
+        <div id="bi-view-directivo" class="bi-view">
+            <div class="bi-pbi-banner">
+                <span class="bi-pbi-banner-title">Dashboard directivo DR-041 · Power BI</span>
+                <span class="bi-pbi-banner-sub">Vista de gestión del módulo de riego — datos de simulación PV-2025 vs PV-2026</span>
             </div>
-        </div>
-
-        <!-- ── Vista Operación (default) ── -->
-        <div id="bi-view-operacion" class="bi-view">
-
-            <!-- Zona A: Banner semáforo -->
-            <div id="bi-op-banner" class="bi-op-banner">
-                <div class="bi-op-loading"><span class="bi-spinner"></span>Cargando operación…</div>
+            <div id="bi-pbi-pending" class="bi-pbi-pending" hidden>
+                El informe directivo aún no está publicado. Genera la URL en
+                app.powerbi.com (Archivo → Insertar informe → Publicar en la web)
+                y pégala en <code>POWERBI_EMBED_URL</code> de <code>bi_dashboard.js</code>.
             </div>
-
-            <!-- Zona B + C: Triage + Mini-mapa / Drift -->
-            <div class="bi-op-body">
-                <div id="bi-op-triage" class="bi-op-triage-wrap"></div>
-                <div class="bi-op-side">
-                    <div id="bi-op-map" class="bi-op-map-wrap"></div>
-                    <div id="bi-op-drift" class="bi-op-drift-wrap"></div>
-                </div>
+            <div id="bi-pbi-frame-wrap" class="bi-pbi-frame-wrap" hidden>
+                <iframe id="bi-pbi-iframe" title="Dashboard Hídrico DR-041 (Power BI)"
+                        frameborder="0" allowfullscreen="true"></iframe>
             </div>
-
-            <!-- Zona D: Detalle de parcela seleccionada (oculto hasta click) -->
-            <div id="bi-op-detail" class="bi-op-detail" hidden></div>
-
-            <!-- Zona E: Cumplimiento del ciclo -->
-            <div id="bi-op-footer" class="bi-op-footer"></div>
-
-        </div>
-
-        <!-- ── Vista Análisis (dashboard actual conservado) ── -->
-        <div id="bi-view-analisis" class="bi-view" hidden>
-
-            <div class="bi-filters-bar">
-                <div class="bi-filters-brand">
-                    <div class="bi-filters-logo"></div>
-                    <div>
-                        <div class="bi-filters-title">MILPÍN Análisis</div>
-                        <div class="bi-filters-sub">DR-041 · Valle del Yaqui, Sonora</div>
-                    </div>
-                </div>
-                <div class="bi-filters-controls">
-                    <div class="bi-filter-group">
-                        <label class="bi-filter-label">Parcela</label>
-                        <select id="bi-filter-parcela" class="bi-filter-select" onchange="BI.onFilterChange()">
-                            <option value="all">Todas las parcelas</option>
-                        </select>
-                    </div>
-                    <div class="bi-filter-group">
-                        <label class="bi-filter-label">Cultivo</label>
-                        <select id="bi-filter-cultivo" class="bi-filter-select" onchange="BI.onFilterChange()">
-                            <option value="all">Todos los cultivos</option>
-                        </select>
-                    </div>
-                    <div class="bi-filter-group">
-                        <label class="bi-filter-label">Período</label>
-                        <select id="bi-filter-periodo" class="bi-filter-select" onchange="BI.onPeriodoChange()">
-                            <option value="PV-2026">PV-2026 (abr–sep 2026)</option>
-                            <option value="OI-2026">OI-2026 (oct 2025–mar 2026)</option>
-                            <option value="PV-2025">PV-2025 (abr–sep 2025)</option>
-                            <option value="OI-2025">OI-2025 (oct 2024–mar 2025)</option>
-                            <option value="anio-2025">Año 2025</option>
-                            <option value="anio-2024">Año 2024</option>
-                            <option value="ultimos-365">Últimos 12 meses</option>
-                            <option value="custom">Personalizado…</option>
-                        </select>
-                    </div>
-                    <div id="bi-custom-dates" class="bi-custom-dates" style="display:none">
-                        <div class="bi-filter-group">
-                            <label class="bi-filter-label">Desde</label>
-                            <input type="date" id="bi-filter-desde" class="bi-filter-date"
-                                   onchange="BI.onFilterChange()">
-                        </div>
-                        <div class="bi-filter-group">
-                            <label class="bi-filter-label">Hasta</label>
-                            <input type="date" id="bi-filter-hasta" class="bi-filter-date"
-                                   onchange="BI.onFilterChange()">
-                        </div>
-                    </div>
-                    <button id="bi-btn-refresh" class="bi-btn-refresh" onclick="BI.onFilterChange()">Actualizar</button>
-                </div>
-            </div>
-
-            <div id="bi-dashboard-content">
-                <div class="bi-loading">
-                    <span class="bi-spinner"></span>Cargando análisis…
-                </div>
-            </div>
-
+            <a id="bi-pbi-open" class="bi-pbi-open" href="#" target="_blank" rel="noopener" hidden>
+                Abrir en pantalla completa ↗
+            </a>
         </div>
     </div>
 
