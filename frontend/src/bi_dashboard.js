@@ -11,7 +11,7 @@ const BI = (() => {
 
   // URL pública del informe Power BI ("Publicar en la web" en app.powerbi.com).
   // Vacío = la vista Directivo muestra instrucciones en lugar del iframe.
-  const POWERBI_EMBED_URL = 'https://app.powerbi.com/links/zogUnnE-Ta?ctid=5c1246e3-e8f5-4829-9875-8af550afb5b3&pbi_source=linkShare';
+  const POWERBI_EMBED_URL = 'https://app.powerbi.com/view?r=eyJrIjoiN2VmNWFkZGItNmQ1NC00OTk2LTk5OTUtNmU0MzQ0YWIwYTQ4IiwidCI6IjVjMTI0NmUzLWU4ZjUtNDgyOS05ODc1LThhZjU1MGFmYjViMyJ9';
 
   const METHOD_COLORS = {
     'gravedad':       '#5C6BC0',
