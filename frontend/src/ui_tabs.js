@@ -608,6 +608,8 @@ async function calcularNuevaRecomendacion() {
             throw new Error(err.detail || `HTTP ${res.status}`);
         }
         await cargarRecomendacion(_parcelaRiegoActual);
+        btn.disabled = false;
+        btn.textContent = "Calcular recomendacion FAO-56";
     } catch (err) {
         console.error("[MILPIN] Error calculando FAO-56:", err);
         alert(`Error al calcular: ${err.message}`);
