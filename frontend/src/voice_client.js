@@ -10,7 +10,7 @@ let vozSeleccionada = null;
 // Llamar a ElevenLabs directamente evita el salto por Railway (browser→Railway→EL→Railway→browser)
 // y elimina la dependencia del backend para TTS. Trade-off: la key queda en el JS.
 // Reemplaza YOUR_API_KEY con tu clave real de elevenlabs.io → Profile → API Keys.
-const _EL_KEY      = '91370e4ba0f502023e38c98ec6534d668a34ccd167305c033dd3c60b45436608';
+const _EL_KEY      = ''; // No commitear la key: sin ella se usa Web Speech API
 const _EL_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel — voz por defecto, disponible en Free
 const _EL_URL      = `https://api.elevenlabs.io/v1/text-to-speech/${_EL_VOICE_ID}?output_format=mp3_44100_128`;
 
